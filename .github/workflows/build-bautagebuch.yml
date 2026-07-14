@@ -1,3 +1,6 @@
+# yaml-language-server: $schema=
+# Shared template note: keep the four build-*.yml files in sync intentionally
+# (no reusable workflow – avoids GitHub startup_failure from permissions elevation).
 name: Build Bautagebuch APK
 
 on:
@@ -6,16 +9,107 @@ on:
     paths:
       - 'apps/bautagebuch/**'
       - 'packages/**'
+      - 'scripts/ci-build-apk.sh'
       - '.github/workflows/build-bautagebuch.yml'
-      - '.github/workflows/reusable-build-apk.yml'
   workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-bautagebuch
+  cancel-in-progress: true
 
 jobs:
   build:
-    uses: ./.github/workflows/reusable-build-apk.yml
-    secrets: inherit
-    with:
-      app-slug: bautagebuch
-      app-path: apps/bautagebuch
-      apk-name: Bautagebuch.apk
-      app-version: '1.0.1'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install monorepo dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+      - name: Setup EAS CLI
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          npm install -g eas-cli
+          if [ -n "${EXPO_TOKEN:-}" ]; then
+            echo "EXPO_TOKEN is set"
+          else
+            echo "EXPO_TOKEN is empty – local build fallback will be used"
+          fi
+
+      - name: Build APK
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          chmod +x scripts/ci-build-apk.sh
+          scripts/ci-build-apk.sh apps/bautagebuch Bautagebuch.apk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bautagebuch-apk
+          path: apps/bautagebuch/Bautagebuch.apk
+          retention-days: 90
+
+      - name: Update releases.json
+        run: |
+          node <<'EOF'
+          const fs = require('fs');
+          const path = 'website/releases.json';
+          const data = JSON.parse(fs.readFileSync(path, 'utf8'));
+          data.bautagebuch = {
+            version: process.env.APP_VERSION,
+            buildDate: new Date().toISOString(),
+            apkUrl: `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/bautagebuch-apk-latest/Bautagebuch.apk`,
+          };
+          fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
+          EOF
+        env:
+          APP_VERSION: '1.0.1'
+
+      - name: Commit releases.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add website/releases.json
+          if git diff --staged --quiet; then
+            echo "No changes"
+          else
+            git commit -m "chore: update bautagebuch APK release metadata [skip ci]"
+            git push
+          fi
+
+      - name: Publish GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: bautagebuch-apk-latest
+          name: bautagebuch APK (1.0.1)
+          body: |
+            Automatischer Android-Build für `apps/bautagebuch`.
+            - Commit: ${{ github.sha }}
+            - Run: ${{ github.run_number }}
+          artifacts: apps/bautagebuch/Bautagebuch.apk
+          allowUpdates: true
+          makeLatest: false
+          replacesArtifacts: true

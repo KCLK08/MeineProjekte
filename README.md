@@ -90,11 +90,7 @@ Ohne Token fällt CI auf **lokales** `expo prebuild` + Gradle zurück.
 | `build-elifba.yml` | `apps/elifba/**` | APK |
 | `deploy-pages.yml` | `website/**`, `apps/**/web/**` | Landing + Web-Apps |
 
-Gemeinsame Logik:
-
-- `.github/workflows/reusable-build-apk.yml`
-- `.github/actions/setup-expo`
-- `.github/actions/build-apk`
+Gemeinsame Build-Logik: `scripts/ci-build-apk.sh` (EAS Cloud mit Fallback auf lokales Gradle).
 
 Nach erfolgreichem Build:
 
