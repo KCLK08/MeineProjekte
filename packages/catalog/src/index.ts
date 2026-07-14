@@ -6,7 +6,7 @@ export const APP_CATALOG: AppCatalogEntry[] = [
     slug: 'bautagebuch',
     name: 'Bautagebuch',
     description: 'Elektronisches Bautagebuch (eBTB) als Expo-App – Offline, PDF-Export, Fotodoku.',
-    hasWeb: false,
+    hasWeb: true,
     hasApk: true,
     accent: '#12534b',
   },

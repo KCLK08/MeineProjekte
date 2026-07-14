@@ -2,6 +2,14 @@
 
 Expo-App für das elektronische Bautagebuch (eBTB) – portiert aus der Buew-Toolbox mit allen Kernfunktionen.
 
+## Web
+
+Live: [Bautagebuch auf GitHub Pages](https://kclk08.github.io/MeineProjekte/apps/bautagebuch/)
+
+```bash
+npm run build:web --workspace=@meineprojekte/bautagebuch
+```
+
 ## Android APK installieren
 
 Bei jedem Push auf `main` wird automatisch eine neue APK gebaut.

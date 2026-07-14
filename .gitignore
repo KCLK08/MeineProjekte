@@ -27,3 +27,4 @@ eas-result.json
 
 # Coverage
 coverage/
+apps/**/web/dist/

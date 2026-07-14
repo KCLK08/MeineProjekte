@@ -11,7 +11,7 @@ Monorepo für **Expo / React Native**-Apps mit gemeinsamer Landingpage, Shared P
 
 | App | Ordner | Web | APK (Expo/EAS) |
 |-----|--------|-----|----------------|
-| Bautagebuch | `apps/bautagebuch` | – | ja |
+| Bautagebuch | `apps/bautagebuch` | Expo Web | ja |
 | BÜW-Toolbox | `apps/buew-toolbox` | `web/` | ja (WebView-Shell) |
 | DS-Datenbank | `apps/ds-datenbank` | `web/` | ja (WebView-Shell) |
 | ELIFBA | `apps/elifba` | `web/` | ja (WebView-Shell) |

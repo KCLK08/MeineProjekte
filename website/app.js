@@ -4,7 +4,7 @@ const CATALOG = [
     name: 'Bautagebuch',
     description:
       'Elektronisches Bautagebuch (eBTB) – Offline, PDF-Export und Fotodokumentation.',
-    hasWeb: false,
+    hasWeb: true,
     hasApk: true,
     accent: '#12534b',
     apkFile: 'Bautagebuch.apk',
