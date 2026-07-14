@@ -1,12 +1,9 @@
-import { Image } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppHeaderTitle } from '@/components/AppHeaderTitle';
 import { colors } from '@/theme/colors';
-
-const tabLogo = require('../../assets/images/bautagebuch-logo.png');
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
@@ -35,9 +32,7 @@ export default function TabLayout() {
           title: 'Bautagebücher',
           headerTitle: () => <AppHeaderTitle title="Bautagebücher" />,
           tabBarLabel: 'BTB',
-          tabBarIcon: ({ size }) => (
-            <Image source={tabLogo} style={{ width: size, height: size }} resizeMode="contain" />
-          ),
+          tabBarIcon: ({ color, size }) => <Ionicons name="clipboard-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
