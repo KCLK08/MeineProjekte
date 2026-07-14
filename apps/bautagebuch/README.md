@@ -1,59 +1,17 @@
 # Bautagebuch
 
-Expo-App für das elektronische Bautagebuch (eBTB) – portiert aus der Buew-Toolbox mit allen Kernfunktionen.
+Expo-App für das elektronische Bautagebuch (eBTB) – derselbe Stand wie im Original-Repo [KCLK08/Bautagebuch](https://github.com/KCLK08/Bautagebuch).
 
-## Web
+## Web (GitHub Pages)
 
-Live: [Bautagebuch auf GitHub Pages](https://kclk08.github.io/MeineProjekte/apps/bautagebuch/)
+Live: https://kclk08.github.io/MeineProjekte/apps/bautagebuch/
 
-```bash
-npm run build:web --workspace=@meineprojekte/bautagebuch
-```
-
-## Android APK installieren
-
-Bei jedem Push auf `main` wird automatisch eine neue APK gebaut.
-
-**Download:** [GitHub Releases – Latest APK](https://github.com/KCLK08/MeineProjekte/releases/tag/bautagebuch-apk-latest)
-
-1. `Bautagebuch.apk` herunterladen
-2. Auf dem Android-Handy öffnen (ggf. „Installation aus unbekannten Quellen“ erlauben)
-3. App installieren – fertig, kein Expo Go nötig
-
-Alternativ: unter **Actions** → letzter erfolgreicher **Build Android APK**-Lauf → Artifact `Bautagebuch-apk`.
-
-## Funktionen
-
-- **Standard eBTB-Vorlage** (`Vorlage-eBTB.pdf`) mit fix definiertem Formular-Setup
-- **Bautagebuch erstellen & bearbeiten** mit Abschnitten:
-  - Kopfdaten
-  - Witterung (inkl. automatischer Wetter-Sync per GPS)
-  - Baustellenbesetzung (dynamische Zeilen)
-  - Leistungsblock
-  - Abschluss
-  - Fotodokumentation
-- **PDF-Vorschau** während der Bearbeitung
-- **Offline-Speicherung** via SQLite + lokales Dateisystem
-- **PDF-Export** als BTB, Fotodoku oder kombiniert
-- **Eigene PDF-Vorlagen** hochladen (AcroForm)
-- **Autosave** während der Bearbeitung
-
-## Entwicklung (optional)
+Statischer Expo-Web-Export (`expo export --platform web`) mit Base-Pfad für Pages.
 
 ```bash
-npm install
-npm start
+EXPO_WEB_BASE=/MeineProjekte/apps/bautagebuch npm run build:web --workspace=@meineprojekte/bautagebuch
 ```
 
-## Technologie
+## Android APK
 
-- Expo SDK 54
-- Expo Router
-- TypeScript
-- pdf-lib für PDF-Formulare
-- expo-sqlite für lokale Daten
-- expo-image-picker / expo-location
-
-## Ursprung
-
-Diese App basiert auf dem Bautagebuch-Tool aus [buew-toolbox](https://github.com/KCLK08/buew-toolbox) und erweitert es als native/mobile Expo-Anwendung.
+Automatischer Build über GitHub Actions (EAS / lokal). Releases: Tag `bautagebuch-apk-latest`.
