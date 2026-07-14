@@ -11,8 +11,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.buew.bautagebuch",
       "infoPlist": {
-        "NSCameraUsageDescription": "Die Kamera wird für die Fotodokumentation auf der Baustelle benötigt.",
-        "NSPhotoLibraryUsageDescription": "Die Galerie wird für die Fotodokumentation benötigt.",
+        "NSCameraUsageDescription": "Die Kamera wird f\u00fcr die Fotodokumentation auf der Baustelle ben\u00f6tigt.",
+        "NSPhotoLibraryUsageDescription": "Die Galerie wird f\u00fcr die Fotodokumentation ben\u00f6tigt.",
         "NSLocationWhenInUseUsageDescription": "Der Standort wird verwendet, um Wetterdaten automatisch zu laden."
       }
     },
@@ -52,19 +52,24 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Die App benötigt Zugriff auf Fotos für die Fotodokumentation.",
-          "cameraPermission": "Die App benötigt die Kamera für die Fotodokumentation."
+          "photosPermission": "Die App ben\u00f6tigt Zugriff auf Fotos f\u00fcr die Fotodokumentation.",
+          "cameraPermission": "Die App ben\u00f6tigt die Kamera f\u00fcr die Fotodokumentation."
         }
       ],
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Der Standort wird für automatische Wetterdaten verwendet."
+          "locationWhenInUsePermission": "Der Standort wird f\u00fcr automatische Wetterdaten verwendet."
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "3f1fd8d9-dcab-43c3-9c64-062f033177d9"
+      }
     }
   }
 }
