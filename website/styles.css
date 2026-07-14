@@ -98,6 +98,23 @@ body {
   gap: 12px;
 }
 
+.app-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.app-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+
 .app h2 {
   margin: 0;
   font-size: 1.25rem;

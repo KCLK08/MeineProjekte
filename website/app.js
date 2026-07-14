@@ -9,6 +9,7 @@ const CATALOG = [
     accent: '#12534b',
     apkFile: 'Bautagebuch.apk',
     versionFallback: '1.0.1',
+    icon: './assets/bautagebuch-icon.png',
   },
   {
     slug: 'buew-toolbox',
@@ -106,10 +107,15 @@ async function fetchRelease(slug, apkFile, versionFallback) {
 function renderApp(app, release) {
   const el = document.createElement('article');
   el.className = 'app';
+  const iconHtml = app.icon
+    ? `<img class="app-icon" src="${app.icon}" alt="" width="48" height="48" />`
+    : `<span class="swatch" style="background:${app.accent}" aria-hidden="true"></span>`;
   el.innerHTML = `
     <div class="app-top">
-      <h2>${app.name}</h2>
-      <span class="swatch" style="background:${app.accent}" aria-hidden="true"></span>
+      <div class="app-heading">
+        ${iconHtml}
+        <h2>${app.name}</h2>
+      </div>
     </div>
     <p>${app.description}</p>
     <div class="meta">
