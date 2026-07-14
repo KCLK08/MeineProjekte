@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { createElement, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
@@ -106,6 +106,46 @@ async function buildPreviewHtml(fileUri: string): Promise<string> {
   return buildPdfJsPreviewHtml(base64);
 }
 
+function PdfHtmlFrame({ html, fileUri }: { html: string; fileUri: string }) {
+  // react-native-webview has no browser implementation — use an iframe on web.
+  if (Platform.OS === 'web') {
+    return createElement('iframe', {
+      key: fileUri,
+      title: 'PDF-Vorschau',
+      srcDoc: html,
+      style: {
+        width: '100%',
+        height: '100%',
+        minHeight: 280,
+        border: '0',
+        background: '#e8edf2',
+        display: 'block',
+      },
+    });
+  }
+
+  return (
+    <WebView
+      key={fileUri}
+      originWhitelist={['*']}
+      source={{ html }}
+      style={styles.webview}
+      startInLoadingState
+      renderLoading={() => (
+        <View style={styles.webLoading}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      )}
+      allowFileAccess
+      allowUniversalAccessFromFileURLs
+      mixedContentMode="always"
+      javaScriptEnabled
+      domStorageEnabled
+      setSupportMultipleWindows={false}
+    />
+  );
+}
+
 export function PdfPreviewPane({
   fileUri,
   loading = false,
@@ -142,11 +182,7 @@ export function PdfPreviewPane({
     };
   }, [fileUri]);
 
-  const webSource = useMemo(() => {
-    if (html) return { html };
-    if (fileUri && Platform.OS !== 'web') return { uri: fileUri };
-    return undefined;
-  }, [fileUri, html]);
+  const ready = useMemo(() => Boolean(fileUri && html), [fileUri, html]);
 
   if (loading) {
     return (
@@ -175,7 +211,7 @@ export function PdfPreviewPane({
     );
   }
 
-  if (!fileUri || !webSource) {
+  if (!ready || !fileUri) {
     return (
       <View style={[styles.container, compact && styles.compact]}>
         <View style={styles.centered}>
@@ -200,24 +236,7 @@ export function PdfPreviewPane({
         ) : null}
       </View>
       <View style={styles.viewer}>
-        <WebView
-          key={fileUri}
-          originWhitelist={['*']}
-          source={webSource}
-          style={styles.webview}
-          startInLoadingState
-          renderLoading={() => (
-            <View style={styles.webLoading}>
-              <ActivityIndicator color={colors.primary} />
-            </View>
-          )}
-          allowFileAccess
-          allowUniversalAccessFromFileURLs
-          mixedContentMode="always"
-          javaScriptEnabled
-          domStorageEnabled
-          setSupportMultipleWindows={false}
-        />
+        <PdfHtmlFrame html={html} fileUri={fileUri} />
       </View>
     </View>
   );
