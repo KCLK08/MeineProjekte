@@ -35,7 +35,7 @@ jobs:
           node scripts/prepare-elifba.mjs
 
           npm install --prefix apps/ds-datenbank/web
-          npm run build --prefix apps/ds-datenbank/web
+          VITE_BASE=/MeineProjekte/apps/ds-datenbank/ npm run build --prefix apps/ds-datenbank/web
 
           npm install --prefix apps/buew-toolbox/web
           npm install --prefix apps/buew-toolbox/web/sitereport

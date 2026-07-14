@@ -3,7 +3,7 @@ const ETB_SNAPSHOT = null;
 export const ETB_TEMPLATE_KIND = 'builtin-etb';
 export const ETB_TEMPLATE_NAME = 'Vorlage-eBTB';
 export const ETB_TEMPLATE_FILE_NAME = 'Vorlage-eBTB.pdf';
-export const ETB_TEMPLATE_PUBLIC_URL = '/meineprojekte/apps/buew-toolbox/bautagebuch/templates/Vorlage-eBTB.pdf';
+export const ETB_TEMPLATE_PUBLIC_URL = '/MeineProjekte/apps/buew-toolbox/bautagebuch/templates/Vorlage-eBTB.pdf';
 export const ETB_SETUP_VERSION = 6;
 
 const MAIN_PERSONAL_COLUMNS = [

@@ -68,6 +68,6 @@ function proxyCachePlugin(): Plugin {
 }
 
 export default defineConfig({
-  base: process.env.VITE_BASE || "/meineprojekte/apps/ds-datenbank/",
+  base: process.env.VITE_BASE || "/MeineProjekte/apps/ds-datenbank/",
   plugins: [react({ fastRefresh: false }), proxyCachePlugin()],
 });

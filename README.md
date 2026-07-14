@@ -2,7 +2,9 @@
 
 Monorepo für **Expo / React Native**-Apps mit gemeinsamer Landingpage, Shared Packages und automatischen APK-Builds.
 
-**Pages:** nach Merge auf `main` → GitHub Pages Landing  
+**Pages:** https://kclk08.github.io/MeineProjekte/  
+(Groß-/Kleinschreibung beachten: `MeineProjekte`)
+
 **APKs:** path-gefilterte Workflows pro App → Artifacts + Release-Tags `*-apk-latest`
 
 ## Übersicht

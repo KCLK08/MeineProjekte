@@ -8,6 +8,7 @@ const CATALOG = [
     hasApk: true,
     accent: '#12534b',
     apkFile: 'Bautagebuch.apk',
+    versionFallback: '1.0.1',
   },
   {
     slug: 'buew-toolbox',
@@ -17,6 +18,7 @@ const CATALOG = [
     hasApk: true,
     accent: '#1a3a5c',
     apkFile: 'BuewToolbox.apk',
+    versionFallback: '1.0.0',
   },
   {
     slug: 'ds-datenbank',
@@ -26,6 +28,7 @@ const CATALOG = [
     hasApk: true,
     accent: '#2563eb',
     apkFile: 'DSDatenbank.apk',
+    versionFallback: '1.0.0',
   },
   {
     slug: 'elifba',
@@ -35,6 +38,7 @@ const CATALOG = [
     hasApk: true,
     accent: '#b44d2a',
     apkFile: 'Elifba.apk',
+    versionFallback: '1.0.0',
   },
 ];
 
@@ -42,7 +46,6 @@ const OWNER = 'KCLK08';
 const REPO = 'MeineProjekte';
 
 function pagesWebUrl(slug) {
-  // Relative to Pages root so casing of the repo name does not matter
   return new URL(`./apps/${slug}/`, window.location.href).href;
 }
 
@@ -57,7 +60,7 @@ function formatDate(iso) {
   return d.toLocaleDateString('de-DE', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-async function fetchRelease(slug, apkFile) {
+async function fetchRelease(slug, apkFile, versionFallback) {
   const tag = releaseTag(slug);
   try {
     const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/releases/tags/${tag}`, {
@@ -68,26 +71,34 @@ async function fetchRelease(slug, apkFile) {
     const asset =
       (data.assets || []).find((a) => a.name === apkFile) ||
       (data.assets || []).find((a) => a.name.endsWith('.apk'));
-    const versionLabel = data.tag_name || data.name || '—';
     return {
-      version: versionLabel,
+      version: versionFallback || data.name || data.tag_name || '—',
       buildDate: data.published_at || data.created_at,
       apkUrl: asset?.browser_download_url || null,
+      ready: Boolean(asset?.browser_download_url),
     };
   } catch {
     try {
       const local = await fetch('./releases.json', { cache: 'no-store' });
       if (local.ok) {
         const json = await local.json();
-        if (json[slug]) return json[slug];
+        if (json[slug]) {
+          return {
+            version: json[slug].version || versionFallback || '—',
+            buildDate: json[slug].buildDate,
+            apkUrl: json[slug].apkUrl,
+            ready: false,
+          };
+        }
       }
     } catch {
       /* ignore */
     }
     return {
-      version: '—',
+      version: versionFallback || '—',
       buildDate: null,
-      apkUrl: `https://github.com/${OWNER}/${REPO}/releases/download/${tag}/${apkFile}`,
+      apkUrl: null,
+      ready: false,
     };
   }
 }
@@ -117,14 +128,14 @@ function renderApp(app, release) {
     actions.appendChild(web);
   }
 
-  const apk = document.createElement('a');
+  const apk = document.createElement(release.ready ? 'a' : 'span');
   apk.className = 'btn btn-primary';
-  apk.textContent = 'APK herunterladen';
-  if (release.apkUrl) {
+  if (release.ready) {
     apk.href = release.apkUrl;
+    apk.textContent = 'APK herunterladen';
   } else {
     apk.setAttribute('aria-disabled', 'true');
-    apk.href = '#';
+    apk.textContent = 'APK folgt';
   }
   actions.appendChild(apk);
 
@@ -134,7 +145,10 @@ function renderApp(app, release) {
 async function main() {
   const grid = document.getElementById('app-grid');
   const results = await Promise.all(
-    CATALOG.map(async (app) => ({ app, release: await fetchRelease(app.slug, app.apkFile) }))
+    CATALOG.map(async (app) => ({
+      app,
+      release: await fetchRelease(app.slug, app.apkFile, app.versionFallback),
+    })),
   );
   for (const { app, release } of results) {
     grid.appendChild(renderApp(app, release));
