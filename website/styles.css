@@ -187,10 +187,21 @@ body {
   font-size: 0.9rem;
 }
 
+.footer-links {
+  display: flex;
+  gap: 16px;
+}
+
 .footer a {
   color: var(--accent);
   font-weight: 700;
   text-decoration: none;
+}
+
+.btn[aria-disabled='true'] {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: default;
 }
 
 @media (max-width: 640px) {

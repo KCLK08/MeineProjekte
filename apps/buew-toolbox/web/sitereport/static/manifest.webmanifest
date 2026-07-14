@@ -1,8 +1,8 @@
 {
   "name": "SiteReport",
   "short_name": "SiteReport",
-  "start_url": "/meineprojekte/apps/buew-toolbox/sitereport/",
-  "scope": "/meineprojekte/apps/buew-toolbox/sitereport/",
+  "start_url": "/MeineProjekte/apps/buew-toolbox/sitereport/",
+  "scope": "/MeineProjekte/apps/buew-toolbox/sitereport/",
   "display": "standalone",
   "background_color": "#f6f3ee",
   "theme_color": "#0f172a",
