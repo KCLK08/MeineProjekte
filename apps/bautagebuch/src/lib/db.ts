@@ -1,8 +1,9 @@
 import * as SQLite from 'expo-sqlite';
-import * as FileSystem from 'expo-file-system/legacy';
 import { Asset } from 'expo-asset';
+import { Platform } from 'react-native';
 
 import type { DetectedField, PhotoDoc, Run, SetupModel, Template } from '@/types';
+import * as AppFS from './fs-storage';
 
 const DB_NAME = 'BautagebuchV2';
 
@@ -79,8 +80,8 @@ async function getDb() {
           exportedAt TEXT NOT NULL
         );
       `);
-      await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}templates/`, { intermediates: true });
-      await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}photos/`, { intermediates: true });
+      await AppFS.makeDirectoryAsync(`${AppFS.documentDirectory}templates/`, { intermediates: true });
+      await AppFS.makeDirectoryAsync(`${AppFS.documentDirectory}photos/`, { intermediates: true });
       return db;
     })();
   }
@@ -88,22 +89,17 @@ async function getDb() {
 }
 
 async function templatePdfPath(templateId: string) {
-  return `${FileSystem.documentDirectory}templates/${templateId}.pdf`;
+  return `${AppFS.documentDirectory}templates/${templateId}.pdf`;
 }
 
 async function readTemplateBytes(template: Template): Promise<Uint8Array> {
-  const base64 = await FileSystem.readAsStringAsync(template.pdfPath, { encoding: FileSystem.EncodingType.Base64 });
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return bytes;
+  const base64 = await AppFS.readAsStringAsync(template.pdfPath, { encoding: AppFS.EncodingType.Base64 });
+  return AppFS.base64ToBytes(base64);
 }
 
 async function writeTemplateBytes(templateId: string, bytes: Uint8Array) {
   const path = await templatePdfPath(templateId);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
-  await FileSystem.writeAsStringAsync(path, btoa(binary), { encoding: FileSystem.EncodingType.Base64 });
+  await AppFS.writeAsStringAsync(path, AppFS.bytesToBase64(bytes), { encoding: AppFS.EncodingType.Base64 });
   return path;
 }
 
@@ -413,7 +409,7 @@ export async function deleteRunCascade(runId: string) {
     for (const entry of run.photoDoc.entries) {
       if (entry.photoUri) {
         try {
-          await FileSystem.deleteAsync(entry.photoUri, { idempotent: true });
+          await AppFS.deleteAsync(entry.photoUri, { idempotent: true });
         } catch {
           // ignore
         }
@@ -451,9 +447,14 @@ export async function loadAssetBytes(moduleId: number): Promise<Uint8Array> {
   const asset = Asset.fromModule(moduleId);
   await asset.downloadAsync();
   const uri = asset.localUri || asset.uri;
-  const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return bytes;
+  if (!uri) throw new Error('Asset-URI fehlt.');
+
+  if (Platform.OS === 'web' || /^https?:/i.test(uri)) {
+    const response = await fetch(uri);
+    if (!response.ok) throw new Error(`Asset konnte nicht geladen werden (${response.status}).`);
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
+  const base64 = await AppFS.readAsStringAsync(uri, { encoding: AppFS.EncodingType.Base64 });
+  return AppFS.base64ToBytes(base64);
 }

@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import * as FileSystem from 'expo-file-system/legacy';
+
+import * as AppFS from './fs-storage';
 
 const A4_WIDTH = 595.28;
 const A4_HEIGHT = 841.89;
@@ -21,13 +22,8 @@ function fitIntoBox(sourceWidth: number, sourceHeight: number, maxWidth: number,
 
 async function readImageBytes(uri: string): Promise<Uint8Array | null> {
   try {
-    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes;
+    const base64 = await AppFS.readAsStringAsync(uri, { encoding: AppFS.EncodingType.Base64 });
+    return AppFS.base64ToBytes(base64);
   } catch {
     return null;
   }
