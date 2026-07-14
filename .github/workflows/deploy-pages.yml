@@ -40,8 +40,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Bautagebuch web (Svelte) → /MeineProjekte/apps/bautagebuch/
-          bash scripts/build-bautagebuch-web.sh
+          # Bautagebuch (Expo static web) → /MeineProjekte/apps/bautagebuch/
+          EXPO_WEB_BASE=/MeineProjekte/apps/bautagebuch bash scripts/build-bautagebuch-web.sh
 
           # Elifba (static)
           node scripts/prepare-elifba.mjs
@@ -70,7 +70,7 @@ jobs:
             _site/apps/buew-toolbox
 
           cp -R website/. _site/
-          cp -R apps/bautagebuch/web/dist/. _site/apps/bautagebuch/
+          cp -R apps/bautagebuch/dist/. _site/apps/bautagebuch/
           cp -R apps/elifba/web/dist/. _site/apps/elifba/
           cp -R apps/ds-datenbank/web/dist/. _site/apps/ds-datenbank/
           cp -R apps/buew-toolbox/web/dist/. _site/apps/buew-toolbox/

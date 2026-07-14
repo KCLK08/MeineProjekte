@@ -3,7 +3,7 @@ const CATALOG = [
     slug: 'bautagebuch',
     name: 'Bautagebuch',
     description:
-      'Elektronisches Bautagebuch (eBTB) – Offline, PDF-Export und Fotodokumentation.',
+      'Expo-Bautagebuch (eBTB) – aktuelle App wie im Bautagebuch-Repo, auch im Browser.',
     hasWeb: true,
     hasApk: true,
     accent: '#12534b',

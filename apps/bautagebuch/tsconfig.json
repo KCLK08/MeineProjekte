@@ -3,11 +3,24 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@/*": ["./src/*"],
-      "@meineprojekte/theme": ["../../packages/theme/src"],
-      "@meineprojekte/ui": ["../../packages/ui/src"],
-      "@meineprojekte/hooks": ["../../packages/hooks/src"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@meineprojekte/theme": [
+        "../../packages/theme/src"
+      ],
+      "@meineprojekte/ui": [
+        "../../packages/ui/src"
+      ],
+      "@meineprojekte/hooks": [
+        "../../packages/hooks/src"
+      ]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ]
 }

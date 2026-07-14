@@ -49,7 +49,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "prebuild:android": "expo prebuild --platform android --no-install",
-    "build:web": "bash ../../scripts/build-bautagebuch-web.sh"
+    "build:web": "expo export --platform web"
   },
   "private": true
 }

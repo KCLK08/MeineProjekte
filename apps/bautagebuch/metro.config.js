@@ -11,5 +11,6 @@ config.resolver.nodeModulesPaths = [
   path.resolve(monorepoRoot, 'node_modules'),
 ];
 config.resolver.disableHierarchicalLookup = true;
+config.resolver.assetExts.push('wasm');
 
 module.exports = config;
