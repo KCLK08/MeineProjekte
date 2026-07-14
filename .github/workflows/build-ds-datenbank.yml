@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'apps/ds-datenbank/**'
-      - 'packages/**'
+      - '!apps/ds-datenbank/web/**'
       - 'scripts/ci-build-apk.sh'
       - '.github/workflows/build-ds-datenbank.yml'
   workflow_dispatch:

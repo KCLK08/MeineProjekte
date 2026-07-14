@@ -86,11 +86,13 @@ Ohne Token fällt CI auf **lokales** `expo prebuild` + Gradle zurück.
 
 | Workflow | Trigger (Paths) | Zweck |
 |----------|-----------------|-------|
-| `build-bautagebuch.yml` | `apps/bautagebuch/**` | APK |
-| `build-buew-toolbox.yml` | `apps/buew-toolbox/**` | APK |
-| `build-ds-datenbank.yml` | `apps/ds-datenbank/**` | APK |
-| `build-elifba.yml` | `apps/elifba/**` | APK |
-| `deploy-pages.yml` | `website/**`, `apps/**/web/**` | Landing + Web-Apps |
+| `build-bautagebuch.yml` | nur `apps/bautagebuch/**` | APK |
+| `build-buew-toolbox.yml` | nur Expo-Shell (`apps/buew-toolbox/**`, ohne `web/`) | APK |
+| `build-ds-datenbank.yml` | nur Expo-Shell (ohne `web/`) | APK |
+| `build-elifba.yml` | nur Expo-Shell (ohne `web/`) | APK |
+| `deploy-pages.yml` | `website/**`, `apps/**/web/**`, … | Landing + Web-Apps |
+
+APK-Builds laufen **pro App** und nur bei Änderungen an genau dieser App (manuell jederzeit per *Run workflow*).
 
 Gemeinsame Build-Logik: `scripts/ci-build-apk.sh` (EAS Cloud mit Fallback auf lokales Gradle).
 
