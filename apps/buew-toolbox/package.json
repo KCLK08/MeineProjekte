@@ -1,0 +1,14 @@
+{
+  "name": "@meineprojekte/buew-toolbox",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BÜW Toolbox – Hub inkl. SiteReport",
+  "scripts": {
+    "dev": "npm run dev --prefix sitereport",
+    "build": "npm run build --prefix sitereport && npm run build --prefix bautagebuch-v2 && node ../../scripts/assemble-buew-toolbox.mjs",
+    "deploy": "npm run build && npx gh-pages -d dist --repo https://github.com/KCLK08/buew-toolbox.git --branch gh-pages --dotfiles --no-history -m \"deploy buew-toolbox from MeineProjekte\""
+  },
+  "devDependencies": {
+    "gh-pages": "^6.3.0"
+  }
+}

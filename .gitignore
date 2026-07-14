@@ -1,9 +1,15 @@
 # Dependencies
 node_modules/
+apps/*/node_modules/
+apps/*/*/node_modules/
 
 # Build outputs
 dist/
 build/
+apps/*/dist/
+apps/*/build/
+apps/*/*/build/
+apps/*/*/dist/
 .next/
 .expo/
 

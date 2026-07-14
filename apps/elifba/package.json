@@ -1,0 +1,15 @@
+{
+  "name": "@meineprojekte/elifba",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Elifba Lern-App (statisch)",
+  "scripts": {
+    "start": "npx --yes serve -l 5174 .",
+    "build": "node ../../scripts/prepare-elifba.mjs",
+    "deploy": "npm run build && npx --yes gh-pages -d dist --repo https://github.com/KCLK08/elifba.git --branch gh-pages --dotfiles --no-history -m \"deploy elifba from MeineProjekte\""
+  },
+  "devDependencies": {
+    "gh-pages": "^6.3.0",
+    "serve": "^14.2.4"
+  }
+}
