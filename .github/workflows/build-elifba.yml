@@ -1,0 +1,23 @@
+name: Build ELIFBA APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/elifba/**'
+      - 'packages/**'
+      - '.github/workflows/build-elifba.yml'
+      - '.github/workflows/reusable-build-apk.yml'
+      - '.github/actions/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/reusable-build-apk.yml
+    with:
+      app-slug: elifba
+      app-path: apps/elifba
+      apk-name: Elifba.apk
+      app-version: '1.0.0'
+    secrets:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}

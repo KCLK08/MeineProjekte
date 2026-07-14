@@ -2,30 +2,34 @@
   "name": "meineprojekte",
   "private": true,
   "version": "1.0.0",
-  "description": "Monorepo – jedes Projekt separat starten, bauen und deployen",
+  "description": "Monorepo für Expo/React-Native Apps und Shared Packages",
+  "workspaces": [
+    "apps/bautagebuch",
+    "apps/buew-toolbox",
+    "apps/ds-datenbank",
+    "apps/elifba",
+    "packages/*",
+    "website"
+  ],
   "scripts": {
-    "install:all": "npm run install:bautagebuch && npm run install:buew-toolbox && npm run install:ds-datenbank && npm run install:elifba",
-    "install:bautagebuch": "npm install --prefix apps/bautagebuch",
-    "install:buew-toolbox": "npm install --prefix apps/buew-toolbox && npm install --prefix apps/buew-toolbox/sitereport && npm install --prefix apps/buew-toolbox/bautagebuch-v2",
-    "install:ds-datenbank": "npm install --prefix apps/ds-datenbank",
-    "install:elifba": "npm install --prefix apps/elifba",
-
-    "dev:bautagebuch": "npm start --prefix apps/bautagebuch",
-    "dev:buew-toolbox": "npm run dev --prefix apps/buew-toolbox",
-    "dev:sitereport": "npm run dev --prefix apps/buew-toolbox/sitereport",
-    "dev:bautagebuch-web": "npm run dev --prefix apps/buew-toolbox/bautagebuch-v2",
-    "dev:ds-datenbank": "npm run dev --prefix apps/ds-datenbank",
-    "dev:elifba": "npm start --prefix apps/elifba",
-
-    "build:buew-toolbox": "npm run build --prefix apps/buew-toolbox",
-    "build:sitereport": "npm run build --prefix apps/buew-toolbox/sitereport",
-    "build:bautagebuch-web": "npm run build --prefix apps/buew-toolbox/bautagebuch-v2",
-    "build:ds-datenbank": "npm run build --prefix apps/ds-datenbank",
-    "build:elifba": "npm run build --prefix apps/elifba",
-
-    "deploy:buew-toolbox": "npm run deploy --prefix apps/buew-toolbox",
-    "deploy:ds-datenbank": "npm run deploy --prefix apps/ds-datenbank",
-    "deploy:elifba": "npm run deploy --prefix apps/elifba"
+    "start:bautagebuch": "npm run start -w @meineprojekte/bautagebuch",
+    "start:buew-toolbox": "npm run start -w @meineprojekte/buew-toolbox",
+    "start:ds-datenbank": "npm run start -w @meineprojekte/ds-datenbank",
+    "start:elifba": "npm run start -w @meineprojekte/elifba",
+    "web:buew-toolbox": "npm run build:web -w @meineprojekte/buew-toolbox",
+    "web:ds-datenbank": "npm run build:web -w @meineprojekte/ds-datenbank",
+    "web:elifba": "npm run build:web -w @meineprojekte/elifba",
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.20.0",
+    "@typescript-eslint/parser": "^8.20.0",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.0.1",
+    "prettier": "^3.4.2",
+    "typescript": "~5.9.2"
   },
   "engines": {
     "node": ">=20"

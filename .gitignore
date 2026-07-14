@@ -1,17 +1,16 @@
 # Dependencies
 node_modules/
-apps/*/node_modules/
-apps/*/*/node_modules/
 
 # Build outputs
 dist/
 build/
-apps/*/dist/
-apps/*/build/
-apps/*/*/build/
-apps/*/*/dist/
-.next/
 .expo/
+.next/
+_site/
+
+# Native
+android/
+ios/
 
 # Environment / local
 .env
@@ -19,7 +18,12 @@ apps/*/*/dist/
 !.env.example
 *.log
 .DS_Store
+*.apk
+eas-result.json
 
 # IDE
 .vscode/
 .idea/
+
+# Coverage
+coverage/

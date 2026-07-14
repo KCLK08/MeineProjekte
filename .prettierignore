@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+.expo
+android
+ios
+_site
+*.apk
+package-lock.json
+apps/buew-toolbox/web
+apps/elifba/web
+apps/ds-datenbank/web

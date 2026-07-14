@@ -1,0 +1,12 @@
+{
+  "name": "buew-toolbox-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "npm run build --prefix sitereport && npm run build --prefix bautagebuch-v2",
+    "dev": "npm run dev --prefix sitereport"
+  },
+  "devDependencies": {
+    "gh-pages": "^6.3.0"
+  }
+}

@@ -1,31 +1,29 @@
 {
   "name": "@meineprojekte/ds-datenbank",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.1.0",
-  "type": "module",
+  "main": "index.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "serve": "node server.mjs",
-    "db": "node server-db.mjs",
-    "deploy": "npm run build && npx --yes gh-pages -d dist --repo https://github.com/KCLK08/DS-Datenbank.git --branch gh-pages --dotfiles --no-history -m \"deploy ds-datenbank from MeineProjekte\""
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "dev:web": "npm run dev --prefix web",
+    "build:web": "npm run build --prefix web",
+    "lint": "eslint ."
   },
   "dependencies": {
-    "better-sqlite3": "^11.5.0",
-    "cors": "^2.8.5",
-    "express": "^4.19.2",
-    "pako": "^2.1.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "@meineprojekte/theme": "*",
+    "@meineprojekte/ui": "*",
+    "expo": "~54.0.0",
+    "expo-splash-screen": "~31.0.13",
+    "expo-status-bar": "~3.0.9",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-webview": "13.15.0"
   },
   "devDependencies": {
-    "@types/pako": "^2.0.2",
-    "@types/react": "^18.3.5",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
-    "gh-pages": "^6.3.0",
-    "typescript": "^5.5.4",
-    "vite": "^5.4.3"
+    "@types/react": "~19.1.10",
+    "typescript": "~5.9.2"
   }
 }

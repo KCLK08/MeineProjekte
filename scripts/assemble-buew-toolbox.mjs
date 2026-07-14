@@ -1,10 +1,11 @@
-import { cpSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readdirSync, rmSync, writeFileSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const app = join(root, 'apps/buew-toolbox');
-const dist = join(app, 'dist');
+const app = join(root, 'apps/buew-toolbox/web');
+const dist = join(root, 'apps/buew-toolbox/web/dist');
+const BASE = '/meineprojekte/apps/buew-toolbox';
 
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(join(dist, 'sitereport'), { recursive: true });
@@ -12,8 +13,9 @@ mkdirSync(join(dist, 'bautagebuch'), { recursive: true });
 
 const rewrite = (text) =>
   text
-    .replaceAll('/baustellen-tools/', '/buew-toolbox/')
-    .replaceAll('"/baustellen-tools"', '"/buew-toolbox"');
+    .replaceAll('/baustellen-tools/', `${BASE}/`)
+    .replaceAll('/buew-toolbox/', `${BASE}/`)
+    .replaceAll(`"${BASE}"`, `"${BASE}/"`);
 
 const copyText = (from, to) => {
   writeFileSync(to, rewrite(readFileSync(from, 'utf8')));
@@ -35,4 +37,4 @@ cpSync(join(app, 'sitereport/build'), join(dist, 'sitereport'), { recursive: tru
 cpSync(join(app, 'bautagebuch-v2/build'), join(dist, 'bautagebuch'), { recursive: true });
 writeFileSync(join(dist, '.nojekyll'), '');
 
-console.log('buew-toolbox dist bereit:', dist);
+console.log('buew-toolbox web dist bereit:', dist);

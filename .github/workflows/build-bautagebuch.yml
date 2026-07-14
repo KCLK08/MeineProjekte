@@ -1,0 +1,23 @@
+name: Build Bautagebuch APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/bautagebuch/**'
+      - 'packages/**'
+      - '.github/workflows/build-bautagebuch.yml'
+      - '.github/workflows/reusable-build-apk.yml'
+      - '.github/actions/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/reusable-build-apk.yml
+    with:
+      app-slug: bautagebuch
+      app-path: apps/bautagebuch
+      apk-name: Bautagebuch.apk
+      app-version: '1.0.1'
+    secrets:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}

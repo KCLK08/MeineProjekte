@@ -1,73 +1,133 @@
 # MeineProjekte
 
-Monorepo – jedes Projekt liegt unter `apps/` und wird **separat** installiert, gestartet und deployt.
+Monorepo für **Expo / React Native**-Apps mit gemeinsamer Landingpage, Shared Packages und automatischen APK-Builds.
 
-```
+**Pages:** nach Merge auf `main` → GitHub Pages Landing  
+**APKs:** path-gefilterte Workflows pro App → Artifacts + Release-Tags `*-apk-latest`
+
+## Übersicht
+
+| App | Ordner | Web | APK (Expo/EAS) |
+|-----|--------|-----|----------------|
+| Bautagebuch | `apps/bautagebuch` | – | ja |
+| BÜW-Toolbox | `apps/buew-toolbox` | `web/` | ja (WebView-Shell) |
+| DS-Datenbank | `apps/ds-datenbank` | `web/` | ja (WebView-Shell) |
+| ELIFBA | `apps/elifba` | `web/` | ja (WebView-Shell) |
+
+## Repositorystruktur
+
+```text
 apps/
-  bautagebuch/       Expo eBTB-App
-  buew-toolbox/      Hub + SiteReport + Bautagebuch-Web
-  ds-datenbank/      React/Vite DS-Angriffsplaner
-  elifba/            Statische Elifba Lern-App
+├── bautagebuch/          # Expo App
+├── ds-datenbank/         # Expo Shell + web/ (Vite)
+├── buew-toolbox/         # Expo Shell + web/ (SvelteKit/Hub)
+└── elifba/               # Expo Shell + web/ (statisch)
+
+packages/
+├── theme/                # Design-Tokens (Farben, Spacing, Typo)
+├── ui/                   # Buttons, Cards, Dialoge, WebShell
+├── utils/
+├── types/
+├── hooks/
+└── catalog/              # App-Katalog für Docs/CI
+
+website/                  # GitHub Pages Landing
+.github/
+├── actions/              # Composite Actions (setup-expo, build-apk)
+└── workflows/            # build-*.yml + deploy-pages.yml + reusable-build-apk.yml
 ```
 
-## Setup (pro Projekt)
+## Lokale Entwicklung
 
-Vom Repo-Root:
+Node **≥ 20** empfohlen.
 
 ```bash
-npm run install:bautagebuch
-npm run install:buew-toolbox
-npm run install:ds-datenbank
-npm run install:elifba
+npm install
 
-# oder alles:
-npm run install:all
+# Expo starten (jeweils eigene App)
+npm run start:bautagebuch
+npm run start:buew-toolbox
+npm run start:ds-datenbank
+npm run start:elifba
 ```
 
-## Entwickeln
-
-| Befehl | Was startet |
-|--------|-------------|
-| `npm run dev:bautagebuch` | Expo Bautagebuch |
-| `npm run dev:buew-toolbox` | SiteReport Dev-Server (Toolbox-Haupttool) |
-| `npm run dev:sitereport` | SiteReport direkt |
-| `npm run dev:bautagebuch-web` | Bautagebuch Web (Svelte) |
-| `npm run dev:ds-datenbank` | DS-Datenbank (Vite) |
-| `npm run dev:elifba` | Elifba auf Port 5174 |
-
-## Bauen
+Web-Frontends (wo vorhanden):
 
 ```bash
-npm run build:buew-toolbox
-npm run build:ds-datenbank
-npm run build:elifba
+npm run dev:web --prefix apps/buew-toolbox   # SiteReport
+npm run dev:web --prefix apps/ds-datenbank
+# Elifba: Dateien unter apps/elifba/web/ lokal hosten
 ```
 
-## GitHub Pages (eigene Repos)
+## Expo / EAS
 
-Deploy pusht auf den `gh-pages`-Branch des **jeweiligen Original-Repos** – die Live-URLs bleiben getrennt:
+Jede App hat:
 
-| Befehl | Ziel-Repo / URL |
-|--------|-----------------|
-| `npm run deploy:buew-toolbox` | [KCLK08/buew-toolbox](https://github.com/KCLK08/buew-toolbox) → https://kclk08.github.io/buew-toolbox/ |
-| `npm run deploy:ds-datenbank` | [KCLK08/DS-Datenbank](https://github.com/KCLK08/DS-Datenbank) |
-| `npm run deploy:elifba` | [KCLK08/elifba](https://github.com/KCLK08/elifba) → Pages auf Branch `gh-pages` stellen |
+- `app.json`
+- `eas.json`
+- eigenes `package.json`
 
-Dafür brauchst du Push-Rechte auf die Ziel-Repos (lokales GitHub-Login / Token).
-
-## CI
-
-Pfad-gefilterte Workflows unter `.github/workflows/`:
-
-- `bautagebuch-apk.yml` – nur bei Änderungen in `apps/bautagebuch/`
-- `buew-toolbox-build.yml` – nur bei `apps/buew-toolbox/`
-- `ds-datenbank-build.yml` – nur bei `apps/ds-datenbank/`
-
-## Direkt im App-Ordner
-
-Jedes Projekt bleibt eigenständig:
+Lokal APK (EAS Preview):
 
 ```bash
-cd apps/buew-toolbox/sitereport && npm install && npm run dev
-cd apps/ds-datenbank && npm install && npm run dev
+cd apps/bautagebuch
+npx eas build -p android --profile preview
 ```
+
+Secret im GitHub-Repo setzen:
+
+- `EXPO_TOKEN` – Expo-Zugangstoken für EAS Cloud Builds
+
+Ohne Token fällt CI auf **lokales** `expo prebuild` + Gradle zurück.
+
+## GitHub Actions
+
+| Workflow | Trigger (Paths) | Zweck |
+|----------|-----------------|-------|
+| `build-bautagebuch.yml` | `apps/bautagebuch/**` | APK |
+| `build-buew-toolbox.yml` | `apps/buew-toolbox/**` | APK |
+| `build-ds-datenbank.yml` | `apps/ds-datenbank/**` | APK |
+| `build-elifba.yml` | `apps/elifba/**` | APK |
+| `deploy-pages.yml` | `website/**`, `apps/**/web/**` | Landing + Web-Apps |
+
+Gemeinsame Logik:
+
+- `.github/workflows/reusable-build-apk.yml`
+- `.github/actions/setup-expo`
+- `.github/actions/build-apk`
+
+Nach erfolgreichem Build:
+
+1. Artifact `*-apk`
+2. GitHub Release-Tag `{slug}-apk-latest`
+3. Update `website/releases.json` (Landing-Fallback)
+
+## GitHub Pages
+
+Landing unter `website/`:
+
+- App-Name, Kurzbeschreibung
+- **Web öffnen** (relativ `./apps/{slug}/`)
+- **APK herunterladen** (Release-Asset / `releases.json`)
+- Version + Build-Datum (GitHub Releases API)
+
+`Settings → Pages → Source: GitHub Actions` aktivieren.
+
+## Designsystem
+
+Gemeinsame Tokens in `@meineprojekte/theme` (Farben u. a. Primary `#12534b`).  
+RN-Komponenten in `@meineprojekte/ui` (`AppButton`, `Card`, `DialogShell`, `WebShell`).
+
+## Qualität
+
+```bash
+npm run lint
+npm run format
+```
+
+## Neue App hinzufügen
+
+1. Ordner `apps/<slug>/` mit Expo (`app.json`, `eas.json`, `package.json`)
+2. Eintrag in `packages/catalog` + `website/app.js`
+3. Workflow `build-<slug>.yml` (Path-Filter + reusable workflow)
+4. Optional `web/` + Eintrag in `deploy-pages.yml`
