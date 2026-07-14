@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'apps/buew-toolbox/**'
-      - 'packages/**'
+      - '!apps/buew-toolbox/web/**'
       - 'scripts/ci-build-apk.sh'
       - '.github/workflows/build-buew-toolbox.yml'
   workflow_dispatch:

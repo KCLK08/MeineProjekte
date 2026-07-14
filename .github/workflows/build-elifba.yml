@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'apps/elifba/**'
-      - 'packages/**'
+      - '!apps/elifba/web/**'
       - 'scripts/ci-build-apk.sh'
       - '.github/workflows/build-elifba.yml'
   workflow_dispatch:
