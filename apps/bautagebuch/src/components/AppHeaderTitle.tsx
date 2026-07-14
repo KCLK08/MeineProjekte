@@ -1,26 +1,14 @@
-import { StyleSheet, Text, View } from 'react-native';
-
-import { AppLogo } from './AppLogo';
+import { StyleSheet, Text } from 'react-native';
 
 interface AppHeaderTitleProps {
   title: string;
 }
 
 export function AppHeaderTitle({ title }: AppHeaderTitleProps) {
-  return (
-    <View style={styles.row}>
-      <AppLogo size={28} />
-      <Text style={styles.title}>{title}</Text>
-    </View>
-  );
+  return <Text style={styles.title}>{title}</Text>;
 }
 
 const styles = StyleSheet.create({
-  row: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 10,
-  },
   title: {
     color: '#fff',
     fontSize: 18,
