@@ -8,16 +8,14 @@ on:
       - 'packages/**'
       - '.github/workflows/build-elifba.yml'
       - '.github/workflows/reusable-build-apk.yml'
-      - '.github/actions/**'
   workflow_dispatch:
 
 jobs:
   build:
     uses: ./.github/workflows/reusable-build-apk.yml
+    secrets: inherit
     with:
       app-slug: elifba
       app-path: apps/elifba
       apk-name: Elifba.apk
       app-version: '1.0.0'
-    secrets:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}

@@ -8,16 +8,14 @@ on:
       - 'packages/**'
       - '.github/workflows/build-ds-datenbank.yml'
       - '.github/workflows/reusable-build-apk.yml'
-      - '.github/actions/**'
   workflow_dispatch:
 
 jobs:
   build:
     uses: ./.github/workflows/reusable-build-apk.yml
+    secrets: inherit
     with:
       app-slug: ds-datenbank
       app-path: apps/ds-datenbank
       apk-name: DSDatenbank.apk
       app-version: '1.0.0'
-    secrets:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
