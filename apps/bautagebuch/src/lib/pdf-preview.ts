@@ -1,22 +1,15 @@
-import * as FileSystem from 'expo-file-system/legacy';
-
 import type { ExportMode, PhotoDoc, SetupModel } from '@/types';
+import * as AppFS from './fs-storage';
 import { buildFinalPdfBytes } from './pdf-export';
 import { mergeBtbWithPhotoDoc } from './photo-doc';
 import { isPhotoDocEnabled, sanitizeFileName } from './run-utils';
 
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
-  return btoa(binary);
-}
-
 export async function cachePdfBytes(bytes: Uint8Array, fileName = 'preview.pdf'): Promise<string> {
   const safeName = String(fileName || 'preview.pdf').replace(/[^\w.\-]+/g, '_');
-  const directory = `${FileSystem.cacheDirectory}preview/`;
-  await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
+  const directory = `${AppFS.cacheDirectory}preview/`;
+  await AppFS.makeDirectoryAsync(directory, { intermediates: true });
   const path = `${directory}${safeName}`;
-  await FileSystem.writeAsStringAsync(path, bytesToBase64(bytes), { encoding: FileSystem.EncodingType.Base64 });
+  await AppFS.writeAsStringAsync(path, AppFS.bytesToBase64(bytes), { encoding: AppFS.EncodingType.Base64 });
   return path;
 }
 

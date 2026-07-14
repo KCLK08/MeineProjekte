@@ -1,11 +1,11 @@
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system/legacy';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '@/theme/colors';
 import { ui } from '@/theme/ui';
 import type { PhotoDoc } from '@/types';
+import * as AppFS from '@/lib/fs-storage';
 
 function createId(prefix = 'photo') {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -17,8 +17,15 @@ async function compressImage(uri: string) {
     [{ resize: { width: 1600 } }],
     { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG }
   );
-  const target = `${FileSystem.documentDirectory}photos/${createId()}.jpg`;
-  await FileSystem.copyAsync({ from: result.uri, to: target });
+
+  // Web has no documentDirectory; keep images as data URIs so <Image> can render them.
+  if (Platform.OS === 'web') {
+    const base64 = await AppFS.readAsStringAsync(result.uri, { encoding: AppFS.EncodingType.Base64 });
+    return `data:image/jpeg;base64,${base64}`;
+  }
+
+  const target = `${AppFS.documentDirectory}photos/${createId()}.jpg`;
+  await AppFS.copyAsync({ from: result.uri, to: target });
   return target;
 }
 
@@ -88,7 +95,7 @@ export function PhotoDocEditor({ photoDoc, onChange }: PhotoDocEditorProps) {
   function removeEntry(entryId: string) {
     const entry = photoDoc.entries.find((e) => e.id === entryId);
     if (entry?.photoUri) {
-      FileSystem.deleteAsync(entry.photoUri, { idempotent: true }).catch(() => undefined);
+      AppFS.deleteAsync(entry.photoUri, { idempotent: true }).catch(() => undefined);
     }
     onChange({
       ...photoDoc,

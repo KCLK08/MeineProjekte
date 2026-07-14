@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
-import * as FileSystem from 'expo-file-system/legacy';
 
 import { colors } from '@/theme/colors';
 import { ui } from '@/theme/ui';
+import * as AppFS from '@/lib/fs-storage';
 
 interface PdfPreviewPaneProps {
   fileUri: string | null;
@@ -102,7 +102,7 @@ function buildPdfJsPreviewHtml(base64: string): string {
 }
 
 async function buildPreviewHtml(fileUri: string): Promise<string> {
-  const base64 = await FileSystem.readAsStringAsync(fileUri, { encoding: FileSystem.EncodingType.Base64 });
+  const base64 = await AppFS.readAsStringAsync(fileUri, { encoding: AppFS.EncodingType.Base64 });
   return buildPdfJsPreviewHtml(base64);
 }
 
