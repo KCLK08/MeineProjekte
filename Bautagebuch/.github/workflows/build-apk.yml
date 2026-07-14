@@ -1,0 +1,90 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set Android versionCode
+        run: |
+          node <<'EOF'
+          const fs = require('fs');
+          const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+          app.expo.android = app.expo.android || {};
+          app.expo.android.versionCode = Number(process.env.VERSION_CODE);
+          fs.writeFileSync('app.json', JSON.stringify(app, null, 2) + '\n');
+          EOF
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Prepare APK artifact
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk Bautagebuch.apk
+          ls -lh Bautagebuch.apk
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bautagebuch-apk
+          path: Bautagebuch.apk
+          retention-days: 90
+
+      - name: Publish GitHub release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: apk-latest
+          name: Bautagebuch APK (Latest)
+          body: |
+            Automatisch gebaute Android-APK aus `main`.
+
+            - Commit: ${{ github.sha }}
+            - Build: ${{ github.run_number }}
+            - Erstellt: ${{ github.event.head_commit.timestamp }}
+
+            APK auf dem Handy installieren (unbekannte Quellen erlauben) und `Bautagebuch.apk` öffnen.
+          artifacts: Bautagebuch.apk
+          allowUpdates: true
+          makeLatest: true
+          replacesArtifacts: true

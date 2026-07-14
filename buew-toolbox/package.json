@@ -1,0 +1,12 @@
+{
+  "name": "baustellen-tools",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build:SiteReport": "cd sitereport && npm run build",
+    "deploy": "npm run build:SiteReport && rm -rf dist && mkdir -p dist/sitereport && cp -R index.html tool-platzhalter-2 tool-platzhalter-3 dist/ && cp -R apple-touch-icon.png icon-192.png icon-512.png manifest.webmanifest dist/ && cp -R sitereport/build/* dist/sitereport/ && touch dist/.nojekyll && npx gh-pages -d dist --dotfiles --no-history"
+  },
+  "devDependencies": {
+    "gh-pages": "^6.2.0"
+  }
+}

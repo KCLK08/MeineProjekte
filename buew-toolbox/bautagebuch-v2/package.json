@@ -1,0 +1,25 @@
+{
+  "name": "bautagebuch-v2",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "npm run build && npx gh-pages -d build --dotfiles --no-history"
+  },
+  "dependencies": {
+    "dexie": "4.0.7",
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "4.8.69"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-static": "3.0.5",
+    "@sveltejs/kit": "2.5.18",
+    "@sveltejs/vite-plugin-svelte": "3.1.2",
+    "gh-pages": "^6.3.0",
+    "svelte": "4.2.18",
+    "vite": "5.4.2"
+  }
+}
