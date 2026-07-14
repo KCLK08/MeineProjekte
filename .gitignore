@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.expo/
+.next/
+_site/
+
+# Native
+android/
+ios/
+
+# Environment / local
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+*.apk
+eas-result.json
+
+# IDE
+.vscode/
+.idea/
+
+# Coverage
+coverage/

@@ -1,0 +1,23 @@
+name: Build BÜW-Toolbox APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/buew-toolbox/**'
+      - 'packages/**'
+      - '.github/workflows/build-buew-toolbox.yml'
+      - '.github/workflows/reusable-build-apk.yml'
+      - '.github/actions/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/reusable-build-apk.yml
+    with:
+      app-slug: buew-toolbox
+      app-path: apps/buew-toolbox
+      apk-name: BuewToolbox.apk
+      app-version: '1.0.0'
+    secrets:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}

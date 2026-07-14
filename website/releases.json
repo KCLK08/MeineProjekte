@@ -1,0 +1,22 @@
+{
+  "bautagebuch": {
+    "version": "1.0.1",
+    "buildDate": null,
+    "apkUrl": "https://github.com/KCLK08/MeineProjekte/releases/download/bautagebuch-apk-latest/Bautagebuch.apk"
+  },
+  "buew-toolbox": {
+    "version": "1.0.0",
+    "buildDate": null,
+    "apkUrl": "https://github.com/KCLK08/MeineProjekte/releases/download/buew-toolbox-apk-latest/BuewToolbox.apk"
+  },
+  "ds-datenbank": {
+    "version": "1.0.0",
+    "buildDate": null,
+    "apkUrl": "https://github.com/KCLK08/MeineProjekte/releases/download/ds-datenbank-apk-latest/DSDatenbank.apk"
+  },
+  "elifba": {
+    "version": "1.0.0",
+    "buildDate": null,
+    "apkUrl": "https://github.com/KCLK08/MeineProjekte/releases/download/elifba-apk-latest/Elifba.apk"
+  }
+}

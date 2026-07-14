@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "B\u00dcW-Toolbox",
+    "slug": "buew-toolbox",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "buewtoolbox",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#eef2f5"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kclk08.buewtoolbox"
+    },
+    "android": {
+      "package": "com.kclk08.buewtoolbox",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#1a3a5c",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "backgroundColor": "#eef2f5"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d60a730c-da94-40b1-9cfc-808fbafa4e6e"
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+build/
+
+# local runtime/data artifacts
+data/
+.cache/
+.cache_meta/
+forwarded_reports_json_*.json
+forwarded_reports_raw_*.html
+tsconfig.tsbuildinfo
+
+# OS/editor
+.DS_Store
+.vscode/
+
+# env
+.env
+.env.*
+!.env.example

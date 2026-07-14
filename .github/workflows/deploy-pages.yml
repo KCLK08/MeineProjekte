@@ -1,0 +1,72 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - 'apps/**/web/**'
+      - 'scripts/**'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build web apps
+        run: |
+          set -euo pipefail
+          # Elifba (static)
+          node scripts/prepare-elifba.mjs
+
+          # DS-Datenbank (Vite)
+          npm install --prefix apps/ds-datenbank/web
+          npm run build --prefix apps/ds-datenbank/web
+
+          # BÜW Toolbox (SvelteKit hub)
+          npm install --prefix apps/buew-toolbox/web
+          npm install --prefix apps/buew-toolbox/web/sitereport
+          npm install --prefix apps/buew-toolbox/web/bautagebuch-v2
+          npm run build --prefix apps/buew-toolbox/web
+          node scripts/assemble-buew-toolbox.mjs
+
+      - name: Assemble Pages site
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          mkdir -p _site/apps/elifba _site/apps/ds-datenbank _site/apps/buew-toolbox
+          cp -R website/. _site/
+          cp -R apps/elifba/web/dist/. _site/apps/elifba/
+          cp -R apps/ds-datenbank/web/dist/. _site/apps/ds-datenbank/
+          cp -R apps/buew-toolbox/web/dist/. _site/apps/buew-toolbox/
+          touch _site/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

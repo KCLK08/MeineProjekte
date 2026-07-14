@@ -1,0 +1,7 @@
+node_modules/
+android/
+ios/
+.svelte-kit/
+build/
+dist/
+.DS_Store

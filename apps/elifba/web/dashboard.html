@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#b44d2a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Elifba" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/icon-180.png" />
+  <title>Elifba - Fortschritt</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">Dashboard</p>
+        <h1>Dein Lernfortschritt im Detail</h1>
+        <p class="lead">Kapitel, Lektionen, Abschnitte und Übungen auf einen Blick.</p>
+      </div>
+      <div class="page-actions">
+        <a class="btn ghost" href="index.html">Zurück zur Startseite</a>
+        <a class="btn primary" href="kapitel/kapitel.html">Zur Kapitelauswahl</a>
+      </div>
+    </header>
+
+    <section class="card">
+      <div id="dashboard-summary" class="tree-note"></div>
+      <div id="dashboard-tree" class="dashboard-tree"></div>
+    </section>
+  </main>
+
+  <script src="js/dashboard.js?v=2"></script>
+  <script src="js/pwa-register.js"></script>
+</body>
+</html>

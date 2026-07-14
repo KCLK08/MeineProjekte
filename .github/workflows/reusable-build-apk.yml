@@ -1,0 +1,112 @@
+name: Reusable Expo APK Build
+
+on:
+  workflow_call:
+    inputs:
+      app-slug:
+        required: true
+        type: string
+      app-path:
+        required: true
+        type: string
+      apk-name:
+        required: true
+        type: string
+      app-version:
+        required: false
+        type: string
+        default: '1.0.0'
+    secrets:
+      EXPO_TOKEN:
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Expo
+        uses: ./.github/actions/setup-expo
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        with:
+          app-path: ${{ inputs.app-path }}
+
+      - name: Build APK
+        id: apk
+        uses: ./.github/actions/build-apk
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        with:
+          app-path: ${{ inputs.app-path }}
+          apk-name: ${{ inputs.apk-name }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.app-slug }}-apk
+          path: ${{ steps.apk.outputs.apk-path }}
+          retention-days: 90
+
+      - name: Update releases.json
+        run: |
+          node <<'EOF'
+          const fs = require('fs');
+          const path = 'website/releases.json';
+          const slug = process.env.APP_SLUG;
+          const apkName = process.env.APK_NAME;
+          const version = process.env.APP_VERSION;
+          const data = JSON.parse(fs.readFileSync(path, 'utf8'));
+          data[slug] = {
+            version,
+            buildDate: new Date().toISOString(),
+            apkUrl: `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/${slug}-apk-latest/${apkName}`,
+          };
+          fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
+          EOF
+        env:
+          APP_SLUG: ${{ inputs.app-slug }}
+          APK_NAME: ${{ inputs.apk-name }}
+          APP_VERSION: ${{ inputs.app-version }}
+
+      - name: Commit releases.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add website/releases.json
+          if git diff --staged --quiet; then
+            echo "No releases.json changes"
+          else
+            git commit -m "chore: update ${{ inputs.app-slug }} APK release metadata [skip ci]"
+            git push
+          fi
+
+      - name: Publish GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ inputs.app-slug }}-apk-latest
+          name: ${{ inputs.app-slug }} APK (${{ inputs.app-version }})
+          body: |
+            Automatischer Android-Build für `${{ inputs.app-path }}`.
+
+            - Commit: ${{ github.sha }}
+            - Workflow: ${{ github.run_number }}
+            - Datum: ${{ github.event.head_commit.timestamp }}
+          artifacts: ${{ steps.apk.outputs.apk-path }}
+          allowUpdates: true
+          makeLatest: false
+          replacesArtifacts: true

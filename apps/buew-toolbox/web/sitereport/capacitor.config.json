@@ -1,0 +1,6 @@
+{
+  "appId": "com.buew.sitereport",
+  "appName": "SiteReport",
+  "webDir": "build",
+  "bundledWebRuntime": false
+}

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#b44d2a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Elifba" />
+  <link rel="manifest" href="../../../../../manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="../../../../../icons/icon-180.png" />
+  <title>3.2.2 Die Buchstaben mit Kesra</title>
+  <link rel="stylesheet" href="../../../../../css/style.css" />
+</head>
+<body>
+  <main class="page">
+    <nav class="nav">
+      <a href="../kesra.html">Zurück</a>
+      <button id="btn-help" class="nav-help" type="button">Hilfe</button>
+    </nav>
+
+    <header class="header">
+      <h1>3.2.2 Die Buchstaben mit Kesra</h1>
+      <p>Einzelne Buchstaben mit Kesra.</p>
+    </header>
+
+    <section class="card trainer-card">
+      <div id="progress-bar" class="progress-bar"></div>
+      <div class="progress-row" aria-hidden="true"></div>
+
+      <div id="current-letter" class="letter-display">—</div>
+
+      <div class="trainer-buttons">
+        <button id="btn-audio" class="listen" type="button">Anhören</button>
+        <button id="btn-correct" class="correct" type="button">Richtig</button>
+        <button id="btn-unsure" class="unsure" type="button">Unsicher</button>
+        <button id="btn-wrong" class="wrong" type="button">Falsch</button>
+      </div>
+
+      <div id="completion" class="completion">
+        Super! Alle Buchstaben sind gelernt.
+      </div>
+    </section>
+  </main>
+
+  <script id="letter-data" type="application/json">
+{
+  "audioBase": "../../../../../audio/kapitel-1/lektion-3/abschnitt-2/uebung-1/K1.L3.A2.UE1.Audio",
+  "nextUrl": "../uebung-3/kesra2.html",
+  "homeUrl": "../../../../../index.html",
+
+  "letters": [
+ "اِ ءِ",
+  "بِ",
+  "تِ",
+  "ثِ",
+  "جِ",
+  "حِ",
+  "خِ",
+  "دِ",
+  "ذِ",
+  "رِ",
+  "زِ","سِ","شِ","صِ","ضِ","طِ","ظِ","عِ","غِ","فِ","قِ","كِ","لِ","مِ","نِ","وِ","هـِ هِ","ىِ"
+  ],
+
+  "targets": [
+    "َ",
+    "َ",
+    "َ",
+    "َ",
+    "َ",
+    "َ",
+    ["َ","خ"],
+    "َ",
+    "َ",
+    "َ",
+    "َ",
+    "َ",
+    "َ",
+    ["َ","ص"],
+    ["َ","ض"],
+    ["َ","ط"],
+    ["َ","ظ"],
+    "َ",
+    ["َ","غ"],
+    "َ",
+    ["َ","ق"],
+    "َ",
+    "َ",
+    "َ",
+    "َ",
+    "َ",
+    "َ",
+    "َ"
+  ],
+
+  "progressId": "k1-l3-a2-ue2",
+  "hideProgressBar": false
+}
+  </script>
+
+  <script src="../../../../../js/letter-trainer.js"></script>
+  <script src="../../../../../js/pwa-register.js"></script>
+</body>
+</html>
