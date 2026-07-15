@@ -90,6 +90,7 @@ Ohne Token fällt CI auf **lokales** `expo prebuild` + Gradle zurück.
 | `build-buew-toolbox.yml` | nur Expo-Shell (`apps/buew-toolbox/**`, ohne `web/`) | APK |
 | `build-ds-datenbank.yml` | nur Expo-Shell (ohne `web/`) | APK |
 | `build-elifba.yml` | nur Expo-Shell (ohne `web/`) | APK |
+| `build-familydata.yml` | nur `apps/familydata/**` | APK |
 | `deploy-pages.yml` | `website/**`, `apps/**/web/**`, … | Landing + Web-Apps |
 
 APK-Builds laufen **pro App** und nur bei Änderungen an genau dieser App (manuell jederzeit per *Run workflow*).
