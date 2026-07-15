@@ -25,12 +25,12 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: package-lock.json
 
@@ -57,7 +57,7 @@ jobs:
           scripts/ci-build-apk.sh apps/bautagebuch Bautagebuch.apk
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: bautagebuch-apk
           path: apps/bautagebuch/Bautagebuch.apk
