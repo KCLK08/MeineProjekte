@@ -41,6 +41,16 @@ const CATALOG = [
     apkFile: 'Elifba.apk',
     versionFallback: '1.0.0',
   },
+  {
+    slug: 'familydata',
+    name: 'FamilyData',
+    description: 'Privater Familienordner – offline, nur mobil (kein Web).',
+    hasWeb: false,
+    hasApk: true,
+    accent: '#1b4332',
+    apkFile: 'FamilyData.apk',
+    versionFallback: '1.0.0',
+  },
 ];
 
 const OWNER = 'KCLK08';

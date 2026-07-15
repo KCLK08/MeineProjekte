@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "FamilyData",
+    "slug": "familydata",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "familydata",
+    "userInterfaceStyle": "light",
+    "platforms": ["ios", "android"],
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1b4332"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "de.meineprojekte.familydata",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "FamilyData nutzt biometrische Freigabe nur auf diesem Gerät, um den Zugriff zu schützen.",
+        "NSCameraUsageDescription": "Kamera nur zum Erfassen eigener Dokumentfotos (lokal).",
+        "NSPhotoLibraryUsageDescription": "Galerie nur zum Anhängen eigener Dokumentfotos (lokal)."
+      }
+    },
+    "android": {
+      "package": "de.meineprojekte.familydata",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#1b4332"
+      },
+      "permissions": ["CAMERA", "READ_MEDIA_IMAGES", "USE_BIOMETRIC", "USE_FINGERPRINT"]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "FamilyData nutzt Face ID zum Entsperren auf diesem Gerät."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Galeriezugriff nur für lokale Dokumentfotos.",
+          "cameraPermission": "Kamerazugriff nur für lokale Dokumentfotos."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "00000000-0000-4000-8000-000000000001"
+      }
+    }
+  }
+}
