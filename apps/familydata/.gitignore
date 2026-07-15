@@ -1,0 +1,41 @@
+node_modules/
+.expo/
+dist/
+web-build/
+android/
+ios/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Local app data (never commit real family data)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+data/
+documents/
+uploads/
+local-files/
+*.pdf
+*.PDF
+
+# Images that are not app assets
+/media/
+/files/
+*.heic
+*.HEIC
+
+# Logs / OS
+*.log
+.DS_Store
+npm-debug.*
+
+# Native build leftovers
+*.jks
+*.keystore
+*.apk
+*.aab
+eas-result.json

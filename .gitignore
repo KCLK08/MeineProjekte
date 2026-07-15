@@ -28,3 +28,12 @@ eas-result.json
 # Coverage
 coverage/
 apps/**/web/dist/
+
+# FamilyData / sensitive local artifacts (never commit real documents)
+**/*.db
+**/*.sqlite
+**/local-files/
+**/uploads/
+apps/familydata/documents/
+apps/familydata/media/
+
