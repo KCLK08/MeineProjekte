@@ -5,7 +5,7 @@ import type { DocumentType, FamilyDocument, IdentificationData, Person } from '@
 
 type DocRow = FamilyDocument & { personName: string; typeName: string; expiryDateRelevant: number };
 
-const BOOTSTRAP_TIMEOUT_MS = 12_000;
+const BOOTSTRAP_TIMEOUT_MS = 8_000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -44,35 +44,42 @@ type FamilyState = {
   removeDocumentType: (id: string) => Promise<void>;
 };
 
+let bootstrapInFlight: Promise<void> | null = null;
+
 export const useFamilyStore = create<FamilyState>((set, get) => ({
   ready: false,
-  loading: true,
+  loading: false,
   error: '',
   people: [],
   documentTypes: [],
   documents: [],
 
   bootstrap: async () => {
-    set({ loading: true, error: '', ready: false });
-    try {
-      await withTimeout(
-        (async () => {
-          await get().refreshPeople();
-          await get().refreshDocumentTypes();
-          await get().refreshDocuments();
-        })(),
-        BOOTSTRAP_TIMEOUT_MS,
-        'Datenbank-Start dauert zu lange. Bitte Expo Go neu starten oder Cache leeren.'
-      );
-      set({ ready: true, error: '' });
-    } catch (e) {
-      set({
-        ready: false,
-        error: (e as Error).message || 'Datenbankfehler beim Start',
-      });
-    } finally {
-      set({ loading: false });
-    }
+    if (bootstrapInFlight) return bootstrapInFlight;
+    set({ loading: true, error: '' });
+    bootstrapInFlight = (async () => {
+      try {
+        await withTimeout(
+          (async () => {
+            await get().refreshPeople();
+            await get().refreshDocumentTypes();
+            await get().refreshDocuments();
+          })(),
+          BOOTSTRAP_TIMEOUT_MS,
+          'SQLite-Start dauerte zu lange. Tippe „Erneut versuchen“ oder starte Expo Go neu.'
+        );
+        set({ ready: true, error: '' });
+      } catch (e) {
+        set({
+          ready: false,
+          error: (e as Error).message || 'Datenbankfehler beim Start',
+        });
+      } finally {
+        set({ loading: false });
+        bootstrapInFlight = null;
+      }
+    })();
+    return bootstrapInFlight;
   },
 
   refreshPeople: async () => {
