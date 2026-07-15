@@ -1,22 +1,22 @@
 # yaml-language-server: $schema=
 # Shared template note: keep the five build-*.yml files in sync intentionally
 # (no reusable workflow – avoids GitHub startup_failure from permissions elevation).
-name: Build Bautagebuch APK
+name: Build FamilyData APK
 
 on:
   push:
     branches: [main]
     paths:
-      - 'apps/bautagebuch/**'
+      - 'apps/familydata/**'
       - 'scripts/ci-build-apk.sh'
-      - '.github/workflows/build-bautagebuch.yml'
+      - '.github/workflows/build-familydata.yml'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: apk-bautagebuch
+  group: apk-familydata
   cancel-in-progress: true
 
 jobs:
@@ -54,13 +54,13 @@ jobs:
           USE_EAS_BUILD: '0'
         run: |
           chmod +x scripts/ci-build-apk.sh
-          scripts/ci-build-apk.sh apps/bautagebuch Bautagebuch.apk
+          scripts/ci-build-apk.sh apps/familydata FamilyData.apk
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: bautagebuch-apk
-          path: apps/bautagebuch/Bautagebuch.apk
+          name: familydata-apk
+          path: apps/familydata/FamilyData.apk
           retention-days: 90
 
       - name: Update releases.json
@@ -69,15 +69,15 @@ jobs:
           const fs = require('fs');
           const path = 'website/releases.json';
           const data = JSON.parse(fs.readFileSync(path, 'utf8'));
-          data.bautagebuch = {
+          data.familydata = {
             version: process.env.APP_VERSION,
             buildDate: new Date().toISOString(),
-            apkUrl: `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/bautagebuch-apk-latest/Bautagebuch.apk`,
+            apkUrl: `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/familydata-apk-latest/FamilyData.apk`,
           };
           fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
           EOF
         env:
-          APP_VERSION: '1.0.1'
+          APP_VERSION: '1.0.0'
 
       - name: Commit releases.json
         run: |
@@ -87,20 +87,20 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes"
           else
-            git commit -m "chore: update bautagebuch APK release metadata [skip ci]"
+            git commit -m "chore: update familydata APK release metadata [skip ci]"
             git push
           fi
 
       - name: Publish GitHub Release
         uses: ncipollo/release-action@v1
         with:
-          tag: bautagebuch-apk-latest
-          name: bautagebuch APK (1.0.1)
+          tag: familydata-apk-latest
+          name: familydata APK (1.0.0)
           body: |
-            Automatischer Android-Build für `apps/bautagebuch`.
+            Automatischer Android-Build für `apps/familydata`.
             - Commit: ${{ github.sha }}
             - Run: ${{ github.run_number }}
-          artifacts: apps/bautagebuch/Bautagebuch.apk
+          artifacts: apps/familydata/FamilyData.apk
           allowUpdates: true
           makeLatest: false
           replacesArtifacts: true
