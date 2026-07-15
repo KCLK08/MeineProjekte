@@ -1,11 +1,30 @@
 import { create } from 'zustand';
 
 import * as repo from '@/db/repository';
+import { DEFAULT_DOCUMENT_TYPES, DUMMY_FAMILY } from '@/db/seed';
 import type { DocumentType, FamilyDocument, IdentificationData, Person } from '@/types/models';
 
 type DocRow = FamilyDocument & { personName: string; typeName: string; expiryDateRelevant: number };
 
-const BOOTSTRAP_TIMEOUT_MS = 12_000;
+const BOOTSTRAP_TIMEOUT_MS = 6_000;
+
+function memorySeed() {
+  const typeById = new Map(DEFAULT_DOCUMENT_TYPES.map((t) => [t.id, t]));
+  const people = DUMMY_FAMILY.map((m) => m.person);
+  const documentTypes: DocumentType[] = DEFAULT_DOCUMENT_TYPES.map((t) => ({ ...t, isSystem: true }));
+  const documents: DocRow[] = DUMMY_FAMILY.flatMap((m) =>
+    m.documents.map((doc) => {
+      const type = typeById.get(doc.documentTypeId);
+      return {
+        ...doc,
+        personName: `${m.person.vorname} ${m.person.nachname}`,
+        typeName: type?.name || 'Dokument',
+        expiryDateRelevant: type?.expiryDateRelevant ? 1 : 0,
+      };
+    })
+  );
+  return { people, documentTypes, documents };
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -44,35 +63,52 @@ type FamilyState = {
   removeDocumentType: (id: string) => Promise<void>;
 };
 
+let bootstrapInFlight: Promise<void> | null = null;
+
 export const useFamilyStore = create<FamilyState>((set, get) => ({
   ready: false,
-  loading: true,
+  loading: false,
   error: '',
   people: [],
   documentTypes: [],
   documents: [],
 
   bootstrap: async () => {
-    set({ loading: true, error: '', ready: false });
-    try {
-      await withTimeout(
-        (async () => {
-          await get().refreshPeople();
-          await get().refreshDocumentTypes();
-          await get().refreshDocuments();
-        })(),
-        BOOTSTRAP_TIMEOUT_MS,
-        'Datenbank-Start dauert zu lange. Bitte Expo Go neu starten oder Cache leeren.'
-      );
-      set({ ready: true, error: '' });
-    } catch (e) {
-      set({
-        ready: false,
-        error: (e as Error).message || 'Datenbankfehler beim Start',
-      });
-    } finally {
-      set({ loading: false });
-    }
+    if (bootstrapInFlight) return bootstrapInFlight;
+
+    // Show screens immediately with dummy seed – never block UI on SQLite.
+    const seed = memorySeed();
+    set({
+      ...seed,
+      ready: true,
+      loading: true,
+      error: '',
+    });
+
+    bootstrapInFlight = (async () => {
+      try {
+        await withTimeout(
+          (async () => {
+            await get().refreshPeople();
+            await get().refreshDocumentTypes();
+            await get().refreshDocuments();
+          })(),
+          BOOTSTRAP_TIMEOUT_MS,
+          'SQLite antwortet nicht – App läuft mit Demo-Daten.'
+        );
+        set({ error: '' });
+      } catch (e) {
+        // Keep memory seed so the app remains usable in Expo Go.
+        set({
+          error: (e as Error).message || 'Datenbank nicht erreichbar – Demo-Daten aktiv.',
+        });
+      } finally {
+        set({ loading: false, ready: true });
+        bootstrapInFlight = null;
+      }
+    })();
+
+    return bootstrapInFlight;
   },
 
   refreshPeople: async () => {
