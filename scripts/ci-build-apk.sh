@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Build an Expo Android APK for one monorepo app.
 # Usage: scripts/ci-build-apk.sh <app-path> <apk-name>
+#
+# GitHub Actions defaults to a local Gradle build (predictable, ~15–30 min).
+# Set USE_EAS_BUILD=1 to wait on Expo cloud builds instead (can take hours).
 set -euo pipefail
 
 APP_PATH="${1:?app-path required}"
@@ -8,8 +11,13 @@ APK_NAME="${2:?apk-name required}"
 
 cd "$APP_PATH"
 
-if [ -n "${EXPO_TOKEN:-}" ] && command -v eas >/dev/null 2>&1; then
-  echo "Trying EAS cloud build…"
+use_eas=false
+if [ "${USE_EAS_BUILD:-0}" = "1" ] && [ -n "${EXPO_TOKEN:-}" ] && command -v eas >/dev/null 2>&1; then
+  use_eas=true
+fi
+
+if [ "$use_eas" = true ]; then
+  echo "Trying EAS cloud build (USE_EAS_BUILD=1)…"
   if eas build --platform android --profile preview --non-interactive --json --wait | tee eas-result.json; then
     URL=$(node -e "
       const fs = require('fs');
@@ -30,7 +38,11 @@ if [ -n "${EXPO_TOKEN:-}" ] && command -v eas >/dev/null 2>&1; then
     echo "EAS build failed – falling back to local build"
   fi
 else
-  echo "EXPO_TOKEN or eas missing – local Gradle build"
+  if [ -n "${EXPO_TOKEN:-}" ]; then
+    echo "EXPO_TOKEN is set, but CI uses local Gradle (set USE_EAS_BUILD=1 for EAS)."
+  else
+    echo "Local Gradle build (no EXPO_TOKEN / EAS not requested)"
+  fi
 fi
 
 npx expo prebuild --platform android --no-install

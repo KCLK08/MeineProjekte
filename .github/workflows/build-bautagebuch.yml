@@ -22,6 +22,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,20 +47,11 @@ jobs:
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
-      - name: Setup EAS CLI
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: |
-          npm install -g eas-cli
-          if [ -n "${EXPO_TOKEN:-}" ]; then
-            echo "EXPO_TOKEN is set"
-          else
-            echo "EXPO_TOKEN is empty – local build fallback will be used"
-          fi
-
       - name: Build APK
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          # Default: local Gradle. Set to "1" only if you intentionally want eas build --wait.
+          USE_EAS_BUILD: '0'
         run: |
           chmod +x scripts/ci-build-apk.sh
           scripts/ci-build-apk.sh apps/bautagebuch Bautagebuch.apk
