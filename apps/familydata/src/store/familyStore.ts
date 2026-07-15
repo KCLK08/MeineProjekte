@@ -5,6 +5,23 @@ import type { DocumentType, FamilyDocument, IdentificationData, Person } from '@
 
 type DocRow = FamilyDocument & { personName: string; typeName: string; expiryDateRelevant: number };
 
+const BOOTSTRAP_TIMEOUT_MS = 12_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
 type FamilyState = {
   ready: boolean;
   loading: boolean;
@@ -29,21 +46,30 @@ type FamilyState = {
 
 export const useFamilyStore = create<FamilyState>((set, get) => ({
   ready: false,
-  loading: false,
+  loading: true,
   error: '',
   people: [],
   documentTypes: [],
   documents: [],
 
   bootstrap: async () => {
-    set({ loading: true, error: '' });
+    set({ loading: true, error: '', ready: false });
     try {
-      await get().refreshPeople();
-      await get().refreshDocumentTypes();
-      await get().refreshDocuments();
-      set({ ready: true });
+      await withTimeout(
+        (async () => {
+          await get().refreshPeople();
+          await get().refreshDocumentTypes();
+          await get().refreshDocuments();
+        })(),
+        BOOTSTRAP_TIMEOUT_MS,
+        'Datenbank-Start dauert zu lange. Bitte Expo Go neu starten oder Cache leeren.'
+      );
+      set({ ready: true, error: '' });
     } catch (e) {
-      set({ error: (e as Error).message || 'Datenbankfehler' });
+      set({
+        ready: false,
+        error: (e as Error).message || 'Datenbankfehler beim Start',
+      });
     } finally {
       set({ loading: false });
     }
