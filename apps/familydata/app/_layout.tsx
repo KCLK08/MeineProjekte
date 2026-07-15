@@ -51,6 +51,19 @@ export default function RootLayout() {
             <Text style={{ color: '#6b7c74' }}>Daten werden geladen…</Text>
           </View>
         ) : null}
+        {error && ready ? (
+          <View
+            style={{
+              backgroundColor: '#fff7ed',
+              borderBottomColor: '#fed7aa',
+              borderBottomWidth: 1,
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+            }}
+          >
+            <Text style={{ color: '#9a3412' }}>{error}</Text>
+          </View>
+        ) : null}
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="person/[id]" options={{ headerShown: true, title: 'Profil', presentation: 'card' }} />
