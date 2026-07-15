@@ -12,10 +12,9 @@ async function getDb() {
   if (!dbPromise) {
     dbPromise = (async () => {
       const db = await SQLite.openDatabaseAsync(DB_NAME);
+      // Avoid WAL + multi-statement execAsync – both have hung on some Expo Go devices.
+      await db.execAsync('PRAGMA foreign_keys = ON;');
       await db.execAsync(`
-        PRAGMA journal_mode = WAL;
-        PRAGMA foreign_keys = ON;
-
         CREATE TABLE IF NOT EXISTS people (
           id TEXT PRIMARY KEY NOT NULL,
           vorname TEXT NOT NULL,
@@ -29,7 +28,8 @@ async function getDb() {
           createdAt TEXT NOT NULL,
           updatedAt TEXT NOT NULL
         );
-
+      `);
+      await db.execAsync(`
         CREATE TABLE IF NOT EXISTS identification (
           personId TEXT PRIMARY KEY NOT NULL,
           reisepassnummer TEXT NOT NULL DEFAULT '',
@@ -41,14 +41,16 @@ async function getDb() {
           kindergeldNummer TEXT NOT NULL DEFAULT '',
           FOREIGN KEY(personId) REFERENCES people(id) ON DELETE CASCADE
         );
-
+      `);
+      await db.execAsync(`
         CREATE TABLE IF NOT EXISTS document_types (
           id TEXT PRIMARY KEY NOT NULL,
           name TEXT NOT NULL,
           expiryDateRelevant INTEGER NOT NULL DEFAULT 0,
           isSystem INTEGER NOT NULL DEFAULT 0
         );
-
+      `);
+      await db.execAsync(`
         CREATE TABLE IF NOT EXISTS documents (
           id TEXT PRIMARY KEY NOT NULL,
           personId TEXT NOT NULL,
@@ -62,7 +64,8 @@ async function getDb() {
           FOREIGN KEY(personId) REFERENCES people(id) ON DELETE CASCADE,
           FOREIGN KEY(documentTypeId) REFERENCES document_types(id)
         );
-
+      `);
+      await db.execAsync(`
         CREATE TABLE IF NOT EXISTS app_meta (
           key TEXT PRIMARY KEY NOT NULL,
           value TEXT NOT NULL
@@ -70,7 +73,10 @@ async function getDb() {
       `);
       await ensureSeed(db);
       return db;
-    })();
+    })().catch((err) => {
+      dbPromise = null;
+      throw err;
+    });
   }
   return dbPromise;
 }
