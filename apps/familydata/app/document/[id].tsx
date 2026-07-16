@@ -7,7 +7,9 @@ import { FilePreview } from '@/components/FilePreview';
 import { EmptyState, LoadingBlock, PrimaryButton, Screen } from '@/components/ui';
 import * as repo from '@/db/repository';
 import { DocumentEncryptionService } from '@/security/DocumentEncryptionService';
+import { ExportHistory } from '@/security/ExportHistory';
 import { subscribePreviewWipe } from '@/security/previewSession';
+import { SecurityEventLog } from '@/security/SecurityEventLog';
 import { SecurityManager } from '@/security/SecurityManager';
 import { useFamilyStore } from '@/store/familyStore';
 import { useSecurityStore } from '@/store/securityStore';
@@ -95,21 +97,42 @@ export default function DocumentPreviewScreen() {
 
   const hasFile = Boolean(doc.filePath?.trim());
 
-  async function onExportPdf() {
+  function onExportPdf() {
     if (!doc?.filePath) {
       Alert.alert('Kein Anhang', 'Diesem Dokument ist keine Datei hinterlegt.');
       return;
     }
-    try {
-      setExporting(true);
-      const name = `${doc.name || 'Dokument'}_${assignedPeople[0]?.nachname || 'export'}`;
-      const source = readableUri || (await SecurityManager.resolveReadableUri(doc.filePath, '.bin'));
-      await exportUriAsPdf(source, name);
-    } catch (e) {
-      Alert.alert('PDF-Export fehlgeschlagen', (e as Error).message);
-    } finally {
-      setExporting(false);
-    }
+    Alert.alert(
+      'Dokument exportieren',
+      'Der Export erstellt eine entschlüsselte Datei außerhalb des geschützten FamilyData Tresors.',
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Exportieren',
+          onPress: () => {
+            void (async () => {
+              try {
+                setExporting(true);
+                const name = `${doc.name || 'Dokument'}_${assignedPeople[0]?.nachname || 'export'}`;
+                const source =
+                  readableUri || (await SecurityManager.resolveReadableUri(doc.filePath, '.bin'));
+                await exportUriAsPdf(source, name);
+                await ExportHistory.record(doc.id, 'pdf');
+                await SecurityEventLog.record('export_performed');
+                Alert.alert(
+                  'Export abgeschlossen',
+                  'Die exportierte Datei liegt außerhalb von FamilyData und sollte nach Verwendung gelöscht werden.'
+                );
+              } catch (e) {
+                Alert.alert('PDF-Export fehlgeschlagen', (e as Error).message);
+              } finally {
+                setExporting(false);
+              }
+            })();
+          },
+        },
+      ]
+    );
   }
 
   return (

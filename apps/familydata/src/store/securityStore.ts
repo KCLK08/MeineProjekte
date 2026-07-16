@@ -1,7 +1,9 @@
 import { AppState, type AppStateStatus } from 'react-native';
 import { create } from 'zustand';
 
+import { maybePromptAutoLockPreference } from '@/security/autoLockPrompt';
 import { wipeAllPreviews } from '@/security/previewSession';
+import { SecurityEventLog } from '@/security/SecurityEventLog';
 import { SecurityManager } from '@/security/SecurityManager';
 import { autoLockMs, type AutoLockOption } from '@/security/types';
 import { useFamilyStore } from '@/store/familyStore';
@@ -139,8 +141,10 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
         needsVaultSetup: false,
       });
       await useFamilyStore.getState().bootstrap();
+      await maybePromptAutoLockPreference(get().setAutoLock);
       return true;
     } catch (e) {
+      void SecurityEventLog.record('auth_failed');
       set({ busy: false, error: (e as Error).message, isLocked: true });
       return false;
     }
@@ -169,6 +173,7 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
         needsVaultSetup: false,
       });
       await useFamilyStore.getState().bootstrap();
+      await maybePromptAutoLockPreference(get().setAutoLock);
     } catch (e) {
       set({ busy: false, error: (e as Error).message, isLocked: true });
       throw e;

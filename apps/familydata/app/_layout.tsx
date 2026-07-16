@@ -23,6 +23,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AppLockGate } from '@/components/AppLockGate';
+import { markScreenCaptureProtected } from '@/security/runtimeHardening';
 import { useFamilyStore } from '@/store/familyStore';
 import { useSecurityStore } from '@/store/securityStore';
 import { useThemeStore } from '@/theme/themeStore';
@@ -47,11 +48,19 @@ function RootNavigator() {
 
   useEffect(() => {
     // Android FLAG_SECURE (+ iOS screen-capture / recent-apps protection).
-    void ScreenCapture.preventScreenCaptureAsync('familydata-vault').catch(() => undefined);
-    if (Platform.OS === 'ios') {
-      void ScreenCapture.enableAppSwitcherProtectionAsync(0.7).catch(() => undefined);
-    }
+    void (async () => {
+      try {
+        await ScreenCapture.preventScreenCaptureAsync('familydata-vault');
+        if (Platform.OS === 'ios') {
+          await ScreenCapture.enableAppSwitcherProtectionAsync(0.7);
+        }
+        markScreenCaptureProtected(true);
+      } catch {
+        markScreenCaptureProtected(false);
+      }
+    })();
     return () => {
+      markScreenCaptureProtected(false);
       void ScreenCapture.allowScreenCaptureAsync('familydata-vault').catch(() => undefined);
       if (Platform.OS === 'ios') {
         void ScreenCapture.disableAppSwitcherProtectionAsync().catch(() => undefined);
