@@ -10,6 +10,8 @@ import { FilterChip, Field, PrimaryButton, Screen, SectionTitle } from '@/compon
 import * as repo from '@/db/repository';
 import { documentFormSchema, type DocumentFormValues } from '@/schemas/forms';
 import { useFamilyStore } from '@/store/familyStore';
+import { persistAttachment } from '@/utils/files';
+import { createId } from '@/utils/helpers';
 
 export default function DocumentFormScreen() {
   const router = useRouter();
@@ -88,13 +90,17 @@ export default function DocumentFormScreen() {
   const onSubmit = handleSubmit(async (values) => {
     try {
       const expiryDate = selectedType?.expiryDateRelevant ? values.expiryDate || '' : '';
+      const docKey = editingId || createId('doc');
+      const filePath = values.filePath
+        ? await persistAttachment(values.filePath, docKey)
+        : '';
       const id = await saveDocument({
-        id: editingId,
+        id: editingId || docKey,
         personId: values.personId,
         documentTypeId: values.documentTypeId,
         documentNumber: values.documentNumber || '',
         expiryDate,
-        filePath: values.filePath || '',
+        filePath,
         notes: values.notes || '',
       });
       router.replace(`/document/${id}`);

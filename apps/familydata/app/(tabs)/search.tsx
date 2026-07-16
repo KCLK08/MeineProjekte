@@ -41,7 +41,7 @@ export default function SearchScreen() {
       <FlatList
         data={showDocs}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12 + insets.top, paddingBottom: 28 + insets.bottom }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12 + insets.top, paddingBottom: 24 }}
         ListHeaderComponent={
           <View>
             <PageHeader title="Suche" subtitle="Personen, Nummern und Dokumenttypen" />

@@ -43,7 +43,7 @@ export default function DocumentsScreen() {
       <FlatList
         data={documents}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12 + insets.top, paddingBottom: 28 + insets.bottom }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12 + insets.top, paddingBottom: 24 }}
         ListHeaderComponent={
           <View className="mb-2">
             <PageHeader
