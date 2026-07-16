@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Alert, ScrollView, Switch, Text, View } from 'react-native';
 
-import { Field, PrimaryButton, Screen, SectionTitle } from '@/components/ui';
+import { Field, Panel, PrimaryButton, Screen, SectionTitle } from '@/components/ui';
 import * as repo from '@/db/repository';
 import { personFormSchema, type PersonFormValues } from '@/schemas/forms';
 import { useFamilyStore } from '@/store/familyStore';
@@ -95,8 +95,11 @@ export default function PersonFormScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
-        <Text className="mb-4 text-base text-mist">Nur Testdaten verwenden – keine echten Personendaten.</Text>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
+        <Text className="mb-5 font-sans text-[15px] leading-5 text-mute">
+          Grunddaten zuerst – Identifikationsnummern sind optional und bleiben lokal.
+        </Text>
+
         <SectionTitle>Person</SectionTitle>
         <Controller control={control} name="vorname" render={({ field: { onChange, value } }) => (
           <Field label="Vorname *" value={value} onChangeText={onChange} error={errors.vorname?.message} />
@@ -110,6 +113,10 @@ export default function PersonFormScreen() {
         <Controller control={control} name="nationalitaet" render={({ field: { onChange, value } }) => (
           <Field label="Nationalität" value={value} onChangeText={onChange} />
         )} />
+
+        <View className="mt-2">
+          <SectionTitle>Kontakt</SectionTitle>
+        </View>
         <Controller control={control} name="telefon" render={({ field: { onChange, value } }) => (
           <Field label="Telefon" value={value} onChangeText={onChange} keyboardType="phone-pad" />
         )} />
@@ -123,7 +130,7 @@ export default function PersonFormScreen() {
           <Field label="Notizen" value={value} onChangeText={onChange} multiline />
         )} />
 
-        <View className="mt-4">
+        <View className="mt-2">
           <SectionTitle>Identifikation (optional)</SectionTitle>
         </View>
         <Controller control={control} name="reisepassnummer" render={({ field: { onChange, value } }) => (
@@ -148,14 +155,21 @@ export default function PersonFormScreen() {
           <Field label="Kindergeldnummer" value={value} onChangeText={onChange} />
         )} />
 
-        <View className="mt-2 flex-row items-center justify-between rounded-xl border border-line bg-white px-3 py-3">
-          <Text className="flex-1 pr-3 text-sm text-mist">Verschlüsselung der Felder folgt später (vorbereitet).</Text>
-          <Switch value={false} disabled />
-        </View>
+        <Panel className="mb-5 mt-1 py-1">
+          <View className="flex-row items-center justify-between py-2">
+            <Text className="flex-1 pr-3 font-sans text-sm leading-5 text-mute">
+              Feldverschlüsselung ist vorbereitet und folgt in einem späteren Schritt.
+            </Text>
+            <Switch value={false} disabled />
+          </View>
+        </Panel>
 
-        <View className="mt-6">
-          <PrimaryButton label={isSubmitting ? 'Speichert…' : 'Speichern'} onPress={onSubmit} disabled={isSubmitting} />
-        </View>
+        <PrimaryButton
+          label={isSubmitting ? 'Speichert…' : 'Speichern'}
+          icon="checkmark"
+          onPress={onSubmit}
+          disabled={isSubmitting}
+        />
       </ScrollView>
     </Screen>
   );

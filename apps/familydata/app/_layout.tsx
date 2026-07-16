@@ -3,6 +3,16 @@ import 'react-native-reanimated';
 
 import '../global.css';
 
+import {
+  DMSans_400Regular,
+  DMSans_500Medium,
+  DMSans_700Bold,
+} from '@expo-google-fonts/dm-sans';
+import {
+  Fraunces_600SemiBold,
+  Fraunces_700Bold,
+} from '@expo-google-fonts/fraunces';
+import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -19,11 +29,22 @@ export default function RootLayout() {
   const loading = useFamilyStore((s) => s.loading);
   const error = useFamilyStore((s) => s.error);
 
+  const [fontsLoaded] = useFonts({
+    Fraunces_600SemiBold,
+    Fraunces_700Bold,
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_700Bold,
+  });
+
   useEffect(() => {
-    // Never hold the native splash for DB init – that caused infinite loading in Expo Go.
     SplashScreen.hideAsync().catch(() => undefined);
     bootstrap();
   }, [bootstrap]);
+
+  if (!fontsLoaded) {
+    return <View style={{ flex: 1, backgroundColor: '#e8f0ec' }} />;
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -39,16 +60,16 @@ export default function RootLayout() {
               paddingVertical: 10,
             }}
           >
-            <Text style={{ color: '#b42318', fontWeight: '700' }}>Datenbank-Start fehlgeschlagen</Text>
-            <Text style={{ color: '#6b7c74', marginTop: 4 }}>{error}</Text>
+            <Text style={{ color: '#b42318', fontFamily: 'DMSans_700Bold' }}>Start fehlgeschlagen</Text>
+            <Text style={{ color: '#5a7368', marginTop: 4, fontFamily: 'DMSans_400Regular' }}>{error}</Text>
             <Pressable onPress={() => bootstrap()} style={{ marginTop: 8 }}>
-              <Text style={{ color: '#1b4332', fontWeight: '700' }}>Erneut versuchen</Text>
+              <Text style={{ color: '#0c3b2e', fontFamily: 'DMSans_700Bold' }}>Erneut versuchen</Text>
             </Pressable>
           </View>
         ) : null}
         {!ready && loading ? (
-          <View style={{ backgroundColor: '#f4f1ea', paddingHorizontal: 16, paddingVertical: 8 }}>
-            <Text style={{ color: '#6b7c74' }}>Daten werden geladen…</Text>
+          <View style={{ backgroundColor: '#d8ebe2', paddingHorizontal: 16, paddingVertical: 8 }}>
+            <Text style={{ color: '#5a7368', fontFamily: 'DMSans_400Regular' }}>Daten werden geladen…</Text>
           </View>
         ) : null}
         {error && ready ? (
@@ -61,10 +82,19 @@ export default function RootLayout() {
               paddingVertical: 8,
             }}
           >
-            <Text style={{ color: '#9a3412' }}>{error}</Text>
+            <Text style={{ color: '#9a3412', fontFamily: 'DMSans_400Regular' }}>{error}</Text>
           </View>
         ) : null}
-        <Stack screenOptions={{ headerShown: false }}>
+        <Stack
+          screenOptions={{
+            headerStyle: { backgroundColor: '#e8f0ec' },
+            headerShadowVisible: false,
+            headerTintColor: '#0c3b2e',
+            headerTitleStyle: { fontFamily: 'Fraunces_700Bold', fontSize: 18, color: '#10241c' },
+            contentStyle: { backgroundColor: '#e8f0ec' },
+            headerShown: false,
+          }}
+        >
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="person/[id]" options={{ headerShown: true, title: 'Profil', presentation: 'card' }} />
           <Stack.Screen name="person/new" options={{ headerShown: true, title: 'Person hinzufügen', presentation: 'modal' }} />

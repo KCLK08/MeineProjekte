@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 
-import { Card, PrimaryButton, Screen, SectionTitle } from '@/components/ui';
+import { Panel, PrimaryButton, Screen, SectionTitle, StatusBadge } from '@/components/ui';
 import {
   authenticateBiometric,
   clearPin,
@@ -48,16 +48,17 @@ export default function SecurityScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-        <Text className="mb-4 text-base text-mist">
-          Vorbereitung für Geräteschutz. Keine Server-Anmeldung. Verschlüsselung der DB folgt später.
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+        <Text className="mb-5 font-sans text-[15px] leading-5 text-mute">
+          Geräteschutz ohne Account. PIN und Biometrie bleiben auf diesem Handy – keine Cloud-Anmeldung.
         </Text>
 
         <SectionTitle>App-PIN</SectionTitle>
-        <Card className="mb-4">
+        <Panel className="mb-5 py-4">
           <View className="mb-3 flex-row items-center justify-between">
-            <Text className="text-base text-ink">PIN aktiv</Text>
+            <Text className="font-sansMedium text-base text-ink">PIN aktiv</Text>
             <Switch
+              trackColor={{ true: '#1f7a5c' }}
               value={pinEnabled}
               onValueChange={async (v) => {
                 if (v && !pinConfigured) {
@@ -69,7 +70,12 @@ export default function SecurityScreen() {
               }}
             />
           </View>
-          <Text className="mb-2 text-sm text-mist">{pinConfigured ? 'PIN ist konfiguriert.' : 'Noch keine PIN gesetzt.'}</Text>
+          <View className="mb-3">
+            <StatusBadge
+              label={pinConfigured ? 'PIN konfiguriert' : 'Noch keine PIN'}
+              tone={pinConfigured ? 'ok' : 'neutral'}
+            />
+          </View>
           <TextInput
             value={pinInput}
             onChangeText={setPinInput}
@@ -77,8 +83,8 @@ export default function SecurityScreen() {
             secureTextEntry
             maxLength={8}
             placeholder="Neue PIN (4–8 Ziffern)"
-            placeholderTextColor="#6b7c74"
-            className="mb-2 min-h-[48px] rounded-xl border border-line bg-sand px-3 text-base text-ink"
+            placeholderTextColor="#7a9086"
+            className="mb-2 min-h-[50px] rounded-2xl border border-line bg-canvas px-3.5 font-sans text-base text-ink"
           />
           <TextInput
             value={pinCheck}
@@ -87,14 +93,14 @@ export default function SecurityScreen() {
             secureTextEntry
             maxLength={8}
             placeholder="PIN wiederholen"
-            placeholderTextColor="#6b7c74"
-            className="mb-3 min-h-[48px] rounded-xl border border-line bg-sand px-3 text-base text-ink"
+            placeholderTextColor="#7a9086"
+            className="mb-3 min-h-[50px] rounded-2xl border border-line bg-canvas px-3.5 font-sans text-base text-ink"
           />
-          <PrimaryButton label="PIN speichern" onPress={onSavePin} />
+          <PrimaryButton label="PIN speichern" icon="key-outline" onPress={onSavePin} />
           <View className="mt-2">
             <PrimaryButton
-              label="PIN prüfen (Demo)"
-              tone="ghost"
+              label="PIN prüfen"
+              tone="soft"
               onPress={async () => {
                 const ok = await verifyPin(pinInput);
                 Alert.alert(ok ? 'Korrekt' : 'Falsch');
@@ -105,7 +111,8 @@ export default function SecurityScreen() {
             <View className="mt-2">
               <PrimaryButton
                 label="PIN entfernen"
-                tone="danger"
+                tone="ghost"
+                icon="trash-outline"
                 onPress={async () => {
                   await clearPin();
                   await reload();
@@ -113,16 +120,18 @@ export default function SecurityScreen() {
               />
             </View>
           ) : null}
-        </Card>
+        </Panel>
 
         <SectionTitle>Biometrie</SectionTitle>
-        <Card className="mb-4">
-          <Text className="mb-3 text-sm text-mist">
-            Hardware: {bioSupport.hasHardware ? 'ja' : 'nein'} · eingerichtet: {bioSupport.enrolled ? 'ja' : 'nein'}
-          </Text>
+        <Panel className="mb-5 py-4">
+          <View className="mb-3 flex-row flex-wrap gap-2">
+            <StatusBadge label={bioSupport.hasHardware ? 'Hardware ja' : 'Hardware nein'} tone={bioSupport.hasHardware ? 'ok' : 'neutral'} />
+            <StatusBadge label={bioSupport.enrolled ? 'Eingerichtet' : 'Nicht eingerichtet'} tone={bioSupport.enrolled ? 'ok' : 'warn'} />
+          </View>
           <View className="mb-3 flex-row items-center justify-between">
-            <Text className="text-base text-ink">Fingerabdruck / Face ID</Text>
+            <Text className="font-sansMedium text-base text-ink">Fingerabdruck / Face ID</Text>
             <Switch
+              trackColor={{ true: '#1f7a5c' }}
               value={bioEnabled}
               onValueChange={async (v) => {
                 if (v && !(bioSupport.hasHardware && bioSupport.enrolled)) {
@@ -136,26 +145,27 @@ export default function SecurityScreen() {
           </View>
           <PrimaryButton
             label="Biometrie testen"
-            tone="ghost"
+            tone="soft"
+            icon="finger-print-outline"
             onPress={async () => {
               const result = await authenticateBiometric();
               Alert.alert(result.success ? 'Erfolg' : 'Abgebrochen', result.success ? undefined : result.error);
             }}
           />
-        </Card>
+        </Panel>
 
         <SectionTitle>Verschlüsselung</SectionTitle>
-        <Card>
+        <Panel className="py-4">
           <View className="flex-row items-center justify-between">
             <View className="flex-1 pr-3">
-              <Text className="text-base font-bold text-ink">Lokale Verschlüsselung</Text>
-              <Text className="mt-1 text-sm text-mist">
-                Vorbereitet – SQLCipher / File-Encryption kann später ergänzt werden.
+              <Text className="font-sansBold text-base text-ink">Lokale Verschlüsselung</Text>
+              <Text className="mt-1 font-sans text-sm leading-5 text-mute">
+                Vorbereitet – SQLCipher / Dateiverschlüsselung folgt später.
               </Text>
             </View>
             <Switch value={false} disabled />
           </View>
-        </Card>
+        </Panel>
       </ScrollView>
     </Screen>
   );

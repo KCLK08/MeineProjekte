@@ -10,6 +10,12 @@ export function displayName(vorname: string, nachname: string) {
   return `${vorname} ${nachname}`.trim();
 }
 
+export function initials(vorname: string, nachname: string) {
+  const a = (vorname || '').trim().charAt(0);
+  const b = (nachname || '').trim().charAt(0);
+  return `${a}${b}`.toUpperCase() || '?';
+}
+
 export function formatDateDe(value?: string | null) {
   if (!value) return '—';
   const d = new Date(value);

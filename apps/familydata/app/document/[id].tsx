@@ -1,8 +1,17 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
-import { Card, PrimaryButton, Screen, SectionTitle } from '@/components/ui';
+import {
+  InfoRow,
+  LoadingBlock,
+  Panel,
+  PrimaryButton,
+  Screen,
+  SectionTitle,
+  StatusBadge,
+} from '@/components/ui';
 import * as repo from '@/db/repository';
 import { useFamilyStore } from '@/store/familyStore';
 import type { FamilyDocument } from '@/types/models';
@@ -26,8 +35,8 @@ export default function DocumentDetailScreen() {
 
   if (!doc) {
     return (
-      <Screen className="items-center justify-center">
-        <Text className="text-mist">Dokument wird geladen…</Text>
+      <Screen>
+        <LoadingBlock label="Dokument wird geladen…" />
       </Screen>
     );
   }
@@ -37,62 +46,72 @@ export default function DocumentDetailScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-        <Text className="text-2xl font-extrabold text-ink">{type?.name || 'Dokument'}</Text>
-        <Text className="mt-1 text-mist">
-          {person ? `${person.vorname} ${person.nachname}` : 'Unbekannte Person'}
-        </Text>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 48 }}>
+        <Animated.View entering={FadeInDown.springify().damping(16)}>
+          <Text className="font-display text-3xl text-ink" style={{ letterSpacing: -0.5 }}>
+            {type?.name || 'Dokument'}
+          </Text>
+          <Text className="mt-1.5 font-sans text-[15px] text-mute">
+            {person ? `${person.vorname} ${person.nachname}` : 'Unbekannte Person'}
+          </Text>
+          <View className="mt-3 flex-row flex-wrap gap-2">
+            {type?.expiryDateRelevant && doc.expiryDate ? (
+              <StatusBadge
+                label={
+                  expired
+                    ? `Abgelaufen · ${formatDateDe(doc.expiryDate)}`
+                    : soon
+                      ? `Bald fällig · ${formatDateDe(doc.expiryDate)}`
+                      : `Gültig bis ${formatDateDe(doc.expiryDate)}`
+                }
+                tone={expired ? 'danger' : soon ? 'warn' : 'ok'}
+              />
+            ) : (
+              <StatusBadge label="Kein Ablaufdatum" />
+            )}
+            <StatusBadge label={doc.filePath ? 'Anhang lokal' : 'Ohne Datei'} tone={doc.filePath ? 'ok' : 'neutral'} />
+          </View>
+        </Animated.View>
 
-        <View className="mt-4 flex-row gap-2">
-          <View className="flex-1">
-            <PrimaryButton label="Bearbeiten" onPress={() => router.push(`/document/edit/${doc.id}`)} />
-          </View>
-          <View className="flex-1">
-            <PrimaryButton
-              label="Löschen"
-              tone="danger"
-              onPress={() =>
-                Alert.alert('Dokument löschen?', undefined, [
-                  { text: 'Abbrechen', style: 'cancel' },
-                  {
-                    text: 'Löschen',
-                    style: 'destructive',
-                    onPress: async () => {
-                      await removeDocument(doc.id);
-                      router.back();
-                    },
-                  },
-                ])
-              }
-            />
-          </View>
+        <View className="mt-5">
+          <PrimaryButton
+            label="Dokument bearbeiten"
+            icon="create-outline"
+            onPress={() => router.push(`/document/edit/${doc.id}`)}
+          />
         </View>
 
         <View className="mt-6">
           <SectionTitle>Details</SectionTitle>
-          <Card>
-            <Info label="Nummer" value={doc.documentNumber} />
-            {type?.expiryDateRelevant ? (
-              <Info
-                label="Ablaufdatum"
-                value={`${formatDateDe(doc.expiryDate)}${expired ? ' (abgelaufen)' : soon ? ' (bald)' : ''}`}
-              />
-            ) : null}
-            <Info label="Notiz" value={doc.notes} />
-            <Info label="Datei" value={doc.filePath ? 'Lokal hinterlegt' : 'Kein Anhang'} />
-          </Card>
+          <Panel>
+            <InfoRow label="Nummer" value={doc.documentNumber} />
+            {type?.expiryDateRelevant ? <InfoRow label="Ablaufdatum" value={formatDateDe(doc.expiryDate)} /> : null}
+            <InfoRow label="Notiz" value={doc.notes} />
+            <InfoRow label="Datei" value={doc.filePath ? 'Lokal hinterlegt' : 'Kein Anhang'} />
+          </Panel>
+        </View>
+
+        <View className="mt-8">
+          <PrimaryButton
+            label="Dokument löschen"
+            tone="ghost"
+            icon="trash-outline"
+            onPress={() =>
+              Alert.alert('Dokument löschen?', undefined, [
+                { text: 'Abbrechen', style: 'cancel' },
+                {
+                  text: 'Löschen',
+                  style: 'destructive',
+                  onPress: async () => {
+                    await removeDocument(doc.id);
+                    router.back();
+                  },
+                },
+              ])
+            }
+          />
         </View>
       </ScrollView>
     </Screen>
-  );
-}
-
-function Info({ label, value }: { label: string; value?: string }) {
-  if (!value) return null;
-  return (
-    <View className="mb-3">
-      <Text className="text-xs font-bold uppercase text-mist">{label}</Text>
-      <Text className="mt-0.5 text-base text-ink">{value}</Text>
-    </View>
   );
 }
