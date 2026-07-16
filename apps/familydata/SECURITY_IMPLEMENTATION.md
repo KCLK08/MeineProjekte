@@ -1,4 +1,4 @@
-# FamilyData – Security Implementation
+# Family Vault – Security Implementation
 
 ## Architecture overview
 
@@ -15,7 +15,7 @@
      familydata.vault.db              familydata-encrypted/*.dat
 ```
 
-FamilyData is a **local offline vault**: no cloud, no accounts, no app-owned password database.
+Family Vault is a **local offline vault**: no cloud, no accounts, no app-owned password database.
 On supported builds (Dev Client / APK), **vault mode is mandatory** – no plaintext operation and no disable path.
 Unlock uses **native biometrics** with the **system device passcode** as fallback (`expo-local-authentication`).
 The master key is stored with `requireAuthentication: true` (Keystore / Keychain).

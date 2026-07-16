@@ -44,12 +44,13 @@ const CATALOG = [
   {
     slug: 'familydata',
     name: 'Family Vault',
-    description: 'Privater Familienordner – offline, nur mobil (kein Web).',
+    description: 'Family Vault – privater Familienordner, offline, nur mobil (kein Web).',
     hasWeb: false,
     hasApk: true,
     accent: '#1b4332',
     apkFile: 'FamilyVault.apk',
     versionFallback: '1.0.0',
+    icon: './assets/family-vault-icon.png',
   },
 ];
 

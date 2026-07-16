@@ -1,4 +1,4 @@
-# FamilyData – Final Security Report
+# Family Vault – Final Security Report
 
 ## Security Score vorher
 
@@ -57,7 +57,7 @@
 
 **Bewertung: 93/100 → Produktionsbereit**
 
-FamilyData ist als Offline-Tresor-App produktionsreif, unter der Voraussetzung:
+Family Vault ist als Offline-Tresor-App produktionsreif, unter der Voraussetzung:
 
 - Release-Build über Dev Client / EAS APK (nicht Expo Go)
 - Signing-Credentials korrekt in EAS

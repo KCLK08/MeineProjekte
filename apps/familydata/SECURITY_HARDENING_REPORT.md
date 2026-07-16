@@ -1,4 +1,4 @@
-# FamilyData – Security Hardening Report
+# Family Vault – Security Hardening Report
 
 **Audit-Baseline:** 66/100 (`SECURITY_AUDIT_REPORT`)  
 **Nach Hardening (Code-Review / Design):** **88/100**  
@@ -50,7 +50,7 @@ Beim Lock (`securityStore.lock` → `SecurityManager.lockApp`):
   - Image Memory/Disk Cache geleert
 - Dokument-Screen setzt `readableUri` / `doc` zurück
 
-React Query: in FamilyData **nicht** im Einsatz – entfällt.
+React Query: in Family Vault **nicht** im Einsatz – entfällt.
 
 ### 1.4 Screenshot-Schutz (H3)
 
