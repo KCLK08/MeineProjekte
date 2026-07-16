@@ -3,7 +3,16 @@ import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Card, Chip, EmptyState, PrimaryButton, Screen } from '@/components/ui';
+import {
+  EmptyState,
+  FilterChip,
+  IconButton,
+  ListRow,
+  PageHeader,
+  Screen,
+  SectionTitle,
+  StatusBadge,
+} from '@/components/ui';
 import { useFamilyStore } from '@/store/familyStore';
 import { formatDateDe, isExpired, isExpiringSoon } from '@/utils/helpers';
 
@@ -34,58 +43,81 @@ export default function DocumentsScreen() {
       <FlatList
         data={documents}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: 16, paddingBottom: 24 + insets.bottom }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12 + insets.top, paddingBottom: 28 + insets.bottom }}
         ListHeaderComponent={
-          <View className="mb-4">
-            <Text className="text-2xl font-extrabold text-ink">Dokumente</Text>
-            <Text className="mt-1 text-base text-mist">Immer einer Person zugeordnet. Keine echten Dateien im Repo.</Text>
-            <View className="mt-4">
-              <PrimaryButton label="Dokument hinzufügen" onPress={() => router.push('/document/new')} />
-            </View>
-            <Text className="mb-2 mt-5 text-xs font-bold uppercase tracking-wide text-mist">Familienmitglied</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3">
-              <Chip label="Alle" active={!personId} onPress={() => setPersonId('')} />
+          <View className="mb-2">
+            <PageHeader
+              title="Dokumente"
+              subtitle="Immer einer Person zugeordnet · lokal auf dem Gerät"
+              action={
+                <IconButton icon="add" label="Dokument hinzufügen" onPress={() => router.push('/document/new')} />
+              }
+            />
+
+            <SectionTitle>Person</SectionTitle>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
+              <FilterChip label="Alle" active={!personId} onPress={() => setPersonId('')} />
               {people.map((p) => (
-                <Chip
+                <FilterChip
                   key={p.id}
-                  label={`${p.vorname}`}
+                  label={p.vorname}
                   active={personId === p.id}
                   onPress={() => setPersonId(p.id)}
                 />
               ))}
             </ScrollView>
-            <Text className="mb-2 text-xs font-bold uppercase tracking-wide text-mist">Dokumenttyp</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <Chip label="Alle" active={!typeId} onPress={() => setTypeId('')} />
+
+            <SectionTitle>Typ</SectionTitle>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-2">
+              <FilterChip label="Alle" active={!typeId} onPress={() => setTypeId('')} />
               {documentTypes.map((t) => (
-                <Chip key={t.id} label={t.name} active={typeId === t.id} onPress={() => setTypeId(t.id)} />
+                <FilterChip key={t.id} label={t.name} active={typeId === t.id} onPress={() => setTypeId(t.id)} />
               ))}
             </ScrollView>
+
             {filtersActive ? (
-              <Pressable className="mt-3" onPress={() => { setPersonId(''); setTypeId(''); }}>
-                <Text className="font-semibold text-forest-700">Filter zurücksetzen</Text>
+              <Pressable className="mb-3 mt-2 self-start" onPress={() => { setPersonId(''); setTypeId(''); }}>
+                <Text className="font-sansBold text-sm text-pine-700">Filter zurücksetzen</Text>
               </Pressable>
-            ) : null}
+            ) : (
+              <View className="mb-3" />
+            )}
           </View>
         }
-        ListEmptyComponent={<EmptyState title="Keine Dokumente" subtitle="Filter anpassen oder neues Dokument anlegen." />}
-        renderItem={({ item }) => {
+        ListEmptyComponent={
+          <EmptyState
+            icon="document-outline"
+            title="Keine Dokumente"
+            subtitle="Filter anpassen oder ein neues Dokument anlegen."
+          />
+        }
+        renderItem={({ item, index }) => {
           const expired = Boolean(item.expiryDateRelevant && isExpired(item.expiryDate));
           const soon = Boolean(item.expiryDateRelevant && isExpiringSoon(item.expiryDate));
           return (
-            <Pressable onPress={() => router.push(`/document/${item.id}`)} className="mb-3">
-              <Card>
-                <Text className="text-lg font-bold text-ink">{item.typeName}</Text>
-                <Text className="mt-1 text-sm text-mist">{item.personName}</Text>
-                {item.documentNumber ? <Text className="mt-2 text-sm text-ink">Nr. {item.documentNumber}</Text> : null}
-                {item.expiryDateRelevant && item.expiryDate ? (
-                  <Text className={`mt-2 text-sm font-semibold ${expired ? 'text-danger' : soon ? 'text-amber-700' : 'text-mist'}`}>
-                    Ablauf: {formatDateDe(item.expiryDate)}
-                    {expired ? ' · abgelaufen' : soon ? ' · bald' : ''}
-                  </Text>
-                ) : null}
-              </Card>
-            </Pressable>
+            <ListRow
+              index={index}
+              title={item.typeName}
+              subtitle={item.personName}
+              meta={
+                <View className="flex-row flex-wrap gap-2">
+                  {item.documentNumber ? <StatusBadge label={`Nr. ${item.documentNumber}`} /> : null}
+                  {item.expiryDateRelevant && item.expiryDate ? (
+                    <StatusBadge
+                      label={
+                        expired
+                          ? `Abgelaufen · ${formatDateDe(item.expiryDate)}`
+                          : soon
+                            ? `Bald · ${formatDateDe(item.expiryDate)}`
+                            : `Bis ${formatDateDe(item.expiryDate)}`
+                      }
+                      tone={expired ? 'danger' : soon ? 'warn' : 'ok'}
+                    />
+                  ) : null}
+                </View>
+              }
+              onPress={() => router.push(`/document/${item.id}`)}
+            />
           );
         }}
       />

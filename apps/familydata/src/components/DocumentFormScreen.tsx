@@ -6,7 +6,7 @@ import { useEffect, useMemo } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 
-import { Chip, Field, PrimaryButton, Screen, SectionTitle } from '@/components/ui';
+import { FilterChip, Field, PrimaryButton, Screen, SectionTitle } from '@/components/ui';
 import * as repo from '@/db/repository';
 import { documentFormSchema, type DocumentFormValues } from '@/schemas/forms';
 import { useFamilyStore } from '@/store/familyStore';
@@ -105,24 +105,29 @@ export default function DocumentFormScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
-        <Text className="mb-4 text-base text-mist">Dateien bleiben lokal auf dem Gerät – nicht committen.</Text>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
+        <Text className="mb-5 font-sans text-[15px] leading-5 text-mute">
+          Dokumente gehören immer zu einer Person. Anhänge bleiben nur lokal auf dem Gerät.
+        </Text>
 
         <SectionTitle>Familienmitglied</SectionTitle>
         <Controller
           control={control}
           name="personId"
           render={({ field: { value, onChange } }) => (
-            <View className="mb-3 flex-row flex-wrap">
+            <View className="mb-4 flex-row flex-wrap">
               {people.map((p) => (
-                <Chip
-                  key={p.id}
-                  label={`${p.vorname} ${p.nachname}`}
-                  active={value === p.id}
-                  onPress={() => onChange(p.id)}
-                />
+                <View key={p.id} className="mb-2">
+                  <FilterChip
+                    label={`${p.vorname} ${p.nachname}`}
+                    active={value === p.id}
+                    onPress={() => onChange(p.id)}
+                  />
+                </View>
               ))}
-              {errors.personId ? <Text className="mt-1 w-full text-sm text-danger">{errors.personId.message}</Text> : null}
+              {errors.personId ? (
+                <Text className="mt-1 w-full font-sans text-sm text-danger">{errors.personId.message}</Text>
+              ) : null}
             </View>
           )}
         />
@@ -132,12 +137,14 @@ export default function DocumentFormScreen() {
           control={control}
           name="documentTypeId"
           render={({ field: { value, onChange } }) => (
-            <View className="mb-3 flex-row flex-wrap">
+            <View className="mb-4 flex-row flex-wrap">
               {documentTypes.map((t) => (
-                <Chip key={t.id} label={t.name} active={value === t.id} onPress={() => onChange(t.id)} />
+                <View key={t.id} className="mb-2">
+                  <FilterChip label={t.name} active={value === t.id} onPress={() => onChange(t.id)} />
+                </View>
               ))}
               {errors.documentTypeId ? (
-                <Text className="mt-1 w-full text-sm text-danger">{errors.documentTypeId.message}</Text>
+                <Text className="mt-1 w-full font-sans text-sm text-danger">{errors.documentTypeId.message}</Text>
               ) : null}
             </View>
           )}
@@ -160,7 +167,7 @@ export default function DocumentFormScreen() {
             )}
           />
         ) : (
-          <Text className="mb-3 text-sm text-mist">Für diesen Typ ist kein Ablaufdatum vorgesehen.</Text>
+          <Text className="mb-3.5 font-sans text-sm text-mute">Für diesen Typ ist kein Ablaufdatum vorgesehen.</Text>
         )}
 
         <Controller
@@ -174,21 +181,26 @@ export default function DocumentFormScreen() {
         <SectionTitle>Datei / Bild</SectionTitle>
         <View className="mb-3 flex-row gap-2">
           <View className="flex-1">
-            <PrimaryButton label="Foto wählen" tone="ghost" onPress={pickImage} />
+            <PrimaryButton label="Foto" tone="soft" icon="image-outline" onPress={pickImage} />
           </View>
           <View className="flex-1">
-            <PrimaryButton label="Datei wählen" tone="ghost" onPress={pickFile} />
+            <PrimaryButton label="Datei" tone="soft" icon="attach-outline" onPress={pickFile} />
           </View>
         </View>
         {filePath ? (
-          <Pressable onPress={() => setValue('filePath', '')}>
-            <Text className="mb-3 text-sm text-forest-700">Anhang gesetzt (tippen zum Entfernen)</Text>
+          <Pressable onPress={() => setValue('filePath', '')} className="mb-4">
+            <Text className="font-sansMedium text-sm text-pine-700">Anhang gesetzt · tippen zum Entfernen</Text>
           </Pressable>
         ) : (
-          <Text className="mb-3 text-sm text-mist">Optional – nur lokale Platzhalter.</Text>
+          <Text className="mb-4 font-sans text-sm text-mute">Optional – lokal am Gerät.</Text>
         )}
 
-        <PrimaryButton label={isSubmitting ? 'Speichert…' : 'Speichern'} onPress={onSubmit} disabled={isSubmitting} />
+        <PrimaryButton
+          label={isSubmitting ? 'Speichert…' : 'Speichern'}
+          icon="checkmark"
+          onPress={onSubmit}
+          disabled={isSubmitting}
+        />
       </ScrollView>
     </Screen>
   );

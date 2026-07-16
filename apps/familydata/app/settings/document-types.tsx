@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Alert, FlatList, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Card, PrimaryButton, Screen } from '@/components/ui';
+import { ListRow, Panel, PrimaryButton, Screen, SectionTitle, StatusBadge } from '@/components/ui';
 import { useFamilyStore } from '@/store/familyStore';
 
 export default function DocumentTypesScreen() {
@@ -32,40 +32,46 @@ export default function DocumentTypesScreen() {
       <FlatList
         data={documentTypes}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: 16, paddingBottom: 24 + insets.bottom }}
+        contentContainerStyle={{ padding: 20, paddingBottom: 24 + insets.bottom }}
         ListHeaderComponent={
           <View className="mb-5">
-            <Text className="text-base text-mist">Systemtypen bleiben erhalten. Eigene Typen sind danach auswählbar.</Text>
-            <Card className="mt-4">
-              <Text className="mb-2 text-sm font-bold text-ink">Neuer Dokumenttyp</Text>
+            <Text className="mb-4 font-sans text-[15px] leading-5 text-mute">
+              Systemtypen bleiben erhalten. Eigene Typen kannst du danach bei Dokumenten auswählen.
+            </Text>
+            <SectionTitle>Neuer Typ</SectionTitle>
+            <Panel className="py-4">
               <TextInput
                 value={name}
                 onChangeText={setName}
                 placeholder="z. B. Impfausweis"
-                placeholderTextColor="#6b7c74"
-                className="mb-3 min-h-[48px] rounded-xl border border-line bg-sand px-3 text-base text-ink"
+                placeholderTextColor="#7a9086"
+                className="mb-3 min-h-[50px] rounded-2xl border border-line bg-canvas px-3.5 font-sans text-base text-ink"
               />
               <View className="mb-3 flex-row items-center justify-between">
-                <Text className="text-sm text-ink">Ablaufdatum relevant</Text>
-                <Switch value={expiry} onValueChange={setExpiry} />
+                <Text className="font-sansMedium text-sm text-ink">Ablaufdatum relevant</Text>
+                <Switch value={expiry} onValueChange={setExpiry} trackColor={{ true: '#1f7a5c' }} />
               </View>
-              <PrimaryButton label="Hinzufügen" onPress={onAdd} />
-            </Card>
+              <PrimaryButton label="Hinzufügen" icon="add" onPress={onAdd} />
+            </Panel>
+            <View className="mt-6">
+              <SectionTitle>Vorhandene Typen</SectionTitle>
+            </View>
           </View>
         }
-        renderItem={({ item }) => (
-          <Card className="mb-3">
-            <View className="flex-row items-start justify-between gap-3">
-              <View className="flex-1">
-                <Text className="text-base font-bold text-ink">{item.name}</Text>
-                <Text className="mt-1 text-sm text-mist">
-                  {item.isSystem ? 'System' : 'Eigen'} · Ablauf {item.expiryDateRelevant ? 'ja' : 'nein'}
-                </Text>
-              </View>
-              {!item.isSystem ? (
+        renderItem={({ item, index }) => (
+          <ListRow
+            index={index}
+            title={item.name}
+            subtitle={item.expiryDateRelevant ? 'Mit Ablaufdatum' : 'Ohne Ablaufdatum'}
+            meta={
+              <StatusBadge label={item.isSystem ? 'System' : 'Eigen'} tone={item.isSystem ? 'neutral' : 'ok'} />
+            }
+            trailing={
+              item.isSystem ? undefined : (
                 <PrimaryButton
+                  compact
                   label="Löschen"
-                  tone="danger"
+                  tone="ghost"
                   onPress={() =>
                     Alert.alert('Typ löschen?', item.name, [
                       { text: 'Abbrechen', style: 'cancel' },
@@ -83,9 +89,9 @@ export default function DocumentTypesScreen() {
                     ])
                   }
                 />
-              ) : null}
-            </View>
-          </Card>
+              )
+            }
+          />
         )}
       />
     </Screen>
