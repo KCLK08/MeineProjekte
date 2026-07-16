@@ -1,28 +1,41 @@
-# Cloudflare Pages – Setup
+# Cloudflare – Setup (Projekt `kclk08`)
 
-Dieses Repo ist ein **Monorepo**. Deshalb funktioniert `npx wrangler deploy` im Root **nicht**.
+Das Root enthält `wrangler.toml`. Dadurch funktioniert Cloudflare CI mit:
 
-## Empfohlen: Deploy über GitHub Actions
+```bash
+npx wrangler deploy
+```
 
-1. In Cloudflare **kein** Worker mit Deploy-Command `npx wrangler deploy`.
-2. Workers/Pages-Projekt **`kclk08`** (Direct Upload / ohne Git-Build) nutzen – oder Git-Verbindung entfernen.
-3. GitHub Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
-4. Workflow: `.github/workflows/deploy-cloudflare.yml`  
-   → `npm run build:pages` → `wrangler pages deploy _site`
+Wrangler baut zuerst (`npm run build:pages` → `_site/`) und deployt die Assets als Worker **`kclk08`**.
 
-Live: https://kclk08.workers.dev/
+Live (typisch): `https://kclk08.<account-subdomain>.workers.dev/`  
+(Account-abhängig kann auch `https://kclk08.workers.dev/` konfiguriert sein.)
 
-## Optional: Build in Cloudflare (Git verbunden)
+## Empfohlen: eine Deploy-Quelle wählen
 
-Nur wenn du wirklich Cloudflare CI nutzen willst – als **Pages**-Projekt, nicht als Worker:
+### A) Cloudflare Git / Workers Builds (aktueller Fehlerfall)
+
+Dashboard → Worker **kclk08** → Settings → Builds:
 
 | Einstellung | Wert |
 |---|---|
-| Framework preset | None |
-| Build command | `npm run build:pages` |
-| Build output directory | `_site` |
-| Deploy command | **leer lassen** (nicht `wrangler deploy`) |
 | Root directory | `/` (Repo-Root) |
+| Build command | leer lassen (Build steckt in `wrangler.toml`) |
+| Deploy command | `npx wrangler deploy` |
 | Node version | `22` |
 
-`wrangler deploy` ist für Workers und scheitert im Workspace-Root mit genau dem Fehler aus dem Build-Log.
+Dann reicht der bisherige Deploy-Command – die Workspace-Detection scheitert nicht mehr, weil `wrangler.toml` im Root liegt.
+
+### B) GitHub Actions (Direct Upload)
+
+Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`  
+Workflow: `.github/workflows/deploy-cloudflare.yml` → `wrangler deploy`
+
+Wenn Actions und Cloudflare-Git **beide** aktiv sind, deployen sie denselben Worker und können sich überschreiben. Eine Quelle genügt.
+
+## Lokal
+
+```bash
+npm ci
+npm run deploy:cloudflare
+```

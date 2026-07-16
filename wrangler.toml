@@ -1,0 +1,12 @@
+# Static site Worker for Cloudflare CI (`npx wrangler deploy`) and GitHub Actions.
+# Builds the monorepo landing + web apps into _site/, then serves them as assets.
+name = "kclk08"
+compatibility_date = "2026-07-16"
+
+[assets]
+directory = "_site"
+# Multi-app static tree under /apps/* — keep real 404s, not SPA rewrite.
+not_found_handling = "404-page"
+
+[build]
+command = "npm run build:pages"

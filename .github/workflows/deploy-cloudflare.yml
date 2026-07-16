@@ -1,4 +1,4 @@
-name: Deploy Cloudflare Pages
+name: Deploy Cloudflare
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
       - 'apps/**/web/**'
       - 'apps/bautagebuch/**'
       - 'scripts/**'
+      - 'wrangler.toml'
       - '.github/workflows/deploy-cloudflare.yml'
       - 'package.json'
       - 'package-lock.json'
@@ -18,7 +19,7 @@ permissions:
   deployments: write
 
 concurrency:
-  group: cloudflare-pages
+  group: cloudflare-deploy
   cancel-in-progress: true
 
 jobs:
@@ -37,13 +38,11 @@ jobs:
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
-      - name: Build site
-        run: npm run build:pages
-
-      - name: Deploy to Cloudflare Pages
+      # `wrangler.toml` [build] runs `npm run build:pages` before upload.
+      - name: Deploy Worker (static assets)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy _site --project-name=kclk08 --branch=main
+          command: deploy
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
