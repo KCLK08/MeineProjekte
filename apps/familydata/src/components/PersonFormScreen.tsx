@@ -141,10 +141,10 @@ export default function PersonFormScreen() {
           name="geburtsdatum"
           render={({ field: { onChange, value } }) => (
             <Field
-              label="Geburtsdatum (TT-MM-JJJJ)"
+              label="Geburtsdatum (TT.MM.JJJJ)"
               value={value}
               onChangeText={onChange}
-              placeholder="12-03-1980"
+              placeholder="12.03.1980"
               keyboardType="numbers-and-punctuation"
               error={errors.geburtsdatum?.message}
             />

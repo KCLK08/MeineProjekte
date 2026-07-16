@@ -161,10 +161,10 @@ export default function DocumentFormScreen() {
           name="expiryDate"
           render={({ field: { onChange, value } }) => (
             <Field
-              label="Ablaufdatum (optional, TT-MM-JJJJ)"
+              label="Ablaufdatum (optional, TT.MM.JJJJ)"
               value={value}
               onChangeText={onChange}
-              placeholder="01-01-2030"
+              placeholder="01.01.2030"
               keyboardType="numbers-and-punctuation"
               error={errors.expiryDate?.message}
             />
