@@ -8,6 +8,7 @@ import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { FilterChip, Field, PrimaryButton, Screen, SectionTitle } from '@/components/ui';
 import * as repo from '@/db/repository';
+import { withAutoLockSuppressed } from '@/security/autoLockSuppress';
 import { documentFormSchema, type DocumentFormValues } from '@/schemas/forms';
 import { useFamilyStore } from '@/store/familyStore';
 import { buildPdfFromImageUris, persistAttachment } from '@/utils/files';
@@ -58,44 +59,48 @@ export default function DocumentFormScreen() {
   }, [editingId, reset]);
 
   async function pickImages() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Galerie', 'Zugriff benötigt.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      quality: 0.85,
-      allowsMultipleSelection: true,
-      selectionLimit: 12,
-      mediaTypes: ['images'],
-    });
-    if (result.canceled || !result.assets?.length) return;
-
-    try {
-      const uris = result.assets.map((a) => a.uri).filter(Boolean);
-      if (uris.length === 1) {
-        setValue('filePath', uris[0], { shouldDirty: true, shouldValidate: true });
-        setAttachmentLabel('1 Bild');
+    await withAutoLockSuppressed(async () => {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Galerie', 'Zugriff benötigt.');
         return;
       }
-      const pdfUri = await buildPdfFromImageUris(uris, 'dokument');
-      setValue('filePath', pdfUri, { shouldDirty: true, shouldValidate: true });
-      setAttachmentLabel(`${uris.length} Bilder → 1 PDF (halbe Seite pro Bild)`);
-    } catch (e) {
-      Alert.alert('Bilder', (e as Error).message);
-    }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        quality: 0.85,
+        allowsMultipleSelection: true,
+        selectionLimit: 12,
+        mediaTypes: ['images'],
+      });
+      if (result.canceled || !result.assets?.length) return;
+
+      try {
+        const uris = result.assets.map((a) => a.uri).filter(Boolean);
+        if (uris.length === 1) {
+          setValue('filePath', uris[0], { shouldDirty: true, shouldValidate: true });
+          setAttachmentLabel('1 Bild');
+          return;
+        }
+        const pdfUri = await buildPdfFromImageUris(uris, 'dokument');
+        setValue('filePath', pdfUri, { shouldDirty: true, shouldValidate: true });
+        setAttachmentLabel(`${uris.length} Bilder · 2 pro Seite`);
+      } catch (e) {
+        Alert.alert('Bilder', (e as Error).message);
+      }
+    });
   }
 
   async function pickFile() {
-    const result = await DocumentPicker.getDocumentAsync({
-      copyToCacheDirectory: true,
-      multiple: false,
-      type: ['application/pdf', 'image/*'],
+    await withAutoLockSuppressed(async () => {
+      const result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        multiple: false,
+        type: ['application/pdf', 'image/*'],
+      });
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setValue('filePath', result.assets[0].uri, { shouldDirty: true, shouldValidate: true });
+        setAttachmentLabel(result.assets[0].name || 'Datei gesetzt');
+      }
     });
-    if (!result.canceled && result.assets?.[0]?.uri) {
-      setValue('filePath', result.assets[0].uri, { shouldDirty: true, shouldValidate: true });
-      setAttachmentLabel(result.assets[0].name || 'Datei gesetzt');
-    }
   }
 
   const onSubmit = handleSubmit(async (values) => {
@@ -124,11 +129,6 @@ export default function DocumentFormScreen() {
         contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
         keyboardShouldPersistTaps="handled"
       >
-        <Text className="mb-5 font-sans text-[15px] leading-5 text-mute">
-          Name und Datei sind Pflicht. Mehrere Fotos werden zu einem PDF mit halber Seite pro Bild
-          zusammengeführt.
-        </Text>
-
         <Controller
           control={control}
           name="name"
@@ -200,7 +200,7 @@ export default function DocumentFormScreen() {
             </Text>
           </Pressable>
         ) : (
-          <Text className="mb-1 font-sans text-sm text-mute">Erforderlich – lokal am Gerät.</Text>
+          <Text className="mb-1 font-sans text-sm text-mute">Datei erforderlich</Text>
         )}
         {errors.filePath ? (
           <Text className="mb-4 font-sans text-sm text-danger">{errors.filePath.message}</Text>

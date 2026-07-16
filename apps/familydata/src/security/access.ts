@@ -1,9 +1,10 @@
+import { withAutoLockSuppressed } from '@/security/autoLockSuppress';
 import { SecurityManager } from '@/security/SecurityManager';
 
 export type SecureAccessResult = { ok: true } | { ok: false; reason: string };
 
 type Options = {
-  /** When true, always show a fresh biometric / passcode prompt (e.g. document preview). */
+  /** When true, always show a fresh biometric / passcode prompt (e.g. Identifikation, preview). */
   force?: boolean;
 };
 
@@ -17,7 +18,9 @@ export async function requireSecureAccess(
   if (!options.force && SecurityManager.isUnlocked()) {
     return { ok: true };
   }
-  const result = await SecurityManager.authenticateUser(promptMessage);
-  if (result.ok) return { ok: true };
-  return { ok: false, reason: result.message };
+  return withAutoLockSuppressed(async () => {
+    const result = await SecurityManager.authenticateUser(promptMessage);
+    if (result.ok) return { ok: true };
+    return { ok: false, reason: result.message };
+  });
 }

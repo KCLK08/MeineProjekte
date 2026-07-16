@@ -1,14 +1,16 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
+import { useEffect, useRef } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSecurityStore } from '@/store/securityStore';
 import { useAppTheme } from '@/theme/useAppTheme';
 
-/** Full-screen vault lock – blocks access until native authentication succeeds. */
+/** Full-screen vault lock – logo + unlock; biometrics prompt automatically. */
 export function AppLockGate() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { colors } = useAppTheme();
   const hydrated = useSecurityStore((s) => s.hydrated);
   const securityEnabled = useSecurityStore((s) => s.securityEnabled);
@@ -17,12 +19,30 @@ export function AppLockGate() {
   const error = useSecurityStore((s) => s.error);
   const unlock = useSecurityStore((s) => s.unlock);
   const sqlCipherSupported = useSecurityStore((s) => s.sqlCipherSupported);
-  const needsVaultSetup = useSecurityStore((s) => s.needsVaultSetup);
+  const autoStarted = useRef(false);
+
+  useEffect(() => {
+    if (!hydrated || !securityEnabled || !isLocked || !sqlCipherSupported || busy) return;
+    if (autoStarted.current) return;
+    autoStarted.current = true;
+    void (async () => {
+      const ok = await unlock();
+      if (ok) {
+        router.replace('/(tabs)');
+      } else {
+        // Allow manual retry via button.
+        autoStarted.current = false;
+      }
+    })();
+  }, [hydrated, securityEnabled, isLocked, sqlCipherSupported, busy, unlock, router]);
+
+  useEffect(() => {
+    if (isLocked) autoStarted.current = false;
+  }, [isLocked]);
 
   if (!hydrated || !securityEnabled || !isLocked) return null;
 
   const unsupported = !sqlCipherSupported;
-  const setupCopy = needsVaultSetup && !error;
 
   return (
     <View
@@ -38,35 +58,13 @@ export function AppLockGate() {
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <Image
           source={require('../../assets/images/FamilyVault.png')}
-          style={{ width: 88, height: 88, borderRadius: 22, marginBottom: 18 }}
+          style={{ width: 120, height: 120, borderRadius: 28, marginBottom: 28 }}
           contentFit="cover"
         />
-        {unsupported ? (
-          <Ionicons name="construct-outline" size={22} color={colors.pine} style={{ marginBottom: 8 }} />
-        ) : null}
-        <Text style={{ fontFamily: 'Fraunces_700Bold', fontSize: 28, color: colors.ink, letterSpacing: -0.5 }}>
-          Family Vault
-        </Text>
-        <Text
-          style={{
-            marginTop: 10,
-            fontFamily: 'DMSans_400Regular',
-            fontSize: 15,
-            lineHeight: 22,
-            color: colors.mute,
-            textAlign: 'center',
-          }}
-        >
-          {unsupported
-            ? 'Verschlüsselter Vault-Betrieb benötigt einen Development Build bzw. die Family-Vault-APK (nicht Expo Go).'
-            : setupCopy
-              ? 'Erste Einrichtung oder Migration: Master Key wird an Biometrie bzw. Gerätecode gebunden. Klartextbetrieb ist nicht möglich.'
-              : 'Tresor gesperrt. Entsperren mit Biometrie oder Gerätecode – ohne Authentifizierung ist der Master Key nicht lesbar.'}
-        </Text>
         {error ? (
           <Text
             style={{
-              marginTop: 14,
+              marginBottom: 16,
               fontFamily: 'DMSans_400Regular',
               fontSize: 14,
               color: colors.danger,
@@ -76,11 +74,29 @@ export function AppLockGate() {
             {error}
           </Text>
         ) : null}
+        {unsupported ? (
+          <Text
+            style={{
+              fontFamily: 'DMSans_400Regular',
+              fontSize: 14,
+              lineHeight: 20,
+              color: colors.mute,
+              textAlign: 'center',
+            }}
+          >
+            Development Build / APK erforderlich.
+          </Text>
+        ) : null}
       </View>
 
       {!unsupported ? (
         <Pressable
-          onPress={() => void unlock()}
+          onPress={() => {
+            void (async () => {
+              const ok = await unlock();
+              if (ok) router.replace('/(tabs)');
+            })();
+          }}
           disabled={busy}
           style={{
             minHeight: 54,
@@ -94,9 +110,7 @@ export function AppLockGate() {
           {busy ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#fff' }}>
-              {setupCopy ? 'Vault einrichten / entsperren' : 'Entsperren'}
-            </Text>
+            <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#fff' }}>Entsperren</Text>
           )}
         </Pressable>
       ) : null}

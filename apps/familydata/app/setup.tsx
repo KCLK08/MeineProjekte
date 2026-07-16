@@ -98,10 +98,6 @@ export default function FamilySetupScreen() {
         <Text className="font-display text-3xl text-ink dark:text-[#e7f2ec]" style={{ letterSpacing: -0.6 }}>
           Familie einrichten
         </Text>
-        <Text className="mt-2 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
-          Beim ersten Start legst du den Familiennamen und mindestens ein Mitglied an.
-        </Text>
-
         <View className="mt-6">
           <Field
             label="Familienname (Nachname) *"

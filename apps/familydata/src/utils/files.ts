@@ -51,42 +51,78 @@ async function readBase64(uri: string) {
   return FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
 }
 
-/** A4 points – images are placed in the upper half so they print smaller than full-page. */
+/** A4 portrait – two images share one page (upper + lower half). */
 const A4 = { width: 595.28, height: 841.89 };
-const PAGE_MARGIN = 36;
+const PAGE_MARGIN = 28;
+const SLOT_GAP = 16;
 
-async function embedImageHalfPage(pdf: PDFDocument, imageBytes: Uint8Array, preferPng: boolean) {
-  let image;
+async function embedImageBytes(pdf: PDFDocument, imageBytes: Uint8Array, preferPng: boolean) {
   try {
-    image = preferPng ? await pdf.embedPng(imageBytes) : await pdf.embedJpg(imageBytes);
+    return preferPng ? await pdf.embedPng(imageBytes) : await pdf.embedJpg(imageBytes);
   } catch {
-    image = preferPng ? await pdf.embedJpg(imageBytes) : await pdf.embedPng(imageBytes);
+    return preferPng ? await pdf.embedJpg(imageBytes) : await pdf.embedPng(imageBytes);
   }
-  const page = pdf.addPage([A4.width, A4.height]);
-  const maxW = A4.width - PAGE_MARGIN * 2;
-  const maxH = A4.height / 2 - PAGE_MARGIN;
-  const scale = Math.min(maxW / image.width, maxH / image.height, 1);
-  const w = image.width * scale;
-  const h = image.height * scale;
-  const x = (A4.width - w) / 2;
-  const y = A4.height - PAGE_MARGIN - h;
-  page.drawImage(image, { x, y, width: w, height: h });
 }
 
-/** Build one PDF from multiple image URIs (half page per image). */
+function drawInSlot(
+  page: ReturnType<PDFDocument['addPage']>,
+  image: { width: number; height: number },
+  slot: { x: number; y: number; width: number; height: number }
+) {
+  const scale = Math.min(slot.width / image.width, slot.height / image.height);
+  const w = image.width * scale;
+  const h = image.height * scale;
+  const x = slot.x + (slot.width - w) / 2;
+  const y = slot.y + (slot.height - h) / 2;
+  page.drawImage(image as never, { x, y, width: w, height: h });
+}
+
+/** Single image → upper half of a new A4 page (export helper). */
+async function embedImageHalfPage(pdf: PDFDocument, imageBytes: Uint8Array, preferPng: boolean) {
+  const image = await embedImageBytes(pdf, imageBytes, preferPng);
+  const page = pdf.addPage([A4.width, A4.height]);
+  const slotH = (A4.height - PAGE_MARGIN * 2 - SLOT_GAP) / 2;
+  drawInSlot(page, image, {
+    x: PAGE_MARGIN,
+    y: A4.height - PAGE_MARGIN - slotH,
+    width: A4.width - PAGE_MARGIN * 2,
+    height: slotH,
+  });
+}
+
+/**
+ * Build one PDF from multiple images.
+ * Always two images per A4 page (top + bottom half). Odd last image uses the upper half.
+ */
 export async function buildPdfFromImageUris(uris: string[], suggestedName = 'dokument'): Promise<string> {
   if (!uris.length) throw new Error('Keine Bilder ausgewählt.');
   const cacheDir = FileSystem.cacheDirectory;
   if (!cacheDir) throw new Error('Kein Cache-Verzeichnis verfügbar.');
 
   const pdf = await PDFDocument.create();
-  for (const uri of uris) {
-    const base64 = await readBase64(uri);
-    const bytes = base64ToUint8Array(base64);
-    const lower = (uri.split('?')[0] || '').toLowerCase();
-    const preferPng = lower.endsWith('.png');
-    await embedImageHalfPage(pdf, bytes, preferPng);
+  const slotH = (A4.height - PAGE_MARGIN * 2 - SLOT_GAP) / 2;
+  const slotW = A4.width - PAGE_MARGIN * 2;
+
+  for (let i = 0; i < uris.length; i += 2) {
+    const page = pdf.addPage([A4.width, A4.height]);
+    const pair = uris.slice(i, i + 2);
+    for (let s = 0; s < pair.length; s += 1) {
+      const uri = pair[s];
+      const base64 = await readBase64(uri);
+      const bytes = base64ToUint8Array(base64);
+      const lower = (uri.split('?')[0] || '').toLowerCase();
+      const preferPng = lower.endsWith('.png');
+      const image = await embedImageBytes(pdf, bytes, preferPng);
+      const top = s === 0;
+      drawInSlot(page, image, {
+        x: PAGE_MARGIN,
+        y: top ? A4.height - PAGE_MARGIN - slotH : PAGE_MARGIN,
+        width: slotW,
+        height: slotH,
+      });
+    }
   }
+
   const pdfBytes = await pdf.save();
   const safeName = suggestedName.replace(/[^\w\-äöüÄÖÜß]+/g, '_').slice(0, 48) || 'dokument';
   const outPath = `${cacheDir}${safeName}-${Date.now()}.pdf`;

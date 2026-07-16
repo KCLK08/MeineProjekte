@@ -48,7 +48,7 @@ export default function PersonDetailScreen() {
     if (!id) return;
     setIdLoading(true);
     try {
-      const access = await requireSecureAccess('Identifikation anzeigen');
+      const access = await requireSecureAccess('Identifikation freigeben', { force: true });
       if (!access.ok) {
         Alert.alert('Geschützt', access.reason);
         return;
