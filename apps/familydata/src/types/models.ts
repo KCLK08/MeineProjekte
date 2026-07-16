@@ -23,17 +23,10 @@ export type IdentificationData = {
   kindergeldNummer: string;
 };
 
-export type DocumentType = {
-  id: string;
-  name: string;
-  expiryDateRelevant: boolean;
-  isSystem: boolean;
-};
-
 export type FamilyDocument = {
   id: string;
-  personId: string;
-  documentTypeId: string;
+  name: string;
+  personIds: string[];
   documentNumber: string;
   expiryDate: string;
   filePath: string;

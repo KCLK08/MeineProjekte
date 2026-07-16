@@ -74,13 +74,6 @@ export default function SettingsScreen() {
           <SectionTitle>Verwaltung</SectionTitle>
           <SettingsLink
             index={1}
-            icon="pricetags-outline"
-            title="Dokumenttypen"
-            subtitle="Katalog erweitern und pflegen"
-            onPress={() => router.push('/settings/document-types')}
-          />
-          <SettingsLink
-            index={2}
             icon="shield-checkmark-outline"
             title="Sicherheit"
             subtitle="PIN und Biometrie vorbereiten"
