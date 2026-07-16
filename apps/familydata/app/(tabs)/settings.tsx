@@ -58,7 +58,7 @@ export default function SettingsScreen() {
       >
         <BrandMark compact />
         <View className="mt-5">
-          <PageHeader title="Mehr" subtitle="Verwaltung und Schutz · ohne Cloud" />
+          <PageHeader title="Einstellungen" subtitle="Verwaltung und Schutz · ohne Cloud" />
         </View>
 
         <SectionTitle>Darstellung</SectionTitle>
