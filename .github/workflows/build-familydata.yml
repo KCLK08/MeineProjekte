@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=
 # Shared template note: keep the five build-*.yml files in sync intentionally
 # (no reusable workflow – avoids GitHub startup_failure from permissions elevation).
-name: Build FamilyData APK
+name: Build Family Vault APK
 
 on:
   push:
@@ -54,13 +54,13 @@ jobs:
           USE_EAS_BUILD: '0'
         run: |
           chmod +x scripts/ci-build-apk.sh
-          scripts/ci-build-apk.sh apps/familydata FamilyData.apk
+          scripts/ci-build-apk.sh apps/familydata FamilyVault.apk
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
           name: familydata-apk
-          path: apps/familydata/FamilyData.apk
+          path: apps/familydata/FamilyVault.apk
           retention-days: 90
 
       - name: Update releases.json
@@ -72,7 +72,7 @@ jobs:
           data.familydata = {
             version: process.env.APP_VERSION,
             buildDate: new Date().toISOString(),
-            apkUrl: `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/familydata-apk-latest/FamilyData.apk`,
+            apkUrl: `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/familydata-apk-latest/FamilyVault.apk`,
           };
           fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
           EOF
@@ -87,7 +87,7 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes"
           else
-            git commit -m "chore: update familydata APK release metadata [skip ci]"
+            git commit -m "chore: update Family Vault APK release metadata [skip ci]"
             git push
           fi
 
@@ -95,12 +95,12 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           tag: familydata-apk-latest
-          name: familydata APK (1.0.0)
+          name: Family Vault APK (1.0.0)
           body: |
-            Automatischer Android-Build für `apps/familydata`.
+            Automatischer Android-Build für Family Vault (`apps/familydata`).
             - Commit: ${{ github.sha }}
             - Run: ${{ github.run_number }}
-          artifacts: apps/familydata/FamilyData.apk
+          artifacts: apps/familydata/FamilyVault.apk
           allowUpdates: true
           makeLatest: false
           replacesArtifacts: true

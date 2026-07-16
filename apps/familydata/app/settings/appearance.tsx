@@ -39,7 +39,7 @@ export default function AppearanceScreen() {
     <Screen>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 + insets.bottom }}>
         <Text className="mb-5 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
-          Wähle, wie FamilyData aussehen soll. Aktuell aktiv: {scheme === 'dark' ? 'Dunkel' : 'Hell'}.
+          Wähle, wie Family Vault aussehen soll. Aktuell aktiv: {scheme === 'dark' ? 'Dunkel' : 'Hell'}.
         </Text>
         <SectionTitle>Modus</SectionTitle>
         {OPTIONS.map((option) => (

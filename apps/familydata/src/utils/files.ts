@@ -157,7 +157,7 @@ export async function persistAttachment(uri: string, key: string) {
   const { SecurityManager } = await import('@/security/SecurityManager');
   if (!SecurityManager.supportsSqlCipher()) {
     throw new Error(
-      'Anhänge können nur im Vault gespeichert werden. Bitte Development Build / FamilyData-APK verwenden.'
+      'Anhänge können nur im Vault gespeichert werden. Bitte Development Build / Family Vault-APK verwenden.'
     );
   }
   if (!SecurityManager.isUnlocked()) {

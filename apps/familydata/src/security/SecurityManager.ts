@@ -75,7 +75,7 @@ class SecurityManagerImpl {
   async ensureVaultInitialized(): Promise<{ migratedDocuments: number; created: boolean; sessionReady: boolean }> {
     if (!this.supportsSqlCipher()) {
       throw new Error(
-        'FamilyData Vault benötigt einen Development Build oder die Release-APK (SQLCipher). Expo Go wird nicht unterstützt.'
+        'Family Vault benötigt einen Development Build oder die Release-APK (SQLCipher). Expo Go wird nicht unterstützt.'
       );
     }
 
@@ -94,8 +94,8 @@ class SecurityManagerImpl {
     try {
       // Single auth: create or load key (SecureStore requireAuthentication).
       key = hasKey
-        ? await KeyStoreService.getMasterKey('FamilyData Tresor einrichten')
-        : await KeyStoreService.createMasterKey('FamilyData Schlüssel schützen');
+        ? await KeyStoreService.getMasterKey('Family Vault Tresor einrichten')
+        : await KeyStoreService.createMasterKey('Family Vault Schlüssel schützen');
 
       let migratedDocuments = 0;
       if (hasPlain && !hasVault) {
@@ -166,7 +166,7 @@ class SecurityManagerImpl {
     // One OS prompt only: auth-bound SecureStore master key.
     let key: Uint8Array | null = null;
     try {
-      key = await KeyStoreService.getMasterKey('FamilyData Tresor öffnen');
+      key = await KeyStoreService.getMasterKey('Family Vault Tresor öffnen');
       await this.establishSession(key);
       key = null;
       await SecurityEventLog.flushPendingToVault();

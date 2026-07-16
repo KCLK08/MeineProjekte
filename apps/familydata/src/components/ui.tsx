@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect } from 'react';
 import {
@@ -56,14 +57,22 @@ export function Screen({
 }
 
 export function BrandMark({ compact = false }: { compact?: boolean }) {
+  const size = compact ? 36 : 52;
   return (
     <View className={compact ? '' : 'mb-1'}>
-      <Text
-        className={`font-display text-pine-700 dark:text-pine-400 ${compact ? 'text-lg' : 'text-2xl'}`}
-        style={{ letterSpacing: -0.4 }}
-      >
-        FamilyData
-      </Text>
+      <View className="flex-row items-center gap-2.5">
+        <Image
+          source={require('../../assets/images/FamilyVault.png')}
+          style={{ width: size, height: size, borderRadius: size * 0.22 }}
+          contentFit="cover"
+        />
+        <Text
+          className={`font-display text-pine-700 dark:text-pine-400 ${compact ? 'text-lg' : 'text-2xl'}`}
+          style={{ letterSpacing: -0.4 }}
+        >
+          Family Vault
+        </Text>
+      </View>
       {!compact ? (
         <Text className="mt-1 font-sans text-sm text-mute dark:text-[#9bb0a6]">
           Privater Familienordner · nur auf diesem Gerät

@@ -4,7 +4,7 @@ import type { AutoLockOption } from '@/security/types';
 import { readAutoLockPromptPending, writeAutoLockPromptPending } from '@/security/settingsFlags';
 
 function showExtendedDurations(setAutoLock: (option: AutoLockOption) => Promise<void>) {
-  Alert.alert('Sperrdauer wählen', 'Wann soll FamilyData nach dem Verlassen sperren?', [
+  Alert.alert('Sperrdauer wählen', 'Wann soll Family Vault nach dem Verlassen sperren?', [
     {
       text: 'Nach 1 Minute',
       onPress: () => {
@@ -40,7 +40,7 @@ export async function maybePromptAutoLockPreference(
   if (Platform.OS === 'ios') {
     Alert.alert(
       'Automatische Sperre',
-      'Wie schnell soll FamilyData automatisch sperren?',
+      'Wie schnell soll Family Vault automatisch sperren?',
       [
         {
           text: 'Sofort (empfohlen)',
@@ -75,7 +75,7 @@ export async function maybePromptAutoLockPreference(
 
   Alert.alert(
     'Automatische Sperre',
-    'Wie schnell soll FamilyData automatisch sperren?',
+    'Wie schnell soll Family Vault automatisch sperren?',
     [
       {
         text: 'Sofort (empfohlen)',

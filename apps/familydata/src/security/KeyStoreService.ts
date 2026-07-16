@@ -17,7 +17,7 @@ const deviceBound: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
 };
 
-function authBoundOptions(prompt = 'FamilyData Tresor öffnen'): SecureStore.SecureStoreOptions {
+function authBoundOptions(prompt = 'Family Vault Tresor öffnen'): SecureStore.SecureStoreOptions {
   return {
     ...deviceBound,
     requireAuthentication: true,
@@ -69,7 +69,7 @@ export const KeyStoreService = {
    * Creates a new 256-bit master key once.
    * Fails if the OS cannot bind the item to user authentication.
    */
-  async createMasterKey(prompt = 'FamilyData Schlüssel schützen'): Promise<Uint8Array> {
+  async createMasterKey(prompt = 'Family Vault Schlüssel schützen'): Promise<Uint8Array> {
     if (await this.hasMasterKey()) {
       throw new Error('Master-Key existiert bereits.');
     }
@@ -92,7 +92,7 @@ export const KeyStoreService = {
    * Loads the master key. Auth-bound keys always require OS authentication.
    * Legacy unbound keys are migrated to auth-bound storage after read.
    */
-  async getMasterKey(prompt = 'FamilyData Tresor öffnen'): Promise<Uint8Array> {
+  async getMasterKey(prompt = 'Family Vault Tresor öffnen'): Promise<Uint8Array> {
     const meta = await SecureStore.getItemAsync(MASTER_KEY_META, deviceBound);
 
     if (meta === META_AUTH_BOUND || !meta) {
