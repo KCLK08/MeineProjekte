@@ -1,7 +1,10 @@
+export type FamilyRole = 'vater' | 'mutter' | 'kind' | 'sonstiges';
+
 export type Person = {
   id: string;
   vorname: string;
   nachname: string;
+  rolle: FamilyRole | '';
   geburtsdatum: string;
   nationalitaet: string;
   telefon: string;
@@ -12,15 +15,12 @@ export type Person = {
   updatedAt: string;
 };
 
-export type IdentificationData = {
+export type IdEntry = {
+  id: string;
   personId: string;
-  reisepassnummer: string;
-  personalausweisnummer: string;
-  aufenthaltstitelnummer: string;
-  fuehrerscheinnummer: string;
-  steuerId: string;
-  krankenkassenNummer: string;
-  kindergeldNummer: string;
+  label: string;
+  value: string;
+  sortOrder: number;
 };
 
 export type FamilyDocument = {
@@ -42,6 +42,24 @@ export type SecuritySettings = {
 };
 
 export type PersonWithDetails = Person & {
-  identification: IdentificationData;
+  idEntries: IdEntry[];
   documentCount: number;
 };
+
+export const FAMILY_ROLE_OPTIONS: { id: FamilyRole; label: string }[] = [
+  { id: 'vater', label: 'Vater' },
+  { id: 'mutter', label: 'Mutter' },
+  { id: 'kind', label: 'Kind' },
+  { id: 'sonstiges', label: 'Sonstiges' },
+];
+
+export const ID_FIELD_SUGGESTIONS = [
+  'Reisepass',
+  'Personalausweis',
+  'Aufenthaltstitel',
+  'Führerschein',
+  'Steuer-ID',
+  'Krankenversicherung',
+  'Kindergeld',
+  'Geburtsurkunde',
+];

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
@@ -16,10 +16,11 @@ import {
   StatusBadge,
 } from '@/components/ui';
 import * as repo from '@/db/repository';
+import { requireSecureAccess } from '@/security/access';
 import { useFamilyStore } from '@/store/familyStore';
-import type { IdentificationData, Person } from '@/types/models';
+import type { IdEntry, Person } from '@/types/models';
 import { useAppTheme } from '@/theme/useAppTheme';
-import { displayName, formatDateDe, initials } from '@/utils/helpers';
+import { displayName, formatDateDe, initials, roleLabel } from '@/utils/helpers';
 
 export default function PersonDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -30,18 +31,37 @@ export default function PersonDetailScreen() {
   const refreshDocuments = useFamilyStore((s) => s.refreshDocuments);
 
   const [person, setPerson] = useState<Person | null>(null);
-  const [identification, setIdentification] = useState<IdentificationData | null>(null);
+  const [idEntries, setIdEntries] = useState<IdEntry[]>([]);
+  const [idUnlocked, setIdUnlocked] = useState(false);
+  const [idLoading, setIdLoading] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     (async () => {
       setPerson(await repo.getPerson(id));
-      setIdentification(await repo.getIdentification(id));
+      setIdUnlocked(false);
+      setIdEntries([]);
       await refreshDocuments({ personId: id });
     })();
   }, [id, refreshDocuments]);
 
-  if (!person || !identification) {
+  const unlockIdentification = useCallback(async () => {
+    if (!id) return;
+    setIdLoading(true);
+    try {
+      const access = await requireSecureAccess('Identifikation anzeigen');
+      if (!access.ok) {
+        Alert.alert('Geschützt', access.reason);
+        return;
+      }
+      setIdEntries(await repo.listIdEntries(id));
+      setIdUnlocked(true);
+    } finally {
+      setIdLoading(false);
+    }
+  }, [id]);
+
+  if (!person) {
     return (
       <Screen>
         <LoadingBlock label="Profil wird geladen…" />
@@ -70,14 +90,20 @@ export default function PersonDetailScreen() {
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
         <Animated.View entering={FadeInDown.springify().damping(16)} className="mb-5 items-center">
           <Avatar initials={initials(person.vorname, person.nachname)} size={76} />
-          <Text className="mt-4 font-display text-3xl text-ink" style={{ letterSpacing: -0.5 }}>
+          <Text
+            className="mt-4 font-display text-3xl text-ink dark:text-[#e7f2ec]"
+            style={{ letterSpacing: -0.5 }}
+          >
             {displayName(person.vorname, person.nachname)}
           </Text>
-          <Text className="mt-1 font-sans text-mute">Geb. {formatDateDe(person.geburtsdatum)}</Text>
-          <View className="mt-3 flex-row gap-2">
-            {person.nationalitaet ? <StatusBadge label={person.nationalitaet} tone="ok" /> : null}
-            <StatusBadge label={`${personDocs.length} Dokumente`} />
-          </View>
+          <Text className="mt-1 font-sans text-mute dark:text-[#9bb0a6]">
+            {person.geburtsdatum ? formatDateDe(person.geburtsdatum) : 'Geburtsdatum offen'}
+          </Text>
+          {person.rolle ? (
+            <View className="mt-3">
+              <StatusBadge label={roleLabel(person.rolle)} />
+            </View>
+          ) : null}
         </Animated.View>
 
         <PrimaryButton
@@ -92,21 +118,41 @@ export default function PersonDetailScreen() {
             <InfoRow label="Telefon" value={person.telefon} />
             <InfoRow label="E-Mail" value={person.email} />
             <InfoRow label="Adresse" value={person.adresse} />
-            <InfoRow label="Notizen" value={person.notizen} />
           </Panel>
         </View>
 
         <View className="mt-6">
-          <SectionTitle>Identifikation</SectionTitle>
-          <Panel>
-            <InfoRow label="Reisepass" value={identification.reisepassnummer} />
-            <InfoRow label="Personalausweis" value={identification.personalausweisnummer} />
-            <InfoRow label="Aufenthaltstitel" value={identification.aufenthaltstitelnummer} />
-            <InfoRow label="Führerschein" value={identification.fuehrerscheinnummer} />
-            <InfoRow label="Steuer-ID" value={identification.steuerId} />
-            <InfoRow label="Krankenversicherung" value={identification.krankenkassenNummer} />
-            <InfoRow label="Kindergeld" value={identification.kindergeldNummer} />
-          </Panel>
+          <View className="mb-2 flex-row items-center justify-between">
+            <SectionTitle>Identifikation</SectionTitle>
+            {idUnlocked ? (
+              <Pressable
+                onPress={() => router.push(`/person/identification/${person.id}`)}
+                className="mb-2 flex-row items-center gap-1"
+              >
+                <Ionicons name="create-outline" size={18} color={colors.pine} />
+                <Text className="font-sansBold text-sm text-pine-700 dark:text-pine-400">Bearbeiten</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          {!idUnlocked ? (
+            <PrimaryButton
+              label={idLoading ? 'Prüft…' : 'Mit Sicherheit freigeben'}
+              tone="soft"
+              icon="lock-closed-outline"
+              onPress={unlockIdentification}
+              disabled={idLoading}
+            />
+          ) : idEntries.length === 0 ? (
+            <Text className="mb-3 font-sans text-sm text-mute dark:text-[#9bb0a6]">
+              Noch keine Identifikationsfelder. Tippe auf Bearbeiten, um eigene anzulegen.
+            </Text>
+          ) : (
+            <Panel>
+              {idEntries.map((entry) => (
+                <InfoRow key={entry.id} label={entry.label} value={entry.value} />
+              ))}
+            </Panel>
+          )}
         </View>
 
         <View className="mt-6">
@@ -121,7 +167,9 @@ export default function PersonDetailScreen() {
             </Pressable>
           </View>
           {personDocs.length === 0 ? (
-            <Text className="mb-3 font-sans text-sm text-mute">Noch keine Dokumente zugeordnet.</Text>
+            <Text className="mb-3 font-sans text-sm text-mute dark:text-[#9bb0a6]">
+              Noch keine Dokumente zugeordnet.
+            </Text>
           ) : (
             personDocs.map((doc, index) => (
               <ListRow

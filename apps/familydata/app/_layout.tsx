@@ -21,6 +21,7 @@ import { Pressable, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { PinPromptHost } from '@/components/PinPromptHost';
 import { useFamilyStore } from '@/store/familyStore';
 import { useThemeStore } from '@/theme/themeStore';
 import { useAppTheme } from '@/theme/useAppTheme';
@@ -91,9 +92,14 @@ function RootNavigator() {
         }}
       >
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="setup" options={{ headerShown: false, presentation: 'fullScreenModal', gestureEnabled: false }} />
         <Stack.Screen name="person/[id]" options={{ headerShown: true, title: 'Profil', presentation: 'card' }} />
         <Stack.Screen name="person/new" options={{ headerShown: true, title: 'Person hinzufügen', presentation: 'modal' }} />
         <Stack.Screen name="person/edit/[id]" options={{ headerShown: true, title: 'Person bearbeiten', presentation: 'modal' }} />
+        <Stack.Screen
+          name="person/identification/[id]"
+          options={{ headerShown: true, title: 'Identifikation', presentation: 'modal' }}
+        />
         <Stack.Screen name="document/[id]" options={{ headerShown: true, title: 'Vorschau', presentation: 'card' }} />
         <Stack.Screen name="document/new" options={{ headerShown: true, title: 'Dokument hinzufügen', presentation: 'modal' }} />
         <Stack.Screen name="document/edit/[id]" options={{ headerShown: true, title: 'Dokument bearbeiten', presentation: 'modal' }} />
@@ -103,6 +109,7 @@ function RootNavigator() {
           options={{ headerShown: true, title: 'Darstellung', presentation: 'card' }}
         />
       </Stack>
+      <PinPromptHost />
     </>
   );
 }

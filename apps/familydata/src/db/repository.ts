@@ -1,11 +1,10 @@
 import * as SQLite from 'expo-sqlite';
 
-import type { FamilyDocument, IdentificationData, Person } from '@/types/models';
-import { createId, nowIso } from '@/utils/helpers';
-import { DUMMY_FAMILY } from '@/db/seed';
+import type { FamilyDocument, FamilyRole, IdEntry, Person } from '@/types/models';
+import { createId, isFamilyRole, nowIso } from '@/utils/helpers';
 
 const DB_NAME = 'familydata.db';
-const SCHEMA_VERSION = '2';
+const SCHEMA_VERSION = '3';
 
 export type DocumentListRow = FamilyDocument & { personNames: string };
 
@@ -33,45 +32,25 @@ async function columnExists(db: SQLite.SQLiteDatabase, table: string, column: st
   return rows.some((r) => r.name === column);
 }
 
-async function ensureSchema(db: SQLite.SQLiteDatabase) {
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS people (
-      id TEXT PRIMARY KEY NOT NULL,
-      vorname TEXT NOT NULL,
-      nachname TEXT NOT NULL,
-      geburtsdatum TEXT NOT NULL DEFAULT '',
-      nationalitaet TEXT NOT NULL DEFAULT '',
-      telefon TEXT NOT NULL DEFAULT '',
-      email TEXT NOT NULL DEFAULT '',
-      adresse TEXT NOT NULL DEFAULT '',
-      notizen TEXT NOT NULL DEFAULT '',
-      createdAt TEXT NOT NULL,
-      updatedAt TEXT NOT NULL
-    );
-  `);
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS identification (
-      personId TEXT PRIMARY KEY NOT NULL,
-      reisepassnummer TEXT NOT NULL DEFAULT '',
-      personalausweisnummer TEXT NOT NULL DEFAULT '',
-      aufenthaltstitelnummer TEXT NOT NULL DEFAULT '',
-      fuehrerscheinnummer TEXT NOT NULL DEFAULT '',
-      steuerId TEXT NOT NULL DEFAULT '',
-      krankenkassenNummer TEXT NOT NULL DEFAULT '',
-      kindergeldNummer TEXT NOT NULL DEFAULT '',
-      FOREIGN KEY(personId) REFERENCES people(id) ON DELETE CASCADE
-    );
-  `);
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS app_meta (
-      key TEXT PRIMARY KEY NOT NULL,
-      value TEXT NOT NULL
-    );
-  `);
+function mapPerson(row: Record<string, unknown>): Person {
+  const rolleRaw = String(row.rolle ?? '');
+  return {
+    id: String(row.id),
+    vorname: String(row.vorname ?? ''),
+    nachname: String(row.nachname ?? ''),
+    rolle: isFamilyRole(rolleRaw) ? rolleRaw : '',
+    geburtsdatum: String(row.geburtsdatum ?? ''),
+    nationalitaet: String(row.nationalitaet ?? ''),
+    telefon: String(row.telefon ?? ''),
+    email: String(row.email ?? ''),
+    adresse: String(row.adresse ?? ''),
+    notizen: String(row.notizen ?? ''),
+    createdAt: String(row.createdAt ?? ''),
+    updatedAt: String(row.updatedAt ?? ''),
+  };
+}
 
-  const version = await getMeta(db, 'schema_version');
-  if (version === SCHEMA_VERSION) return;
-
+async function migrateDocumentsV2(db: SQLite.SQLiteDatabase) {
   const hasDocuments = await tableExists(db, 'documents');
   const isLegacy =
     hasDocuments && (await columnExists(db, 'documents', 'personId')) && !(await columnExists(db, 'documents', 'name'));
@@ -98,7 +77,7 @@ async function ensureSchema(db: SQLite.SQLiteDatabase) {
     );
   }
 
-  if (hasDocuments) {
+  if (hasDocuments && isLegacy) {
     await db.execAsync('DROP TABLE IF EXISTS document_people;');
     await db.execAsync('DROP TABLE IF EXISTS documents;');
   }
@@ -151,18 +130,169 @@ async function ensureSchema(db: SQLite.SQLiteDatabase) {
       ]);
     }
   }
+}
 
-  await setMeta(db, 'schema_version', SCHEMA_VERSION);
+async function migrateIdentificationV3(db: SQLite.SQLiteDatabase) {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS id_entries (
+      id TEXT PRIMARY KEY NOT NULL,
+      personId TEXT NOT NULL,
+      label TEXT NOT NULL,
+      value TEXT NOT NULL DEFAULT '',
+      sortOrder INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY(personId) REFERENCES people(id) ON DELETE CASCADE
+    );
+  `);
+
+  if (!(await columnExists(db, 'people', 'rolle'))) {
+    await db.execAsync(`ALTER TABLE people ADD COLUMN rolle TEXT NOT NULL DEFAULT ''`);
+  }
+
+  const hasLegacyId = await tableExists(db, 'identification');
+  if (!hasLegacyId) return;
+
+  const existing = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) as c FROM id_entries');
+  if ((existing?.c || 0) > 0) return;
+
+  type LegacyId = {
+    personId: string;
+    reisepassnummer: string;
+    personalausweisnummer: string;
+    aufenthaltstitelnummer: string;
+    fuehrerscheinnummer: string;
+    steuerId: string;
+    krankenkassenNummer: string;
+    kindergeldNummer: string;
+  };
+
+  const rows = await db.getAllAsync<LegacyId>('SELECT * FROM identification');
+  const mapping: { key: keyof LegacyId; label: string }[] = [
+    { key: 'reisepassnummer', label: 'Reisepass' },
+    { key: 'personalausweisnummer', label: 'Personalausweis' },
+    { key: 'aufenthaltstitelnummer', label: 'Aufenthaltstitel' },
+    { key: 'fuehrerscheinnummer', label: 'Führerschein' },
+    { key: 'steuerId', label: 'Steuer-ID' },
+    { key: 'krankenkassenNummer', label: 'Krankenversicherung' },
+    { key: 'kindergeldNummer', label: 'Kindergeld' },
+  ];
+
+  for (const row of rows) {
+    let order = 0;
+    for (const field of mapping) {
+      const value = (row[field.key] || '').trim();
+      if (!value || field.key === 'personId') continue;
+      await db.runAsync(
+        `INSERT OR IGNORE INTO id_entries (id, personId, label, value, sortOrder) VALUES (?, ?, ?, ?, ?)`,
+        [createId('id'), row.personId, field.label, value, order]
+      );
+      order += 1;
+    }
+  }
+}
+
+async function ensureSchema(db: SQLite.SQLiteDatabase) {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS people (
+      id TEXT PRIMARY KEY NOT NULL,
+      vorname TEXT NOT NULL,
+      nachname TEXT NOT NULL,
+      geburtsdatum TEXT NOT NULL DEFAULT '',
+      nationalitaet TEXT NOT NULL DEFAULT '',
+      telefon TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      adresse TEXT NOT NULL DEFAULT '',
+      notizen TEXT NOT NULL DEFAULT '',
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    );
+  `);
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS identification (
+      personId TEXT PRIMARY KEY NOT NULL,
+      reisepassnummer TEXT NOT NULL DEFAULT '',
+      personalausweisnummer TEXT NOT NULL DEFAULT '',
+      aufenthaltstitelnummer TEXT NOT NULL DEFAULT '',
+      fuehrerscheinnummer TEXT NOT NULL DEFAULT '',
+      steuerId TEXT NOT NULL DEFAULT '',
+      krankenkassenNummer TEXT NOT NULL DEFAULT '',
+      kindergeldNummer TEXT NOT NULL DEFAULT '',
+      FOREIGN KEY(personId) REFERENCES people(id) ON DELETE CASCADE
+    );
+  `);
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS app_meta (
+      key TEXT PRIMARY KEY NOT NULL,
+      value TEXT NOT NULL
+    );
+  `);
+
+  let version = Number((await getMeta(db, 'schema_version')) || '0');
+
+  if (version < 2) {
+    await migrateDocumentsV2(db);
+    version = 2;
+    await setMeta(db, 'schema_version', '2');
+  } else {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS documents (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        documentNumber TEXT NOT NULL DEFAULT '',
+        expiryDate TEXT NOT NULL DEFAULT '',
+        filePath TEXT NOT NULL,
+        notes TEXT NOT NULL DEFAULT '',
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL
+      );
+    `);
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS document_people (
+        documentId TEXT NOT NULL,
+        personId TEXT NOT NULL,
+        PRIMARY KEY (documentId, personId),
+        FOREIGN KEY(documentId) REFERENCES documents(id) ON DELETE CASCADE,
+        FOREIGN KEY(personId) REFERENCES people(id) ON DELETE CASCADE
+      );
+    `);
+  }
+
+  if (version < 3) {
+    await migrateIdentificationV3(db);
+    const familyName = await getMeta(db, 'family_name');
+    if (!familyName) {
+      const person = await db.getFirstAsync<{ nachname: string }>(
+        `SELECT nachname FROM people WHERE TRIM(nachname) != '' ORDER BY createdAt ASC LIMIT 1`
+      );
+      if (person?.nachname) {
+        await setMeta(db, 'family_name', person.nachname);
+        await setMeta(db, 'setup_complete', '1');
+      }
+    }
+    version = 3;
+    await setMeta(db, 'schema_version', '3');
+  } else {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS id_entries (
+        id TEXT PRIMARY KEY NOT NULL,
+        personId TEXT NOT NULL,
+        label TEXT NOT NULL,
+        value TEXT NOT NULL DEFAULT '',
+        sortOrder INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY(personId) REFERENCES people(id) ON DELETE CASCADE
+      );
+    `);
+    if (!(await columnExists(db, 'people', 'rolle'))) {
+      await db.execAsync(`ALTER TABLE people ADD COLUMN rolle TEXT NOT NULL DEFAULT ''`);
+    }
+  }
 }
 
 async function getDb() {
   if (!dbPromise) {
     dbPromise = (async () => {
       const db = await SQLite.openDatabaseAsync(DB_NAME);
-      // Avoid WAL + multi-statement execAsync – both have hung on some Expo Go devices.
       await db.execAsync('PRAGMA foreign_keys = ON;');
       await ensureSchema(db);
-      await ensureSeed(db);
       return db;
     })().catch((err) => {
       dbPromise = null;
@@ -170,63 +300,6 @@ async function getDb() {
     });
   }
   return dbPromise;
-}
-
-async function ensureSeed(db: SQLite.SQLiteDatabase) {
-  const meta = await getMeta(db, 'seeded');
-  if (meta === '1') return;
-
-  for (const member of DUMMY_FAMILY) {
-    const { person, identification } = member;
-    await db.runAsync(
-      `INSERT OR IGNORE INTO people
-        (id, vorname, nachname, geburtsdatum, nationalitaet, telefon, email, adresse, notizen, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        person.id,
-        person.vorname,
-        person.nachname,
-        person.geburtsdatum,
-        person.nationalitaet,
-        person.telefon,
-        person.email,
-        person.adresse,
-        person.notizen,
-        person.createdAt,
-        person.updatedAt,
-      ]
-    );
-    await db.runAsync(
-      `INSERT OR IGNORE INTO identification
-        (personId, reisepassnummer, personalausweisnummer, aufenthaltstitelnummer, fuehrerscheinnummer, steuerId, krankenkassenNummer, kindergeldNummer)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        identification.personId,
-        identification.reisepassnummer,
-        identification.personalausweisnummer,
-        identification.aufenthaltstitelnummer,
-        identification.fuehrerscheinnummer,
-        identification.steuerId,
-        identification.krankenkassenNummer,
-        identification.kindergeldNummer,
-      ]
-    );
-  }
-
-  await setMeta(db, 'seeded', '1');
-}
-
-function emptyIdentification(personId: string): IdentificationData {
-  return {
-    personId,
-    reisepassnummer: '',
-    personalausweisnummer: '',
-    aufenthaltstitelnummer: '',
-    fuehrerscheinnummer: '',
-    steuerId: '',
-    krankenkassenNummer: '',
-    kindergeldNummer: '',
-  };
 }
 
 async function personIdsForDocument(db: SQLite.SQLiteDatabase, documentId: string): Promise<string[]> {
@@ -265,38 +338,123 @@ function mapDocumentRow(
   };
 }
 
+export async function getFamilyName(): Promise<string> {
+  const db = await getDb();
+  return (await getMeta(db, 'family_name')) || '';
+}
+
+export async function isSetupComplete(): Promise<boolean> {
+  const db = await getDb();
+  const flag = await getMeta(db, 'setup_complete');
+  if (flag === '1') return true;
+  const count = await db.getFirstAsync<{ c: number }>('SELECT COUNT(*) as c FROM people');
+  return (count?.c || 0) > 0 && Boolean(await getMeta(db, 'family_name'));
+}
+
+export async function completeFamilySetup(input: {
+  familyName: string;
+  members: Array<{
+    vorname: string;
+    nachname: string;
+    rolle: FamilyRole;
+    geburtsdatum?: string;
+  }>;
+}): Promise<void> {
+  const db = await getDb();
+  const familyName = input.familyName.trim();
+  if (!familyName) throw new Error('Familienname ist erforderlich');
+  if (!input.members.length) throw new Error('Mindestens ein Familienmitglied anlegen');
+
+  for (const member of input.members) {
+    await upsertPerson({
+      vorname: member.vorname,
+      nachname: member.nachname || familyName,
+      rolle: member.rolle,
+      geburtsdatum: member.geburtsdatum || '',
+      nationalitaet: '',
+      telefon: '',
+      email: '',
+      adresse: '',
+      notizen: '',
+    });
+  }
+
+  await setMeta(db, 'family_name', familyName);
+  await setMeta(db, 'setup_complete', '1');
+}
+
+export async function setFamilyName(name: string) {
+  const db = await getDb();
+  await setMeta(db, 'family_name', name.trim());
+}
+
 export async function listPeople(): Promise<Person[]> {
   const db = await getDb();
-  return db.getAllAsync<Person>('SELECT * FROM people ORDER BY nachname COLLATE NOCASE, vorname COLLATE NOCASE');
+  const rows = await db.getAllAsync<Record<string, unknown>>(
+    `SELECT * FROM people
+     ORDER BY
+       CASE rolle
+         WHEN 'vater' THEN 0
+         WHEN 'mutter' THEN 1
+         WHEN 'kind' THEN 2
+         ELSE 3
+       END,
+       nachname COLLATE NOCASE,
+       vorname COLLATE NOCASE`
+  );
+  return rows.map(mapPerson);
 }
 
 export async function getPerson(id: string): Promise<Person | null> {
   const db = await getDb();
-  return (await db.getFirstAsync<Person>('SELECT * FROM people WHERE id = ?', [id])) ?? null;
+  const row = await db.getFirstAsync<Record<string, unknown>>('SELECT * FROM people WHERE id = ?', [id]);
+  return row ? mapPerson(row) : null;
 }
 
-export async function getIdentification(personId: string): Promise<IdentificationData> {
+export async function listIdEntries(personId: string): Promise<IdEntry[]> {
   const db = await getDb();
-  const row = await db.getFirstAsync<IdentificationData>('SELECT * FROM identification WHERE personId = ?', [personId]);
-  return row ?? emptyIdentification(personId);
+  return db.getAllAsync<IdEntry>(
+    'SELECT * FROM id_entries WHERE personId = ? ORDER BY sortOrder ASC, label COLLATE NOCASE',
+    [personId]
+  );
+}
+
+export async function replaceIdEntries(
+  personId: string,
+  entries: Array<{ id?: string; label: string; value: string }>
+): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM id_entries WHERE personId = ?', [personId]);
+  let order = 0;
+  for (const entry of entries) {
+    const label = entry.label.trim();
+    const value = entry.value.trim();
+    if (!label && !value) continue;
+    await db.runAsync(
+      `INSERT INTO id_entries (id, personId, label, value, sortOrder) VALUES (?, ?, ?, ?, ?)`,
+      [entry.id || createId('id'), personId, label || 'Eintrag', value, order]
+    );
+    order += 1;
+  }
 }
 
 export async function upsertPerson(
-  input: Omit<Person, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
-  identification: Omit<IdentificationData, 'personId'>
+  input: Omit<Person, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
 ): Promise<string> {
   const db = await getDb();
   const timestamp = nowIso();
   const id = input.id || createId('person');
   const existing = input.id ? await getPerson(input.id) : null;
+  const rolle = input.rolle || '';
 
   if (existing) {
     await db.runAsync(
-      `UPDATE people SET vorname=?, nachname=?, geburtsdatum=?, nationalitaet=?, telefon=?, email=?, adresse=?, notizen=?, updatedAt=?
+      `UPDATE people SET vorname=?, nachname=?, rolle=?, geburtsdatum=?, nationalitaet=?, telefon=?, email=?, adresse=?, notizen=?, updatedAt=?
        WHERE id=?`,
       [
         input.vorname,
         input.nachname,
+        rolle,
         input.geburtsdatum || '',
         input.nationalitaet || '',
         input.telefon || '',
@@ -310,12 +468,13 @@ export async function upsertPerson(
   } else {
     await db.runAsync(
       `INSERT INTO people
-        (id, vorname, nachname, geburtsdatum, nationalitaet, telefon, email, adresse, notizen, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (id, vorname, nachname, rolle, geburtsdatum, nationalitaet, telefon, email, adresse, notizen, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         input.vorname,
         input.nachname,
+        rolle,
         input.geburtsdatum || '',
         input.nationalitaet || '',
         input.telefon || '',
@@ -328,27 +487,12 @@ export async function upsertPerson(
     );
   }
 
-  await db.runAsync(
-    `INSERT OR REPLACE INTO identification
-      (personId, reisepassnummer, personalausweisnummer, aufenthaltstitelnummer, fuehrerscheinnummer, steuerId, krankenkassenNummer, kindergeldNummer)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      id,
-      identification.reisepassnummer || '',
-      identification.personalausweisnummer || '',
-      identification.aufenthaltstitelnummer || '',
-      identification.fuehrerscheinnummer || '',
-      identification.steuerId || '',
-      identification.krankenkassenNummer || '',
-      identification.kindergeldNummer || '',
-    ]
-  );
-
   return id;
 }
 
 export async function deletePerson(id: string) {
   const db = await getDb();
+  await db.runAsync('DELETE FROM id_entries WHERE personId = ?', [id]);
   await db.runAsync('DELETE FROM people WHERE id = ?', [id]);
 }
 
