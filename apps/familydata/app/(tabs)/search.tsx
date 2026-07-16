@@ -6,11 +6,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar, EmptyState, ListRow, PageHeader, Screen, StatusBadge } from '@/components/ui';
 import { useFamilyStore } from '@/store/familyStore';
+import { useAppTheme } from '@/theme/useAppTheme';
 import { displayName, formatDateDe, initials } from '@/utils/helpers';
 
 export default function SearchScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colors } = useAppTheme();
   const [query, setQuery] = useState('');
   const people = useFamilyStore((s) => s.people);
   const documents = useFamilyStore((s) => s.documents);
@@ -43,14 +45,14 @@ export default function SearchScreen() {
         ListHeaderComponent={
           <View>
             <PageHeader title="Suche" subtitle="Personen, Nummern und Dokumenttypen" />
-            <View className="mb-5 flex-row items-center rounded-2xl border border-line bg-paper px-3.5">
-              <Ionicons name="search" size={18} color="#5a7368" />
+            <View className="mb-5 flex-row items-center rounded-2xl border border-line bg-paper px-3.5 dark:border-[#2a3f35] dark:bg-[#15241d]">
+              <Ionicons name="search" size={18} color={colors.mute} />
               <TextInput
                 value={query}
                 onChangeText={setQuery}
                 placeholder="z. B. Leo, Reisepass, C01X…"
-                placeholderTextColor="#7a9086"
-                className="ml-2 min-h-[52px] flex-1 font-sans text-base text-ink"
+                placeholderTextColor={colors.placeholder}
+                className="ml-2 min-h-[52px] flex-1 font-sans text-base text-ink dark:text-[#e7f2ec]"
                 autoCorrect={false}
                 clearButtonMode="while-editing"
               />

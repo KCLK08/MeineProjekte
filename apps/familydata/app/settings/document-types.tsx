@@ -4,9 +4,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ListRow, Panel, PrimaryButton, Screen, SectionTitle, StatusBadge } from '@/components/ui';
 import { useFamilyStore } from '@/store/familyStore';
+import { useAppTheme } from '@/theme/useAppTheme';
 
 export default function DocumentTypesScreen() {
   const insets = useSafeAreaInsets();
+  const { colors } = useAppTheme();
   const documentTypes = useFamilyStore((s) => s.documentTypes);
   const addDocumentType = useFamilyStore((s) => s.addDocumentType);
   const removeDocumentType = useFamilyStore((s) => s.removeDocumentType);
@@ -35,7 +37,7 @@ export default function DocumentTypesScreen() {
         contentContainerStyle={{ padding: 20, paddingBottom: 24 + insets.bottom }}
         ListHeaderComponent={
           <View className="mb-5">
-            <Text className="mb-4 font-sans text-[15px] leading-5 text-mute">
+            <Text className="mb-4 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
               Systemtypen bleiben erhalten. Eigene Typen kannst du danach bei Dokumenten auswählen.
             </Text>
             <SectionTitle>Neuer Typ</SectionTitle>
@@ -44,12 +46,12 @@ export default function DocumentTypesScreen() {
                 value={name}
                 onChangeText={setName}
                 placeholder="z. B. Impfausweis"
-                placeholderTextColor="#7a9086"
-                className="mb-3 min-h-[50px] rounded-2xl border border-line bg-canvas px-3.5 font-sans text-base text-ink"
+                placeholderTextColor={colors.placeholder}
+                className="mb-3 min-h-[50px] rounded-2xl border border-line bg-canvas px-3.5 font-sans text-base text-ink dark:border-[#2a3f35] dark:bg-[#0d1612] dark:text-[#e7f2ec]"
               />
               <View className="mb-3 flex-row items-center justify-between">
-                <Text className="font-sansMedium text-sm text-ink">Ablaufdatum relevant</Text>
-                <Switch value={expiry} onValueChange={setExpiry} trackColor={{ true: '#1f7a5c' }} />
+                <Text className="font-sansMedium text-sm text-ink dark:text-[#e7f2ec]">Ablaufdatum relevant</Text>
+                <Switch value={expiry} onValueChange={setExpiry} trackColor={{ true: colors.pine }} />
               </View>
               <PrimaryButton label="Hinzufügen" icon="add" onPress={onAdd} />
             </Panel>

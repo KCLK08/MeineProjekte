@@ -59,7 +59,7 @@ export default function FamilyScreen() {
         )}
         ListFooterComponent={
           people.length ? (
-            <Text className="mt-4 text-center font-sans text-xs text-mute">
+            <Text className="mt-4 text-center font-sans text-xs text-mute dark:text-[#9bb0a6]">
               Tippe auf ein Profil, um Kontakte, Ausweise und Dokumente zu sehen.
             </Text>
           ) : null

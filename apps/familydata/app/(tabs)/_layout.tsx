@@ -3,8 +3,11 @@ import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAppTheme } from '@/theme/useAppTheme';
+
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const { colors } = useAppTheme();
   const bottom = Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 0);
   const baseHeight = 56;
 
@@ -13,8 +16,8 @@ export default function TabsLayout() {
       safeAreaInsets={{ bottom: 0 }}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#0c3b2e',
-        tabBarInactiveTintColor: '#7a9086',
+        tabBarActiveTintColor: colors.pine,
+        tabBarInactiveTintColor: colors.mute,
         tabBarHideOnKeyboard: true,
         tabBarLabelStyle: {
           fontFamily: 'DMSans_500Medium',
@@ -22,8 +25,8 @@ export default function TabsLayout() {
           marginBottom: Platform.OS === 'ios' ? 0 : 2,
         },
         tabBarStyle: {
-          backgroundColor: '#f7fbf8',
-          borderTopColor: '#c5d7ce',
+          backgroundColor: colors.tabBar,
+          borderTopColor: colors.line,
           height: baseHeight + bottom,
           paddingTop: 6,
           paddingBottom: bottom,
