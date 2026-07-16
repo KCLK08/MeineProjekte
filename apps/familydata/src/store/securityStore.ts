@@ -3,6 +3,10 @@ import { create } from 'zustand';
 
 import { maybePromptAutoLockPreference } from '@/security/autoLockPrompt';
 import { wipeAllPreviews } from '@/security/previewSession';
+import {
+  allowScreenshotsForSession,
+  enableScreenshotProtection,
+} from '@/security/screenCaptureSession';
 import { SecurityEventLog } from '@/security/SecurityEventLog';
 import { SecurityManager } from '@/security/SecurityManager';
 import { autoLockMs, type AutoLockOption } from '@/security/types';
@@ -19,11 +23,14 @@ type SecurityState = {
   error: string;
   wipeToken: number;
   needsVaultSetup: boolean;
+  /** Session-only: screenshots allowed until next lock. */
+  screenshotsAllowedThisSession: boolean;
   hydrate: () => Promise<void>;
   unlock: () => Promise<boolean>;
   lock: () => Promise<void>;
   enableSecurity: () => Promise<void>;
   setAutoLock: (option: AutoLockOption) => Promise<void>;
+  setScreenshotsAllowedForSession: (allowed: boolean) => Promise<void>;
   testAuth: () => Promise<boolean>;
 };
 
@@ -59,6 +66,7 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
   error: '',
   wipeToken: 0,
   needsVaultSetup: false,
+  screenshotsAllowedThisSession: false,
 
   hydrate: async () => {
     const sqlCipherSupported = SecurityManager.supportsSqlCipher();
@@ -72,6 +80,7 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
         autoLock,
         sqlCipherSupported: false,
         needsVaultSetup: false,
+        screenshotsAllowedThisSession: false,
         error: 'Vault benötigt Development Build / Release-APK (SQLCipher). Expo Go ist nicht erlaubt.',
       });
       return;
@@ -87,6 +96,7 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
       autoLock,
       sqlCipherSupported: true,
       needsVaultSetup,
+      screenshotsAllowedThisSession: false,
       lastAuthentication: null,
       error: '',
     });
@@ -139,7 +149,9 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
         busy: false,
         error: '',
         needsVaultSetup: false,
+        screenshotsAllowedThisSession: false,
       });
+      await enableScreenshotProtection();
       await useFamilyStore.getState().bootstrap();
       await maybePromptAutoLockPreference(get().setAutoLock);
       return true;
@@ -154,10 +166,12 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
     clearLockTimer();
     await SecurityManager.lockApp();
     wipeSensitiveUiState();
+    await enableScreenshotProtection();
     set((state) => ({
       isLocked: true,
       lastAuthentication: null,
       wipeToken: state.wipeToken + 1,
+      screenshotsAllowedThisSession: false,
     }));
   },
 
@@ -171,7 +185,9 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
         lastAuthentication: Date.now(),
         busy: false,
         needsVaultSetup: false,
+        screenshotsAllowedThisSession: false,
       });
+      await enableScreenshotProtection();
       await useFamilyStore.getState().bootstrap();
       await maybePromptAutoLockPreference(get().setAutoLock);
     } catch (e) {
@@ -183,6 +199,19 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
   setAutoLock: async (option) => {
     await SecurityManager.setAutoLock(option);
     set({ autoLock: option });
+  },
+
+  setScreenshotsAllowedForSession: async (allowed) => {
+    if (get().isLocked) {
+      throw new Error('Tresor ist gesperrt.');
+    }
+    if (allowed) {
+      await allowScreenshotsForSession();
+      set({ screenshotsAllowedThisSession: true });
+    } else {
+      await enableScreenshotProtection();
+      set({ screenshotsAllowedThisSession: false });
+    }
   },
 
   testAuth: async () => {

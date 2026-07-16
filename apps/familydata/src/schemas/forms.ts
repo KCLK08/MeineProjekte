@@ -27,8 +27,6 @@ export type PersonFormValues = z.infer<typeof personFormSchema>;
 export const documentFormSchema = z.object({
   name: z.string().trim().min(1, 'Name ist erforderlich'),
   personIds: z.array(z.string()).min(1, 'Mindestens eine Person wählen'),
-  documentNumber: optionalText,
-  expiryDate: optionalDateDe,
   notes: optionalText,
   filePath: z.string().trim().min(1, 'Datei ist erforderlich'),
 });

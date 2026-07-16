@@ -1,6 +1,6 @@
 import { Redirect, Tabs } from 'expo-router';
 
-import { PillTabBar } from '@/components/PillTabBar';
+import { AppTabBar } from '@/components/AppTabBar';
 import { useFamilyStore } from '@/store/familyStore';
 
 export default function TabsLayout() {
@@ -15,7 +15,7 @@ export default function TabsLayout() {
   return (
     <Tabs
       initialRouteName="index"
-      tabBar={(props) => <PillTabBar {...props} />}
+      tabBar={(props) => <AppTabBar {...props} />}
       screenOptions={{
         headerShown: false,
         tabBarHideOnKeyboard: true,
@@ -23,7 +23,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: 'Familie' }} />
       <Tabs.Screen name="documents" options={{ title: 'Dokumente' }} />
-      <Tabs.Screen name="settings" options={{ title: 'Einstellungen' }} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   );
 }

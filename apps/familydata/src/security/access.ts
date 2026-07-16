@@ -2,12 +2,19 @@ import { SecurityManager } from '@/security/SecurityManager';
 
 export type SecureAccessResult = { ok: true } | { ok: false; reason: string };
 
+type Options = {
+  /** When true, always show a fresh biometric / passcode prompt (e.g. document preview). */
+  force?: boolean;
+};
+
 /**
- * Gate for sensitive UI (Identifikation). Uses native biometrics / device passcode only.
+ * Gate for sensitive UI. Uses native biometrics / device passcode only.
  */
-export async function requireSecureAccess(promptMessage = 'Identifikation freigeben'): Promise<SecureAccessResult> {
-  if (SecurityManager.isUnlocked()) {
-    // Already in an authenticated vault session.
+export async function requireSecureAccess(
+  promptMessage = 'Identifikation freigeben',
+  options: Options = {}
+): Promise<SecureAccessResult> {
+  if (!options.force && SecurityManager.isUnlocked()) {
     return { ok: true };
   }
   const result = await SecurityManager.authenticateUser(promptMessage);

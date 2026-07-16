@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 
@@ -10,8 +10,8 @@ import { FilterChip, Field, PrimaryButton, Screen, SectionTitle } from '@/compon
 import * as repo from '@/db/repository';
 import { documentFormSchema, type DocumentFormValues } from '@/schemas/forms';
 import { useFamilyStore } from '@/store/familyStore';
-import { persistAttachment } from '@/utils/files';
-import { createId, formatDateDe, parseDateDe } from '@/utils/helpers';
+import { buildPdfFromImageUris, persistAttachment } from '@/utils/files';
+import { createId } from '@/utils/helpers';
 
 export default function DocumentFormScreen() {
   const router = useRouter();
@@ -21,6 +21,7 @@ export default function DocumentFormScreen() {
 
   const people = useFamilyStore((s) => s.people);
   const saveDocument = useFamilyStore((s) => s.saveDocument);
+  const [attachmentLabel, setAttachmentLabel] = useState('');
 
   const {
     control,
@@ -34,8 +35,6 @@ export default function DocumentFormScreen() {
     defaultValues: {
       name: '',
       personIds: presetPersonId ? [presetPersonId] : [],
-      documentNumber: '',
-      expiryDate: '',
       notes: '',
       filePath: '',
     },
@@ -51,23 +50,39 @@ export default function DocumentFormScreen() {
       reset({
         name: doc.name,
         personIds: doc.personIds,
-        documentNumber: doc.documentNumber,
-        expiryDate: doc.expiryDate ? formatDateDe(doc.expiryDate) : '',
         notes: doc.notes,
         filePath: doc.filePath,
       });
+      setAttachmentLabel(doc.filePath ? 'Vorhandene Datei behalten' : '');
     })();
   }, [editingId, reset]);
 
-  async function pickImage() {
+  async function pickImages() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert('Galerie', 'Zugriff benötigt.');
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.8 });
-    if (!result.canceled && result.assets[0]?.uri) {
-      setValue('filePath', result.assets[0].uri, { shouldDirty: true, shouldValidate: true });
+    const result = await ImagePicker.launchImageLibraryAsync({
+      quality: 0.85,
+      allowsMultipleSelection: true,
+      selectionLimit: 12,
+      mediaTypes: ['images'],
+    });
+    if (result.canceled || !result.assets?.length) return;
+
+    try {
+      const uris = result.assets.map((a) => a.uri).filter(Boolean);
+      if (uris.length === 1) {
+        setValue('filePath', uris[0], { shouldDirty: true, shouldValidate: true });
+        setAttachmentLabel('1 Bild');
+        return;
+      }
+      const pdfUri = await buildPdfFromImageUris(uris, 'dokument');
+      setValue('filePath', pdfUri, { shouldDirty: true, shouldValidate: true });
+      setAttachmentLabel(`${uris.length} Bilder → 1 PDF (halbe Seite pro Bild)`);
+    } catch (e) {
+      Alert.alert('Bilder', (e as Error).message);
     }
   }
 
@@ -75,9 +90,11 @@ export default function DocumentFormScreen() {
     const result = await DocumentPicker.getDocumentAsync({
       copyToCacheDirectory: true,
       multiple: false,
+      type: ['application/pdf', 'image/*'],
     });
     if (!result.canceled && result.assets?.[0]?.uri) {
       setValue('filePath', result.assets[0].uri, { shouldDirty: true, shouldValidate: true });
+      setAttachmentLabel(result.assets[0].name || 'Datei gesetzt');
     }
   }
 
@@ -85,12 +102,13 @@ export default function DocumentFormScreen() {
     try {
       const docKey = editingId || createId('doc');
       const persistedPath = await persistAttachment(values.filePath, docKey);
+      const existing = editingId ? await repo.getDocument(editingId) : null;
       const id = await saveDocument({
         id: editingId || docKey,
         name: values.name.trim(),
         personIds: values.personIds,
-        documentNumber: values.documentNumber || '',
-        expiryDate: parseDateDe(values.expiryDate || '') || '',
+        documentNumber: existing?.documentNumber || '',
+        expiryDate: existing?.expiryDate || '',
         filePath: persistedPath,
         notes: values.notes || '',
       });
@@ -102,9 +120,13 @@ export default function DocumentFormScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text className="mb-5 font-sans text-[15px] leading-5 text-mute">
-          Jedes Dokument braucht einen Namen und eine Datei. Du kannst es mehreren Personen zuordnen.
+          Name und Datei sind Pflicht. Mehrere Fotos werden zu einem PDF mit halber Seite pro Bild
+          zusammengeführt.
         </Text>
 
         <Controller
@@ -150,29 +172,6 @@ export default function DocumentFormScreen() {
 
         <Controller
           control={control}
-          name="documentNumber"
-          render={({ field: { onChange, value } }) => (
-            <Field label="Dokumentnummer (optional)" value={value} onChangeText={onChange} />
-          )}
-        />
-
-        <Controller
-          control={control}
-          name="expiryDate"
-          render={({ field: { onChange, value } }) => (
-            <Field
-              label="Ablaufdatum (optional, TT.MM.JJJJ)"
-              value={value}
-              onChangeText={onChange}
-              placeholder="01.01.2030"
-              keyboardType="numbers-and-punctuation"
-              error={errors.expiryDate?.message}
-            />
-          )}
-        />
-
-        <Controller
-          control={control}
           name="notes"
           render={({ field: { onChange, value } }) => (
             <Field label="Notizen" value={value} onChangeText={onChange} multiline />
@@ -182,15 +181,23 @@ export default function DocumentFormScreen() {
         <SectionTitle>Datei</SectionTitle>
         <View className="mb-3 flex-row gap-2">
           <View className="flex-1">
-            <PrimaryButton label="Foto" tone="soft" icon="image-outline" onPress={pickImage} />
+            <PrimaryButton label="Fotos" tone="soft" icon="images-outline" onPress={() => void pickImages()} />
           </View>
           <View className="flex-1">
-            <PrimaryButton label="Datei" tone="soft" icon="attach-outline" onPress={pickFile} />
+            <PrimaryButton label="PDF / Datei" tone="soft" icon="attach-outline" onPress={() => void pickFile()} />
           </View>
         </View>
         {filePath ? (
-          <Pressable onPress={() => setValue('filePath', '', { shouldValidate: true })} className="mb-4">
-            <Text className="font-sansMedium text-sm text-pine-700">Datei gesetzt · tippen zum Entfernen</Text>
+          <Pressable
+            onPress={() => {
+              setValue('filePath', '', { shouldValidate: true });
+              setAttachmentLabel('');
+            }}
+            className="mb-4"
+          >
+            <Text className="font-sansMedium text-sm text-pine-700">
+              {attachmentLabel || 'Datei gesetzt'} · tippen zum Entfernen
+            </Text>
           </Pressable>
         ) : (
           <Text className="mb-1 font-sans text-sm text-mute">Erforderlich – lokal am Gerät.</Text>

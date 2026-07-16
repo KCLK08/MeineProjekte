@@ -27,26 +27,36 @@ export default function FamilyScreen() {
   }
 
   return (
-    <Screen>
+    <Screen safeBottom={false}>
       <FlatList
         data={people}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{
           paddingHorizontal: 20,
           paddingTop: 12 + insets.top,
-          paddingBottom: 36,
+          paddingBottom: 28,
         }}
         ListHeaderComponent={
           <View className="mb-4">
-            <Text className="font-sansMedium text-[12px] uppercase tracking-[1.6px] text-mute dark:text-[#9bb0a6]">
-              Deine Familie
-            </Text>
-            <Text
-              className="mt-1 font-display text-[40px] leading-[44px] text-pine-700 dark:text-pine-400"
-              style={{ letterSpacing: -1.2 }}
-            >
-              Familie {familyName || '—'}
-            </Text>
+            <View className="mb-1 flex-row items-start justify-between gap-3">
+              <View className="flex-1">
+                <Text className="font-sansMedium text-[12px] uppercase tracking-[1.6px] text-mute dark:text-[#9bb0a6]">
+                  Deine Familie
+                </Text>
+                <Text
+                  className="mt-1 font-display text-[40px] leading-[44px] text-pine-700 dark:text-pine-400"
+                  style={{ letterSpacing: -1.2 }}
+                >
+                  Familie {familyName || '—'}
+                </Text>
+              </View>
+              <IconButton
+                icon="settings-outline"
+                label="Einstellungen"
+                tone="soft"
+                onPress={() => router.push('/settings')}
+              />
+            </View>
             <View className="mt-4 flex-row items-end justify-between gap-3">
               <Text className="flex-1 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
                 {people.length} {people.length === 1 ? 'Mitglied' : 'Mitglieder'} · nur auf diesem Gerät

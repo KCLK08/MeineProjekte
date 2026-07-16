@@ -41,20 +41,30 @@ export default function DocumentsScreen() {
   const filtersActive = useMemo(() => Boolean(personId || query.trim()), [personId, query]);
 
   return (
-    <Screen>
+    <Screen safeBottom={false}>
       <FlatList
         data={documents}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12 + insets.top, paddingBottom: 24 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12 + insets.top, paddingBottom: 28 }}
         ListHeaderComponent={
           <View className="mb-2">
-            <PageHeader
-              title="Dokumente"
-              subtitle="Mit Namen speichern · mehreren Personen zuordenbar"
-              action={
+            <View className="mb-3 flex-row items-start justify-between gap-3">
+              <View className="flex-1">
+                <PageHeader
+                  title="Dokumente"
+                  subtitle="Mit Namen speichern · mehreren Personen zuordenbar"
+                />
+              </View>
+              <View className="mt-1 flex-row gap-2">
+                <IconButton
+                  icon="settings-outline"
+                  label="Einstellungen"
+                  tone="soft"
+                  onPress={() => router.push('/settings')}
+                />
                 <IconButton icon="add" label="Dokument hinzufügen" onPress={() => router.push('/document/new')} />
-              }
-            />
+              </View>
+            </View>
 
             <View className="mb-4 flex-row items-center rounded-2xl border border-line bg-paper px-3.5 dark:border-[#2a3f35] dark:bg-[#15241d]">
               <Ionicons name="search" size={18} color={colors.mute} />
@@ -107,21 +117,23 @@ export default function DocumentsScreen() {
               title={item.name}
               subtitle={item.personNames}
               meta={
-                <View className="flex-row flex-wrap gap-2">
-                  {item.documentNumber ? <StatusBadge label={`Nr. ${item.documentNumber}`} /> : null}
-                  {item.expiryDate ? (
-                    <StatusBadge
-                      label={
-                        expired
-                          ? `Abgelaufen · ${formatDateDe(item.expiryDate)}`
-                          : soon
-                            ? `Bald · ${formatDateDe(item.expiryDate)}`
-                            : `Bis ${formatDateDe(item.expiryDate)}`
-                      }
-                      tone={expired ? 'danger' : soon ? 'warn' : 'ok'}
-                    />
-                  ) : null}
-                </View>
+                item.expiryDate || item.documentNumber ? (
+                  <View className="flex-row flex-wrap gap-2">
+                    {item.documentNumber ? <StatusBadge label={`Nr. ${item.documentNumber}`} /> : null}
+                    {item.expiryDate ? (
+                      <StatusBadge
+                        label={
+                          expired
+                            ? `Abgelaufen · ${formatDateDe(item.expiryDate)}`
+                            : soon
+                              ? `Bald · ${formatDateDe(item.expiryDate)}`
+                              : `Bis ${formatDateDe(item.expiryDate)}`
+                        }
+                        tone={expired ? 'danger' : soon ? 'warn' : 'ok'}
+                      />
+                    ) : null}
+                  </View>
+                ) : null
               }
               onPress={() => router.push(`/document/${item.id}`)}
             />

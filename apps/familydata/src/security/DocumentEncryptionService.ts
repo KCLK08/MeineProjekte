@@ -7,6 +7,8 @@ import { wipeBytes } from '@/security/KeyStoreService';
 const ENCRYPTED_DIR = 'familydata-encrypted';
 const TEMP_DIR = 'familydata-decrypt-tmp';
 const ENCRYPTED_EXT = '.dat';
+const IMAGE_EXT = /\.(png|jpe?g|webp|gif|heic|bmp)$/i;
+const PDF_EXT = /\.pdf$/i;
 
 function rootDir() {
   const root = FileSystem.documentDirectory;
@@ -59,10 +61,39 @@ async function secureDelete(uri: string) {
   }
 }
 
+function normalizeExt(ext: string): string {
+  const clean = ext.startsWith('.') ? ext.toLowerCase() : `.${ext.toLowerCase()}`;
+  if (['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.gif', '.bin'].includes(clean)) {
+    return clean === '.jpeg' ? '.jpg' : clean;
+  }
+  return '.bin';
+}
+
+function extFromSourceUri(uri: string): string {
+  const clean = (uri.split('?')[0] || uri).toLowerCase();
+  if (PDF_EXT.test(clean) || clean.includes('application/pdf')) return '.pdf';
+  if (IMAGE_EXT.test(clean) || clean.includes('imagepicker')) {
+    if (clean.endsWith('.png')) return '.png';
+    if (clean.endsWith('.webp')) return '.webp';
+    return '.jpg';
+  }
+  const match = clean.match(/\.([a-z0-9]+)$/);
+  return match ? normalizeExt(match[1]) : '.bin';
+}
+
 export const DocumentEncryptionService = {
   isEncryptedPath(uri?: string | null): boolean {
     if (!uri) return false;
     return uri.includes(`/${ENCRYPTED_DIR}/`) && uri.endsWith(ENCRYPTED_EXT);
+  },
+
+  /** Reads original extension from `…/<hex>.pdf.dat` style paths. */
+  extensionFromEncryptedPath(uri: string): string | null {
+    if (!this.isEncryptedPath(uri)) return null;
+    const base = uri.split('/').pop() || '';
+    const match = base.match(/^[0-9a-f]+\.([a-z0-9]+)\.dat$/i);
+    if (!match) return null;
+    return normalizeExt(match[1]);
   },
 
   async ensureDirs() {
@@ -71,8 +102,8 @@ export const DocumentEncryptionService = {
   },
 
   /**
-   * Encrypts a local file into encrypted/<random>.dat and securely deletes the plaintext source
-   * when `deleteSource` is true.
+   * Encrypts a local file into encrypted/<random>.<ext>.dat and securely deletes the plaintext source
+   * when `deleteSource` is true. Original extension is preserved in the ciphertext filename.
    */
   async encryptFile(uri: string, key: Uint8Array, options?: { deleteSource?: boolean }): Promise<string> {
     await this.ensureDirs();
@@ -85,7 +116,8 @@ export const DocumentEncryptionService = {
       packed = await EncryptionService.encryptBytes(plain, key);
       const rand = await Crypto.getRandomBytesAsync(16);
       const name = Array.from(rand, (b) => b.toString(16).padStart(2, '0')).join('');
-      const dest = `${encryptedDir()}${name}${ENCRYPTED_EXT}`;
+      const ext = extFromSourceUri(uri).replace(/^\./, '');
+      const dest = `${encryptedDir()}${name}.${ext}${ENCRYPTED_EXT}`;
       await FileSystem.writeAsStringAsync(dest, bytesToBase64(packed), {
         encoding: FileSystem.EncodingType.Base64,
       });
@@ -112,7 +144,8 @@ export const DocumentEncryptionService = {
       plain = EncryptionService.decryptBytes(packed, key);
       const rand = await Crypto.getRandomBytesAsync(8);
       const token = Array.from(rand, (b) => b.toString(16).padStart(2, '0')).join('');
-      const dest = `${tempDir()}${token}${suggestedExt}`;
+      const ext = normalizeExt(this.extensionFromEncryptedPath(uri) || suggestedExt);
+      const dest = `${tempDir()}${token}${ext}`;
       await FileSystem.writeAsStringAsync(dest, bytesToBase64(plain), {
         encoding: FileSystem.EncodingType.Base64,
       });

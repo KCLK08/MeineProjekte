@@ -24,6 +24,7 @@ import {
 /**
  * Central vault orchestration.
  * Security is mandatory on supported builds (no plaintext mode).
+ * Unlock uses a single OS auth prompt via SecureStore requireAuthentication.
  */
 class SecurityManagerImpl {
   private sessionKey: Uint8Array | null = null;
@@ -47,7 +48,6 @@ class SecurityManagerImpl {
   }
 
   async isSecurityEnabled(): Promise<boolean> {
-    // Vault mode is mandatory when SQLCipher is available.
     if (this.supportsSqlCipher()) return true;
     return readSecurityEnabled();
   }
@@ -69,10 +69,10 @@ class SecurityManagerImpl {
   }
 
   /**
-   * Ensures vault exists (new install or migrate plaintext → vault).
-   * Does not leave an unlocked session – caller must unlockApp().
+   * Ensures vault exists. Uses at most one SecureStore auth prompt and may
+   * establish a session when creating/migrating so unlock does not prompt again.
    */
-  async ensureVaultInitialized(): Promise<{ migratedDocuments: number; created: boolean }> {
+  async ensureVaultInitialized(): Promise<{ migratedDocuments: number; created: boolean; sessionReady: boolean }> {
     if (!this.supportsSqlCipher()) {
       throw new Error(
         'FamilyData Vault benötigt einen Development Build oder die Release-APK (SQLCipher). Expo Go wird nicht unterstützt.'
@@ -87,18 +87,14 @@ class SecurityManagerImpl {
     const hasKey = await KeyStoreService.hasMasterKey();
 
     if (hasVault && hasKey) {
-      return { migratedDocuments: 0, created: false };
+      return { migratedDocuments: 0, created: false, sessionReady: false };
     }
-
-    const auth = await this.authenticateUser(
-      hasPlain ? 'Klartextdaten in den Tresor migrieren' : 'FamilyData Tresor einrichten'
-    );
-    if (!auth.ok) throw new Error(auth.message);
 
     let key: Uint8Array | null = null;
     try {
+      // Single auth: create or load key (SecureStore requireAuthentication).
       key = hasKey
-        ? await KeyStoreService.getMasterKey('FamilyData Schlüssel freigeben')
+        ? await KeyStoreService.getMasterKey('FamilyData Tresor einrichten')
         : await KeyStoreService.createMasterKey('FamilyData Schlüssel schützen');
 
       let migratedDocuments = 0;
@@ -116,19 +112,26 @@ class SecurityManagerImpl {
       await writeSecurityEnabled(true);
       await writeAutoLockPromptPending(true);
       await SecurityEventLog.record('encryption_enabled');
-      return { migratedDocuments, created: true };
+
+      // Keep session open so the caller does not need a second biometric prompt.
+      await this.establishSession(key);
+      key = null;
+      return { migratedDocuments, created: true, sessionReady: true };
     } finally {
       wipeBytes(key);
-      this.sessionKey = null;
-      this.unlocked = false;
     }
   }
 
   /** @deprecated Security cannot be disabled in hardened builds. */
   async enableSecurity(): Promise<{ documentsEncrypted: number }> {
     const result = await this.ensureVaultInitialized();
-    const unlocked = await this.unlockApp();
-    if (!unlocked.ok) throw new Error(unlocked.message);
+    if (!result.sessionReady) {
+      const unlocked = await this.unlockApp();
+      if (!unlocked.ok) throw new Error(unlocked.message);
+    } else {
+      await SecurityEventLog.flushPendingToVault();
+      await SecurityEventLog.record('vault_unlocked');
+    }
     return { documentsEncrypted: result.migratedDocuments };
   }
 
@@ -146,36 +149,28 @@ class SecurityManagerImpl {
       };
     }
 
-    let vaultJustCreated = false;
     if (!(await readSecurityEnabled()) || !(await KeyStoreService.hasMasterKey())) {
       try {
         const init = await this.ensureVaultInitialized();
-        vaultJustCreated = init.created;
+        if (init.sessionReady) {
+          await SecurityEventLog.flushPendingToVault();
+          await SecurityEventLog.record('vault_unlocked');
+          return { ok: true };
+        }
       } catch (e) {
         await SecurityEventLog.record('auth_failed');
         return { ok: false, reason: 'failed', message: (e as Error).message };
       }
     }
 
-    // User presence (biometrics / device passcode), then Keystore-bound key fetch.
-    const auth = await this.authenticateUser('FamilyData Tresor öffnen');
-    if (!auth.ok) {
-      if (auth.reason !== 'cancelled') {
-        await SecurityEventLog.record('auth_failed');
-      }
-      return auth;
-    }
-
+    // One OS prompt only: auth-bound SecureStore master key.
     let key: Uint8Array | null = null;
     try {
-      key = await KeyStoreService.getMasterKey('FamilyData Schlüssel freigeben');
+      key = await KeyStoreService.getMasterKey('FamilyData Tresor öffnen');
       await this.establishSession(key);
       key = null;
       await SecurityEventLog.flushPendingToVault();
       await SecurityEventLog.record('vault_unlocked');
-      if (vaultJustCreated) {
-        await writeAutoLockPromptPending(true);
-      }
       return { ok: true };
     } catch (e) {
       wipeBytes(key);
@@ -192,7 +187,6 @@ class SecurityManagerImpl {
   async lockApp(): Promise<void> {
     const wasUnlocked = this.unlocked;
     if (wasUnlocked) {
-      // Record while DB session is still open (SQLCipher).
       await SecurityEventLog.record('vault_locked').catch(() => undefined);
     }
     wipeBytes(this.sessionKey);
@@ -203,7 +197,6 @@ class SecurityManagerImpl {
     configureDatabaseEncryption(null);
   }
 
-  /** Status snapshot for settings / lock UI (no key material). */
   async getVaultStatus(): Promise<{
     sqlCipherSupported: boolean;
     hasMasterKey: boolean;
@@ -231,10 +224,10 @@ class SecurityManagerImpl {
   async resolveReadableUri(uri: string, ext = '.bin'): Promise<string> {
     if (!this.sessionKey) throw new Error('Tresor ist gesperrt.');
     if (!DocumentEncryptionService.isEncryptedPath(uri)) {
-      // Should not happen after vault migration; allow read-only for leftovers.
       return uri;
     }
-    return DocumentEncryptionService.decryptFile(uri, this.sessionKey, ext);
+    const inferred = DocumentEncryptionService.extensionFromEncryptedPath(uri) || ext;
+    return DocumentEncryptionService.decryptFile(uri, this.sessionKey, inferred);
   }
 
   private async establishSession(key: Uint8Array) {
