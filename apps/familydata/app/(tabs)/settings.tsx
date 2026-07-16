@@ -76,7 +76,7 @@ export default function SettingsScreen() {
             index={1}
             icon="shield-checkmark-outline"
             title="Sicherheit"
-            subtitle="PIN und Biometrie vorbereiten"
+            subtitle="Tresor, Biometrie und Verschlüsselung"
             onPress={() => router.push('/settings/security')}
           />
         </View>

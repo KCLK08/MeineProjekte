@@ -1,14 +1,153 @@
+import * as FileSystem from 'expo-file-system/legacy';
 import * as SQLite from 'expo-sqlite';
 
 import type { FamilyDocument, FamilyRole, IdEntry, Person } from '@/types/models';
 import { createId, isFamilyRole, nowIso } from '@/utils/helpers';
 
-const DB_NAME = 'familydata.db';
+export const PLAIN_DB_NAME = 'familydata.db';
+export const VAULT_DB_NAME = 'familydata.vault.db';
 const SCHEMA_VERSION = '3';
 
 export type DocumentListRow = FamilyDocument & { personNames: string };
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
+/** SQLCipher key as lowercase hex (no 0x prefix). Null = plaintext DB. */
+let encryptionKeyHex: string | null = null;
+
+export function configureDatabaseEncryption(keyHex: string | null) {
+  encryptionKeyHex = keyHex && /^[0-9a-fA-F]+$/.test(keyHex) ? keyHex.toLowerCase() : null;
+}
+
+export async function closeDatabase() {
+  if (!dbPromise) return;
+  try {
+    const db = await dbPromise;
+    await db.closeAsync();
+  } catch {
+    // ignore close races
+  } finally {
+    dbPromise = null;
+  }
+}
+
+export async function databaseFileExists(name: string): Promise<boolean> {
+  try {
+    const base = FileSystem.documentDirectory;
+    if (!base) return false;
+    // expo-sqlite stores under SQLite/ on native
+    const candidates = [`${base}SQLite/${name}`, `${base}${name}`];
+    for (const path of candidates) {
+      const info = await FileSystem.getInfoAsync(path);
+      if (info.exists) return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+export async function deleteDatabaseFile(name: string) {
+  await closeDatabase();
+  try {
+    await SQLite.deleteDatabaseAsync(name);
+  } catch {
+    const base = FileSystem.documentDirectory;
+    if (!base) return;
+    await FileSystem.deleteAsync(`${base}SQLite/${name}`, { idempotent: true }).catch(() => undefined);
+    await FileSystem.deleteAsync(`${base}${name}`, { idempotent: true }).catch(() => undefined);
+  }
+}
+
+/** Opens (or reuses) the active DB and ensures schema – used after unlock. */
+export async function ensureDatabaseReady() {
+  await getDb();
+}
+
+/**
+ * Copies application tables from source → target ( foreigн keys off during copy ).
+ * Target is cleared first for known tables.
+ */
+export async function copyAllTablesBetween(source: SQLite.SQLiteDatabase, target: SQLite.SQLiteDatabase) {
+  // Ensure schema on both
+  await ensureSchema(source);
+  await ensureSchema(target);
+
+  await target.execAsync('PRAGMA foreign_keys = OFF;');
+  for (const table of ['document_people', 'documents', 'id_entries', 'identification', 'people', 'app_meta']) {
+    await target.execAsync(`DELETE FROM ${table};`).catch(() => undefined);
+  }
+
+  const people = await source.getAllAsync<Record<string, unknown>>('SELECT * FROM people').catch(() => []);
+  for (const row of people) {
+    await target.runAsync(
+      `INSERT OR REPLACE INTO people
+        (id, vorname, nachname, rolle, geburtsdatum, nationalitaet, telefon, email, adresse, notizen, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        String(row.id),
+        String(row.vorname ?? ''),
+        String(row.nachname ?? ''),
+        String(row.rolle ?? ''),
+        String(row.geburtsdatum ?? ''),
+        String(row.nationalitaet ?? ''),
+        String(row.telefon ?? ''),
+        String(row.email ?? ''),
+        String(row.adresse ?? ''),
+        String(row.notizen ?? ''),
+        String(row.createdAt ?? ''),
+        String(row.updatedAt ?? ''),
+      ]
+    );
+  }
+
+  const idRows = await source.getAllAsync<Record<string, unknown>>('SELECT * FROM id_entries').catch(() => []);
+  for (const row of idRows) {
+    await target.runAsync(
+      `INSERT OR REPLACE INTO id_entries (id, personId, label, value, sortOrder) VALUES (?, ?, ?, ?, ?)`,
+      [
+        String(row.id),
+        String(row.personId),
+        String(row.label ?? ''),
+        String(row.value ?? ''),
+        Number(row.sortOrder ?? 0),
+      ]
+    );
+  }
+
+  const docs = await source.getAllAsync<Record<string, unknown>>('SELECT * FROM documents').catch(() => []);
+  for (const row of docs) {
+    await target.runAsync(
+      `INSERT OR REPLACE INTO documents
+        (id, name, documentNumber, expiryDate, filePath, notes, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        String(row.id),
+        String(row.name ?? ''),
+        String(row.documentNumber ?? ''),
+        String(row.expiryDate ?? ''),
+        String(row.filePath ?? ''),
+        String(row.notes ?? ''),
+        String(row.createdAt ?? ''),
+        String(row.updatedAt ?? ''),
+      ]
+    );
+  }
+
+  const links = await source.getAllAsync<{ documentId: string; personId: string }>('SELECT * FROM document_people').catch(() => []);
+  for (const row of links) {
+    await target.runAsync(`INSERT OR IGNORE INTO document_people (documentId, personId) VALUES (?, ?)`, [
+      row.documentId,
+      row.personId,
+    ]);
+  }
+
+  const meta = await source.getAllAsync<{ key: string; value: string }>('SELECT * FROM app_meta').catch(() => []);
+  for (const row of meta) {
+    await target.runAsync(`INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)`, [row.key, row.value]);
+  }
+
+  await target.execAsync('PRAGMA foreign_keys = ON;');
+}
 
 async function getMeta(db: SQLite.SQLiteDatabase, key: string): Promise<string | null> {
   const row = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_meta WHERE key = ?', [key]);
@@ -196,6 +335,7 @@ async function ensureSchema(db: SQLite.SQLiteDatabase) {
       id TEXT PRIMARY KEY NOT NULL,
       vorname TEXT NOT NULL,
       nachname TEXT NOT NULL,
+      rolle TEXT NOT NULL DEFAULT '',
       geburtsdatum TEXT NOT NULL DEFAULT '',
       nationalitaet TEXT NOT NULL DEFAULT '',
       telefon TEXT NOT NULL DEFAULT '',
@@ -290,7 +430,12 @@ async function ensureSchema(db: SQLite.SQLiteDatabase) {
 async function getDb() {
   if (!dbPromise) {
     dbPromise = (async () => {
-      const db = await SQLite.openDatabaseAsync(DB_NAME);
+      const name = encryptionKeyHex ? VAULT_DB_NAME : PLAIN_DB_NAME;
+      const db = await SQLite.openDatabaseAsync(name);
+      if (encryptionKeyHex) {
+        // SQLCipher hex key – only used in development builds with useSQLCipher.
+        await db.execAsync(`PRAGMA key = "x'${encryptionKeyHex}'";`);
+      }
       await db.execAsync('PRAGMA foreign_keys = ON;');
       await ensureSchema(db);
       return db;

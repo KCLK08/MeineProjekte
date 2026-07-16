@@ -21,8 +21,9 @@ import { Pressable, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { PinPromptHost } from '@/components/PinPromptHost';
+import { AppLockGate } from '@/components/AppLockGate';
 import { useFamilyStore } from '@/store/familyStore';
+import { useSecurityStore } from '@/store/securityStore';
 import { useThemeStore } from '@/theme/themeStore';
 import { useAppTheme } from '@/theme/useAppTheme';
 
@@ -32,16 +33,27 @@ function RootNavigator() {
   const loading = useFamilyStore((s) => s.loading);
   const error = useFamilyStore((s) => s.error);
   const hydrateTheme = useThemeStore((s) => s.hydrate);
+  const hydrateSecurity = useSecurityStore((s) => s.hydrate);
+  const securityHydrated = useSecurityStore((s) => s.hydrated);
+  const securityEnabled = useSecurityStore((s) => s.securityEnabled);
+  const isLocked = useSecurityStore((s) => s.isLocked);
   const { scheme, colors } = useAppTheme();
 
   useEffect(() => {
     hydrateTheme();
-  }, [hydrateTheme]);
+    void hydrateSecurity();
+  }, [hydrateTheme, hydrateSecurity]);
 
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => undefined);
-    bootstrap();
-  }, [bootstrap]);
+  }, []);
+
+  useEffect(() => {
+    if (!securityHydrated) return;
+    // Do not load vault data while locked.
+    if (securityEnabled && isLocked) return;
+    void bootstrap();
+  }, [securityHydrated, securityEnabled, isLocked, bootstrap]);
 
   return (
     <>
@@ -109,7 +121,7 @@ function RootNavigator() {
           options={{ headerShown: true, title: 'Darstellung', presentation: 'card' }}
         />
       </Stack>
-      <PinPromptHost />
+      <AppLockGate />
     </>
   );
 }
