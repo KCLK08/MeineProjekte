@@ -18,11 +18,13 @@ import {
 import * as repo from '@/db/repository';
 import { useFamilyStore } from '@/store/familyStore';
 import type { IdentificationData, Person } from '@/types/models';
+import { useAppTheme } from '@/theme/useAppTheme';
 import { displayName, formatDateDe, initials } from '@/utils/helpers';
 
 export default function PersonDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { colors } = useAppTheme();
   const removePerson = useFamilyStore((s) => s.removePerson);
   const documents = useFamilyStore((s) => s.documents);
   const refreshDocuments = useFamilyStore((s) => s.refreshDocuments);
@@ -114,8 +116,8 @@ export default function PersonDetailScreen() {
               onPress={() => router.push({ pathname: '/document/new', params: { personId: person.id } })}
               className="mb-2 flex-row items-center gap-1"
             >
-              <Ionicons name="add-circle-outline" size={18} color="#0c3b2e" />
-              <Text className="font-sansBold text-sm text-pine-700">Hinzufügen</Text>
+              <Ionicons name="add-circle-outline" size={18} color={colors.pine} />
+              <Text className="font-sansBold text-sm text-pine-700 dark:text-pine-400">Hinzufügen</Text>
             </Pressable>
           </View>
           {personDocs.length === 0 ? (

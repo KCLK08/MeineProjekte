@@ -12,8 +12,10 @@ import {
   setPinEnabled,
   verifyPin,
 } from '@/security/lock';
+import { useAppTheme } from '@/theme/useAppTheme';
 
 export default function SecurityScreen() {
+  const { colors } = useAppTheme();
   const [pinEnabled, setPinEnabledState] = useState(false);
   const [bioEnabled, setBioEnabledState] = useState(false);
   const [pinConfigured, setPinConfigured] = useState(false);
@@ -49,16 +51,16 @@ export default function SecurityScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-        <Text className="mb-5 font-sans text-[15px] leading-5 text-mute">
+        <Text className="mb-5 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
           Geräteschutz ohne Account. PIN und Biometrie bleiben auf diesem Handy – keine Cloud-Anmeldung.
         </Text>
 
         <SectionTitle>App-PIN</SectionTitle>
         <Panel className="mb-5 py-4">
           <View className="mb-3 flex-row items-center justify-between">
-            <Text className="font-sansMedium text-base text-ink">PIN aktiv</Text>
+            <Text className="font-sansMedium text-base text-ink dark:text-[#e7f2ec]">PIN aktiv</Text>
             <Switch
-              trackColor={{ true: '#1f7a5c' }}
+              trackColor={{ true: colors.pine }}
               value={pinEnabled}
               onValueChange={async (v) => {
                 if (v && !pinConfigured) {
@@ -83,8 +85,8 @@ export default function SecurityScreen() {
             secureTextEntry
             maxLength={8}
             placeholder="Neue PIN (4–8 Ziffern)"
-            placeholderTextColor="#7a9086"
-            className="mb-2 min-h-[50px] rounded-2xl border border-line bg-canvas px-3.5 font-sans text-base text-ink"
+            placeholderTextColor={colors.placeholder}
+            className="mb-2 min-h-[50px] rounded-2xl border border-line bg-canvas px-3.5 font-sans text-base text-ink dark:border-[#2a3f35] dark:bg-[#0d1612] dark:text-[#e7f2ec]"
           />
           <TextInput
             value={pinCheck}
@@ -93,8 +95,8 @@ export default function SecurityScreen() {
             secureTextEntry
             maxLength={8}
             placeholder="PIN wiederholen"
-            placeholderTextColor="#7a9086"
-            className="mb-3 min-h-[50px] rounded-2xl border border-line bg-canvas px-3.5 font-sans text-base text-ink"
+            placeholderTextColor={colors.placeholder}
+            className="mb-3 min-h-[50px] rounded-2xl border border-line bg-canvas px-3.5 font-sans text-base text-ink dark:border-[#2a3f35] dark:bg-[#0d1612] dark:text-[#e7f2ec]"
           />
           <PrimaryButton label="PIN speichern" icon="key-outline" onPress={onSavePin} />
           <View className="mt-2">
@@ -129,9 +131,9 @@ export default function SecurityScreen() {
             <StatusBadge label={bioSupport.enrolled ? 'Eingerichtet' : 'Nicht eingerichtet'} tone={bioSupport.enrolled ? 'ok' : 'warn'} />
           </View>
           <View className="mb-3 flex-row items-center justify-between">
-            <Text className="font-sansMedium text-base text-ink">Fingerabdruck / Face ID</Text>
+            <Text className="font-sansMedium text-base text-ink dark:text-[#e7f2ec]">Fingerabdruck / Face ID</Text>
             <Switch
-              trackColor={{ true: '#1f7a5c' }}
+              trackColor={{ true: colors.pine }}
               value={bioEnabled}
               onValueChange={async (v) => {
                 if (v && !(bioSupport.hasHardware && bioSupport.enrolled)) {
@@ -158,8 +160,8 @@ export default function SecurityScreen() {
         <Panel className="py-4">
           <View className="flex-row items-center justify-between">
             <View className="flex-1 pr-3">
-              <Text className="font-sansBold text-base text-ink">Lokale Verschlüsselung</Text>
-              <Text className="mt-1 font-sans text-sm leading-5 text-mute">
+              <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Lokale Verschlüsselung</Text>
+              <Text className="mt-1 font-sans text-sm leading-5 text-mute dark:text-[#9bb0a6]">
                 Vorbereitet – SQLCipher / Dateiverschlüsselung folgt später.
               </Text>
             </View>

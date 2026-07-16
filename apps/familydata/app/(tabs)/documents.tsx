@@ -77,7 +77,7 @@ export default function DocumentsScreen() {
 
             {filtersActive ? (
               <Pressable className="mb-3 mt-2 self-start" onPress={() => { setPersonId(''); setTypeId(''); }}>
-                <Text className="font-sansBold text-sm text-pine-700">Filter zurücksetzen</Text>
+                <Text className="font-sansBold text-sm text-pine-700 dark:text-pine-400">Filter zurücksetzen</Text>
               </Pressable>
             ) : (
               <View className="mb-3" />
