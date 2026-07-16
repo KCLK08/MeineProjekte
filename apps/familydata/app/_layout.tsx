@@ -97,10 +97,6 @@ function RootNavigator() {
         <Stack.Screen name="document/[id]" options={{ headerShown: true, title: 'Vorschau', presentation: 'card' }} />
         <Stack.Screen name="document/new" options={{ headerShown: true, title: 'Dokument hinzufügen', presentation: 'modal' }} />
         <Stack.Screen name="document/edit/[id]" options={{ headerShown: true, title: 'Dokument bearbeiten', presentation: 'modal' }} />
-        <Stack.Screen
-          name="settings/document-types"
-          options={{ headerShown: true, title: 'Dokumenttypen', presentation: 'card' }}
-        />
         <Stack.Screen name="settings/security" options={{ headerShown: true, title: 'Sicherheit', presentation: 'card' }} />
         <Stack.Screen
           name="settings/appearance"

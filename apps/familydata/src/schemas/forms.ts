@@ -23,19 +23,12 @@ export const personFormSchema = z.object({
 export type PersonFormValues = z.infer<typeof personFormSchema>;
 
 export const documentFormSchema = z.object({
-  personId: z.string().min(1, 'Familienmitglied wählen'),
-  documentTypeId: z.string().min(1, 'Dokumenttyp wählen'),
+  name: z.string().trim().min(1, 'Name ist erforderlich'),
+  personIds: z.array(z.string()).min(1, 'Mindestens eine Person wählen'),
   documentNumber: optionalText,
   expiryDate: optionalText,
   notes: optionalText,
-  filePath: optionalText,
+  filePath: z.string().trim().min(1, 'Datei ist erforderlich'),
 });
 
 export type DocumentFormValues = z.infer<typeof documentFormSchema>;
-
-export const documentTypeFormSchema = z.object({
-  name: z.string().trim().min(1, 'Name ist erforderlich'),
-  expiryDateRelevant: z.boolean(),
-});
-
-export type DocumentTypeFormValues = z.infer<typeof documentTypeFormSchema>;

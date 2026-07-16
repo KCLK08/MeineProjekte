@@ -44,13 +44,13 @@ export default function SearchScreen() {
         contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12 + insets.top, paddingBottom: 24 }}
         ListHeaderComponent={
           <View>
-            <PageHeader title="Suche" subtitle="Personen, Nummern und Dokumenttypen" />
+            <PageHeader title="Suche" subtitle="Personen und Dokumentnamen" />
             <View className="mb-5 flex-row items-center rounded-2xl border border-line bg-paper px-3.5 dark:border-[#2a3f35] dark:bg-[#15241d]">
               <Ionicons name="search" size={18} color={colors.mute} />
               <TextInput
                 value={query}
                 onChangeText={setQuery}
-                placeholder="z. B. Leo, Reisepass, C01X…"
+                placeholder="z. B. Leo, Reisepass Max…"
                 placeholderTextColor={colors.placeholder}
                 className="ml-2 min-h-[52px] flex-1 font-sans text-base text-ink dark:text-[#e7f2ec]"
                 autoCorrect={false}
@@ -62,7 +62,7 @@ export default function SearchScreen() {
               <EmptyState
                 icon="search-outline"
                 title="Wonach suchst du?"
-                subtitle="Tippe einen Namen, eine Dokumentnummer oder einen Typ ein."
+                subtitle="Tippe einen Personennamen oder Dokumentnamen ein."
               />
             ) : null}
 
@@ -98,8 +98,8 @@ export default function SearchScreen() {
         renderItem={({ item, index }) => (
           <ListRow
             index={index}
-            title={item.typeName}
-            subtitle={item.personName}
+            title={item.name}
+            subtitle={item.personNames}
             meta={
               item.documentNumber ? <StatusBadge label={item.documentNumber} /> : null
             }

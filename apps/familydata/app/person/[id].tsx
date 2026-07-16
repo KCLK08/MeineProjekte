@@ -49,7 +49,7 @@ export default function PersonDetailScreen() {
     );
   }
 
-  const personDocs = documents.filter((d) => d.personId === person.id);
+  const personDocs = documents.filter((d) => d.personIds.includes(person.id));
 
   function confirmDelete() {
     Alert.alert('Person löschen', 'Profil und zugehörige Dokumente unwiderruflich entfernen?', [
@@ -127,8 +127,8 @@ export default function PersonDetailScreen() {
               <ListRow
                 key={doc.id}
                 index={index}
-                title={doc.typeName}
-                subtitle={doc.documentNumber || 'ohne Nummer'}
+                title={doc.name}
+                subtitle={doc.personNames || doc.documentNumber || 'Dokument'}
                 onPress={() => router.push(`/document/${doc.id}`)}
               />
             ))

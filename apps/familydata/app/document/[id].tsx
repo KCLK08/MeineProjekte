@@ -16,7 +16,6 @@ export default function DocumentPreviewScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const people = useFamilyStore((s) => s.people);
-  const documentTypes = useFamilyStore((s) => s.documentTypes);
   const removeDocument = useFamilyStore((s) => s.removeDocument);
   const [doc, setDoc] = useState<FamilyDocument | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -26,9 +25,13 @@ export default function DocumentPreviewScreen() {
     (async () => setDoc(await repo.getDocument(id)))();
   }, [id]);
 
-  const person = useMemo(() => people.find((p) => p.id === doc?.personId), [people, doc]);
-  const type = useMemo(() => documentTypes.find((t) => t.id === doc?.documentTypeId), [documentTypes, doc]);
-  const title = type?.name || 'Dokument';
+  const assignedPeople = useMemo(
+    () => people.filter((p) => doc?.personIds.includes(p.id)),
+    [people, doc]
+  );
+  const title = doc?.name || 'Dokument';
+  const subtitle =
+    assignedPeople.map((p) => `${p.vorname} ${p.nachname}`).join(', ') || 'Keine Person zugeordnet';
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -46,16 +49,15 @@ export default function DocumentPreviewScreen() {
   }
 
   const hasFile = Boolean(doc.filePath?.trim());
-  const subtitle = person ? `${person.vorname} ${person.nachname}` : 'Unbekannte Person';
 
   async function onExportPdf() {
     if (!doc?.filePath) {
-      Alert.alert('Kein Anhang', 'Diesem Dokument ist noch keine Datei hinterlegt.');
+      Alert.alert('Kein Anhang', 'Diesem Dokument ist keine Datei hinterlegt.');
       return;
     }
     try {
       setExporting(true);
-      const name = `${type?.name || 'Dokument'}_${person?.nachname || 'export'}`;
+      const name = `${doc.name || 'Dokument'}_${assignedPeople[0]?.nachname || 'export'}`;
       await exportUriAsPdf(doc.filePath, name);
     } catch (e) {
       Alert.alert('PDF-Export fehlgeschlagen', (e as Error).message);
@@ -70,7 +72,7 @@ export default function DocumentPreviewScreen() {
         <Text className="font-sansBold text-base text-ink" numberOfLines={1}>
           {title}
         </Text>
-        <Text className="mt-0.5 font-sans text-sm text-mute" numberOfLines={1}>
+        <Text className="mt-0.5 font-sans text-sm text-mute" numberOfLines={2}>
           {subtitle}
           {doc.documentNumber ? ` · Nr. ${doc.documentNumber}` : ''}
         </Text>

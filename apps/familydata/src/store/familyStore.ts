@@ -1,29 +1,16 @@
 import { create } from 'zustand';
 
 import * as repo from '@/db/repository';
-import { DEFAULT_DOCUMENT_TYPES, DUMMY_FAMILY } from '@/db/seed';
-import type { DocumentType, FamilyDocument, IdentificationData, Person } from '@/types/models';
-
-type DocRow = FamilyDocument & { personName: string; typeName: string; expiryDateRelevant: number };
+import type { DocumentListRow } from '@/db/repository';
+import { DUMMY_FAMILY } from '@/db/seed';
+import type { FamilyDocument, IdentificationData, Person } from '@/types/models';
 
 const BOOTSTRAP_TIMEOUT_MS = 6_000;
 
 function memorySeed() {
-  const typeById = new Map(DEFAULT_DOCUMENT_TYPES.map((t) => [t.id, t]));
   const people = DUMMY_FAMILY.map((m) => m.person);
-  const documentTypes: DocumentType[] = DEFAULT_DOCUMENT_TYPES.map((t) => ({ ...t, isSystem: true }));
-  const documents: DocRow[] = DUMMY_FAMILY.flatMap((m) =>
-    m.documents.map((doc) => {
-      const type = typeById.get(doc.documentTypeId);
-      return {
-        ...doc,
-        personName: `${m.person.vorname} ${m.person.nachname}`,
-        typeName: type?.name || 'Dokument',
-        expiryDateRelevant: type?.expiryDateRelevant ? 1 : 0,
-      };
-    })
-  );
-  return { people, documentTypes, documents };
+  const documents: DocumentListRow[] = [];
+  return { people, documents };
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
@@ -46,12 +33,10 @@ type FamilyState = {
   loading: boolean;
   error: string;
   people: Person[];
-  documentTypes: DocumentType[];
-  documents: DocRow[];
+  documents: DocumentListRow[];
   bootstrap: () => Promise<void>;
   refreshPeople: () => Promise<void>;
-  refreshDocuments: (filters?: { personId?: string; documentTypeId?: string; query?: string }) => Promise<void>;
-  refreshDocumentTypes: () => Promise<void>;
+  refreshDocuments: (filters?: { personId?: string; query?: string }) => Promise<void>;
   savePerson: (
     person: Omit<Person, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
     identification: Omit<IdentificationData, 'personId'>
@@ -59,8 +44,6 @@ type FamilyState = {
   removePerson: (id: string) => Promise<void>;
   saveDocument: (doc: Omit<FamilyDocument, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => Promise<string>;
   removeDocument: (id: string) => Promise<void>;
-  addDocumentType: (name: string, expiryDateRelevant: boolean) => Promise<void>;
-  removeDocumentType: (id: string) => Promise<void>;
 };
 
 let bootstrapInFlight: Promise<void> | null = null;
@@ -70,7 +53,6 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
   loading: false,
   error: '',
   people: [],
-  documentTypes: [],
   documents: [],
 
   bootstrap: async () => {
@@ -90,7 +72,6 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
         await withTimeout(
           (async () => {
             await get().refreshPeople();
-            await get().refreshDocumentTypes();
             await get().refreshDocuments();
           })(),
           BOOTSTRAP_TIMEOUT_MS,
@@ -119,10 +100,6 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
     set({ documents: await repo.listDocuments(filters) });
   },
 
-  refreshDocumentTypes: async () => {
-    set({ documentTypes: await repo.listDocumentTypes() });
-  },
-
   savePerson: async (person, identification) => {
     const id = await repo.upsertPerson(person, identification);
     await get().refreshPeople();
@@ -145,15 +122,5 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
   removeDocument: async (id) => {
     await repo.deleteDocument(id);
     await get().refreshDocuments();
-  },
-
-  addDocumentType: async (name, expiryDateRelevant) => {
-    await repo.createDocumentType(name, expiryDateRelevant);
-    await get().refreshDocumentTypes();
-  },
-
-  removeDocumentType: async (id) => {
-    await repo.deleteDocumentType(id);
-    await get().refreshDocumentTypes();
   },
 }));
