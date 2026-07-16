@@ -5,7 +5,7 @@ import { colors, spacing } from '@meineprojekte/theme';
 
 type Props = {
   title: string;
-  /** Production URL on GitHub Pages */
+  /** Production URL on Cloudflare Pages */
   uri: string;
 };
 

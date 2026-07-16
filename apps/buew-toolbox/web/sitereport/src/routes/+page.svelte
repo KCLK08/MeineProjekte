@@ -1388,7 +1388,7 @@
     {#if view === 'start' || view === 'edit-setup'}
       <button class="toolbox-link" type="button" on:click={() => (view = 'landing')}>Zur Startseite</button>
     {:else if view === 'landing'}
-      <a class="toolbox-link" href="/MeineProjekte/apps/buew-toolbox/">Zur Toolbox</a>
+      <a class="toolbox-link" href="/apps/buew-toolbox/">Zur Toolbox</a>
     {/if}
   </header>
 

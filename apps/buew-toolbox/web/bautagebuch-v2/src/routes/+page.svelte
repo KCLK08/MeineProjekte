@@ -3156,7 +3156,7 @@
       </p>
     </div>
     {#if view === 'home'}
-      <a class="toolbox-link" href="/MeineProjekte/apps/buew-toolbox/">Zur Toolbox</a>
+      <a class="toolbox-link" href="/apps/buew-toolbox/">Zur Toolbox</a>
     {/if}
   </header>
 

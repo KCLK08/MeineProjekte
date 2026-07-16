@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const app = join(root, 'apps/buew-toolbox/web');
 const dist = join(root, 'apps/buew-toolbox/web/dist');
-/** GitHub Pages base – repo name is case-sensitive on Pages */
-const BASE = '/MeineProjekte/apps/buew-toolbox';
+/** Cloudflare Pages (and local static host) base path */
+const BASE = '/apps/buew-toolbox';
 
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(join(dist, 'sitereport'), { recursive: true });
@@ -14,13 +14,13 @@ mkdirSync(join(dist, 'bautagebuch'), { recursive: true });
 
 const rewrite = (text) =>
   text
-    // Collapse accidental double rewrites first
+    // Collapse accidental double rewrites / migrate old GitHub Pages paths
     .replaceAll('/meineprojekte/apps/meineprojekte/apps/buew-toolbox/', `${BASE}/`)
     .replaceAll('/MeineProjekte/apps/MeineProjekte/apps/buew-toolbox/', `${BASE}/`)
     .replaceAll('/meineprojekte/apps/buew-toolbox/', `${BASE}/`)
     .replaceAll('/MeineProjekte/apps/buew-toolbox/', `${BASE}/`)
     .replaceAll('/baustellen-tools/', `${BASE}/`)
-    // Only rewrite bare /buew-toolbox/ paths that are not already under MeineProjekte
+    // Bare /buew-toolbox/ → canonical /apps/buew-toolbox/
     .replace(/(^|["'(=\s])\/buew-toolbox\//g, `$1${BASE}/`);
 
 const copyText = (from, to) => {

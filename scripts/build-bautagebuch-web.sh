@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Export the Expo Bautagebuch app (same codebase as KCLK08/Bautagebuch) for GitHub Pages.
+# Export the Expo Bautagebuch app (same codebase as KCLK08/Bautagebuch) for static hosting.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$ROOT/apps/bautagebuch"
-BASE="${EXPO_WEB_BASE:-/MeineProjekte/apps/bautagebuch}"
+BASE="${EXPO_WEB_BASE:-/apps/bautagebuch}"
 
 echo "Expo web export → $APP/dist (base=$BASE)"
 cd "$APP"
 rm -rf dist
 
-# Ensure COI helper is present for SQLite on GitHub Pages
+# Ensure COI helper is present for SQLite in the browser
 mkdir -p public
 if [ ! -f public/coi-serviceworker.min.js ]; then
   curl -fsSL -o public/coi-serviceworker.min.js \
@@ -19,12 +19,12 @@ fi
 
 EXPO_WEB_BASE="$BASE" npx expo export --platform web
 
-# Absolute root assets need the Pages base path (favicon/icons + COI).
+# Absolute root assets need the site base path (favicon/icons + COI).
 python3 - <<'PY'
 from pathlib import Path
 import os
 
-base = os.environ.get("EXPO_WEB_BASE", "/MeineProjekte/apps/bautagebuch").rstrip("/")
+base = os.environ.get("EXPO_WEB_BASE", "/apps/bautagebuch").rstrip("/")
 dist = Path("dist")
 
 replacements = [
