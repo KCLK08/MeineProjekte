@@ -14,33 +14,30 @@ const OPTIONS: {
   {
     value: 'light',
     label: 'Hell',
-    subtitle: 'Immer helles Erscheinungsbild',
+    subtitle: 'Immer hell',
     icon: 'sunny-outline',
   },
   {
     value: 'dark',
     label: 'Dunkel',
-    subtitle: 'Immer dunkles Erscheinungsbild',
+    subtitle: 'Immer dunkel',
     icon: 'moon-outline',
   },
   {
     value: 'system',
     label: 'System',
-    subtitle: 'Folgt der Einstellung deines Geräts',
+    subtitle: 'Wie das System',
     icon: 'phone-portrait-outline',
   },
 ];
 
 export default function AppearanceScreen() {
   const insets = useSafeAreaInsets();
-  const { preference, setPreference, scheme } = useAppTheme();
+  const { preference, setPreference } = useAppTheme();
 
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 + insets.bottom }}>
-        <Text className="mb-5 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
-          Wähle, wie Family Vault aussehen soll. Aktuell aktiv: {scheme === 'dark' ? 'Dunkel' : 'Hell'}.
-        </Text>
         <SectionTitle>Modus</SectionTitle>
         {OPTIONS.map((option) => (
           <ThemeOption

@@ -2,6 +2,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 import { create } from 'zustand';
 
 import { maybePromptAutoLockPreference } from '@/security/autoLockPrompt';
+import { isAutoLockSuppressed } from '@/security/autoLockSuppress';
 import { wipeAllPreviews } from '@/security/previewSession';
 import {
   allowScreenshotsForSession,
@@ -23,7 +24,7 @@ type SecurityState = {
   error: string;
   wipeToken: number;
   needsVaultSetup: boolean;
-  /** Session-only: screenshots allowed until next lock. */
+  /** Allowed until the app is left (background) and locked – not reset by in-app biometrics. */
   screenshotsAllowedThisSession: boolean;
   hydrate: () => Promise<void>;
   unlock: () => Promise<boolean>;
@@ -106,7 +107,10 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
         const { isLocked } = get();
         if (!SecurityManager.supportsSqlCipher()) return;
 
-        if (next === 'background' || next === 'inactive') {
+        // Only true background counts as leaving the app session.
+        // "inactive" covers pickers / biometric sheets and must not lock or end the screenshot session.
+        if (next === 'background') {
+          if (isAutoLockSuppressed()) return;
           backgroundedAt = Date.now();
           const ms = autoLockMs(get().autoLock);
           clearLockTimer();
@@ -114,14 +118,14 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
             void get().lock();
           } else if (ms != null) {
             lockTimer = setTimeout(() => {
-              void get().lock();
+              if (!isAutoLockSuppressed()) void get().lock();
             }, ms);
           }
         }
 
         if (next === 'active') {
           clearLockTimer();
-          if (backgroundedAt != null && !isLocked) {
+          if (backgroundedAt != null && !isLocked && !isAutoLockSuppressed()) {
             const ms = autoLockMs(get().autoLock);
             const elapsed = Date.now() - backgroundedAt;
             if (ms === 0 || (ms != null && elapsed >= ms)) {
@@ -137,24 +141,28 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
   unlock: async () => {
     set({ busy: true, error: '' });
     try {
-      const result = await SecurityManager.unlockApp();
-      if (!result.ok) {
-        set({ error: result.message, busy: false, isLocked: true, needsVaultSetup: false });
-        return false;
-      }
-      set({
-        isLocked: false,
-        lastAuthentication: Date.now(),
-        securityEnabled: true,
-        busy: false,
-        error: '',
-        needsVaultSetup: false,
-        screenshotsAllowedThisSession: false,
+      const { withAutoLockSuppressed } = await import('@/security/autoLockSuppress');
+      return await withAutoLockSuppressed(async () => {
+        const result = await SecurityManager.unlockApp();
+        if (!result.ok) {
+          set({ error: result.message, busy: false, isLocked: true, needsVaultSetup: false });
+          return false;
+        }
+        // Fresh session after leaving the app / lock — screenshots off until user allows again.
+        set({
+          isLocked: false,
+          lastAuthentication: Date.now(),
+          securityEnabled: true,
+          busy: false,
+          error: '',
+          needsVaultSetup: false,
+          screenshotsAllowedThisSession: false,
+        });
+        await enableScreenshotProtection();
+        await useFamilyStore.getState().bootstrap();
+        await maybePromptAutoLockPreference(get().setAutoLock);
+        return true;
       });
-      await enableScreenshotProtection();
-      await useFamilyStore.getState().bootstrap();
-      await maybePromptAutoLockPreference(get().setAutoLock);
-      return true;
     } catch (e) {
       void SecurityEventLog.record('auth_failed');
       set({ busy: false, error: (e as Error).message, isLocked: true });
@@ -166,6 +174,7 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
     clearLockTimer();
     await SecurityManager.lockApp();
     wipeSensitiveUiState();
+    // Leaving the app / locking ends the screenshot session.
     await enableScreenshotProtection();
     set((state) => ({
       isLocked: true,
@@ -215,7 +224,10 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
   },
 
   testAuth: async () => {
-    const result = await SecurityManager.authenticateUser('Sicherheitstest');
-    return result.ok;
+    const { withAutoLockSuppressed } = await import('@/security/autoLockSuppress');
+    return withAutoLockSuppressed(async () => {
+      const result = await SecurityManager.authenticateUser('Sicherheitstest');
+      return result.ok;
+    });
   },
 }));

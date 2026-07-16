@@ -20,7 +20,7 @@ export default function IdentificationEditorScreen() {
   useEffect(() => {
     if (!id) return;
     (async () => {
-      const access = await requireSecureAccess('Identifikation bearbeiten');
+      const access = await requireSecureAccess('Identifikation bearbeiten', { force: true });
       if (!access.ok) {
         Alert.alert('Geschützt', access.reason, [{ text: 'OK', onPress: () => router.back() }]);
         return;
@@ -79,10 +79,6 @@ export default function IdentificationEditorScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
-        <Text className="mb-4 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
-          Keine festen Felder – wähle Vorschläge oder eigene Bezeichnungen.
-        </Text>
-
         <SectionTitle>Vorschläge</SectionTitle>
         <View className="mb-4 flex-row flex-wrap">
           {ID_FIELD_SUGGESTIONS.map((label) => (

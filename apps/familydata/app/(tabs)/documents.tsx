@@ -50,10 +50,7 @@ export default function DocumentsScreen() {
           <View className="mb-2">
             <View className="mb-3 flex-row items-start justify-between gap-3">
               <View className="flex-1">
-                <PageHeader
-                  title="Dokumente"
-                  subtitle="Mit Namen speichern · mehreren Personen zuordenbar"
-                />
+                <PageHeader title="Dokumente" />
               </View>
               <View className="mt-1 flex-row gap-2">
                 <IconButton
@@ -102,11 +99,7 @@ export default function DocumentsScreen() {
           </View>
         }
         ListEmptyComponent={
-          <EmptyState
-            icon="document-outline"
-            title="Keine Dokumente"
-            subtitle="Dokument mit Name und Datei hochladen."
-          />
+          <EmptyState icon="document-outline" title="Keine Dokumente" />
         }
         renderItem={({ item, index }) => {
           const expired = Boolean(item.expiryDate && isExpired(item.expiryDate));

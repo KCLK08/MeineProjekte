@@ -179,11 +179,7 @@ export default function DocumentPreviewScreen() {
           <FilePreview uri={readableUri} wipeToken={wipeToken} />
         ) : hasFile ? (
           <View className="flex-1 items-center justify-center px-8">
-            <EmptyState
-              icon="lock-closed-outline"
-              title="Vorschau geschützt"
-              subtitle="Zur Anzeige ist eine erneute Biometrie- oder Gerätecode-Bestätigung nötig."
-            />
+            <EmptyState icon="lock-closed-outline" title="Vorschau geschützt" />
             <PrimaryButton
               label={previewBusy ? 'Prüft…' : 'Vorschau freigeben'}
               icon="finger-print-outline"
@@ -192,11 +188,7 @@ export default function DocumentPreviewScreen() {
             />
           </View>
         ) : (
-          <EmptyState
-            icon="document-outline"
-            title="Keine Datei hinterlegt"
-            subtitle="Bearbeite das Dokument, um Fotos oder ein PDF anzuhängen."
-          />
+          <EmptyState icon="document-outline" title="Keine Datei hinterlegt" />
         )}
       </View>
 

@@ -40,11 +40,8 @@ export default function FamilyScreen() {
           <View className="mb-4">
             <View className="mb-1 flex-row items-start justify-between gap-3">
               <View className="flex-1">
-                <Text className="font-sansMedium text-[12px] uppercase tracking-[1.6px] text-mute dark:text-[#9bb0a6]">
-                  Deine Familie
-                </Text>
                 <Text
-                  className="mt-1 font-display text-[40px] leading-[44px] text-pine-700 dark:text-pine-400"
+                  className="font-display text-[40px] leading-[44px] text-pine-700 dark:text-pine-400"
                   style={{ letterSpacing: -1.2 }}
                 >
                   Familie {familyName || '—'}
@@ -57,26 +54,19 @@ export default function FamilyScreen() {
                 onPress={() => router.push('/settings')}
               />
             </View>
-            <View className="mt-4 flex-row items-end justify-between gap-3">
-              <Text className="flex-1 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
-                {people.length} {people.length === 1 ? 'Mitglied' : 'Mitglieder'} · nur auf diesem Gerät
-              </Text>
+            <View className="mt-4 flex-row justify-end">
               <IconButton icon="person-add" label="Person hinzufügen" onPress={() => router.push('/person/new')} />
             </View>
           </View>
         }
         ListEmptyComponent={
-          <EmptyState
-            icon="people-outline"
-            title="Noch niemand angelegt"
-            subtitle="Lege das erste Familienmitglied an."
-          />
+          <EmptyState icon="people-outline" title="Noch niemand angelegt" />
         }
         renderItem={({ item, index }) => (
           <ListRow
             index={index}
             title={displayName(item.vorname, item.nachname)}
-            subtitle={item.geburtsdatum ? formatDateDe(item.geburtsdatum) : 'Geburtsdatum offen'}
+            subtitle={item.geburtsdatum ? formatDateDe(item.geburtsdatum) : undefined}
             meta={item.rolle ? <StatusBadge label={roleLabel(item.rolle)} /> : null}
             leading={<Avatar initials={initials(item.vorname, item.nachname)} />}
             onPress={() => router.push(`/person/${item.id}`)}

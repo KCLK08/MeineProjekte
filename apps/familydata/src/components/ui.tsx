@@ -73,11 +73,6 @@ export function BrandMark({ compact = false }: { compact?: boolean }) {
           Family Vault
         </Text>
       </View>
-      {!compact ? (
-        <Text className="mt-1 font-sans text-sm text-mute dark:text-[#9bb0a6]">
-          Privater Familienordner · nur auf diesem Gerät
-        </Text>
-      ) : null}
     </View>
   );
 }
