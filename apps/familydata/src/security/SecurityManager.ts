@@ -20,8 +20,8 @@ import {
 } from '@/db/repository';
 
 /**
- * Central orchestration for vault security.
- * Holds the session master key only while unlocked; wiped on lock.
+ * Central vault orchestration.
+ * Security is mandatory on supported builds (no plaintext mode).
  */
 class SecurityManagerImpl {
   private sessionKey: Uint8Array | null = null;
@@ -31,7 +31,6 @@ class SecurityManagerImpl {
     return Constants.appOwnership === 'expo';
   }
 
-  /** SQLCipher requires a Dev Client / production build – not Expo Go. */
   supportsSqlCipher(): boolean {
     return !this.isExpoGo();
   }
@@ -40,13 +39,14 @@ class SecurityManagerImpl {
     return this.unlocked && this.sessionKey != null;
   }
 
-  /** Returns a copy of the session key; caller must wipe. */
   borrowSessionKey(): Uint8Array {
     if (!this.sessionKey) throw new Error('Tresor ist gesperrt.');
     return new Uint8Array(this.sessionKey);
   }
 
   async isSecurityEnabled(): Promise<boolean> {
+    // Vault mode is mandatory when SQLCipher is available.
+    if (this.supportsSqlCipher()) return true;
     return readSecurityEnabled();
   }
 
@@ -67,94 +67,101 @@ class SecurityManagerImpl {
   }
 
   /**
-   * Enables vault protection: native auth → create key → migrate DB/files → unlock session.
+   * Ensures vault exists (new install or migrate plaintext → vault).
+   * Does not leave an unlocked session – caller must unlockApp().
    */
-  async enableSecurity(): Promise<{ documentsEncrypted: number }> {
-    if (this.isExpoGo()) {
+  async ensureVaultInitialized(): Promise<{ migratedDocuments: number; created: boolean }> {
+    if (!this.supportsSqlCipher()) {
       throw new Error(
-        'Vollständige Datenbankverschlüsselung (SQLCipher) benötigt einen Expo Development Build oder die Release-APK. Expo Go reicht nicht.'
+        'FamilyData Vault benötigt einen Development Build oder die Release-APK (SQLCipher). Expo Go wird nicht unterstützt.'
       );
     }
 
-    const auth = await this.authenticateUser('Sicherheit aktivieren');
+    await writeSecurityEnabled(true);
+    await writeAutoLock((await readAutoLock()) || 'immediate');
+
+    const hasVault = await databaseFileExists(VAULT_DB_NAME);
+    const hasPlain = await databaseFileExists(PLAIN_DB_NAME);
+    const hasKey = await KeyStoreService.hasMasterKey();
+
+    if (hasVault && hasKey) {
+      return { migratedDocuments: 0, created: false };
+    }
+
+    const auth = await this.authenticateUser(
+      hasPlain ? 'Klartextdaten in den Tresor migrieren' : 'FamilyData Tresor einrichten'
+    );
     if (!auth.ok) throw new Error(auth.message);
 
     let key: Uint8Array | null = null;
     try {
-      if (await KeyStoreService.hasMasterKey()) {
-        key = await KeyStoreService.getMasterKey(false);
-      } else {
-        key = await KeyStoreService.createMasterKey(true);
-      }
+      key = hasKey
+        ? await KeyStoreService.getMasterKey('FamilyData Schlüssel freigeben')
+        : await KeyStoreService.createMasterKey('FamilyData Schlüssel schützen');
 
-      const hasPlain = await databaseFileExists(PLAIN_DB_NAME);
-      const hasVault = await databaseFileExists(VAULT_DB_NAME);
-      let documentsEncrypted = 0;
-
+      let migratedDocuments = 0;
       if (hasPlain && !hasVault) {
-        documentsEncrypted = (await MigrationService.migrateToEncryptedVault(key)).documentsEncrypted;
+        migratedDocuments = (await MigrationService.migrateToEncryptedVault(key)).documentsEncrypted;
       } else if (!hasVault) {
-        // Fresh vault DB
         configureDatabaseEncryption(KeyStoreService.toSqlCipherHex(key));
         await closeDatabase();
         const { ensureDatabaseReady } = await import('@/db/repository');
         await ensureDatabaseReady();
+        await closeDatabase();
+        configureDatabaseEncryption(null);
       }
 
       await writeSecurityEnabled(true);
-      await this.establishSession(key);
-      key = null;
-      return { documentsEncrypted };
-    } catch (e) {
+      return { migratedDocuments, created: true };
+    } finally {
       wipeBytes(key);
-      await this.lockApp();
-      throw e;
+      this.sessionKey = null;
+      this.unlocked = false;
     }
   }
 
-  /**
-   * Disables vault protection after auth: decrypts data back to plaintext and deletes the master key.
-   */
-  async disableSecurity(): Promise<void> {
-    const auth = await this.authenticateUser('Sicherheit deaktivieren');
-    if (!auth.ok) throw new Error(auth.message);
+  /** @deprecated Security cannot be disabled in hardened builds. */
+  async enableSecurity(): Promise<{ documentsEncrypted: number }> {
+    const result = await this.ensureVaultInitialized();
+    const unlocked = await this.unlockApp();
+    if (!unlocked.ok) throw new Error(unlocked.message);
+    return { documentsEncrypted: result.migratedDocuments };
+  }
 
-    let key: Uint8Array | null = null;
-    try {
-      key = this.sessionKey ? new Uint8Array(this.sessionKey) : await KeyStoreService.getMasterKey(false);
-      if (await databaseFileExists(VAULT_DB_NAME)) {
-        await MigrationService.migrateToPlaintext(key);
-      }
-      await KeyStoreService.deleteMasterKey();
-      await writeSecurityEnabled(false);
-      await this.lockApp();
-      configureDatabaseEncryption(null);
-      const { ensureDatabaseReady } = await import('@/db/repository');
-      await ensureDatabaseReady();
-    } finally {
-      wipeBytes(key);
-    }
+  async disableSecurity(): Promise<void> {
+    throw new Error('Der Tresor-Schutz kann nicht deaktiviert werden. Klartextbetrieb ist nicht erlaubt.');
   }
 
   async unlockApp(): Promise<AuthResult> {
-    const enabled = await this.isSecurityEnabled();
-    if (!enabled) {
-      configureDatabaseEncryption(null);
-      this.unlocked = true;
-      return { ok: true };
+    if (!this.supportsSqlCipher()) {
+      return {
+        ok: false,
+        reason: 'unavailable',
+        message: 'Vault benötigt einen Development Build / Release-APK mit SQLCipher.',
+      };
     }
 
+    if (!(await readSecurityEnabled()) || !(await KeyStoreService.hasMasterKey())) {
+      try {
+        await this.ensureVaultInitialized();
+      } catch (e) {
+        return { ok: false, reason: 'failed', message: (e as Error).message };
+      }
+    }
+
+    // User presence (biometrics / device passcode), then Keystore-bound key fetch.
     const auth = await this.authenticateUser('FamilyData Tresor öffnen');
     if (!auth.ok) return auth;
 
     let key: Uint8Array | null = null;
     try {
-      key = await KeyStoreService.getMasterKey(false);
+      key = await KeyStoreService.getMasterKey('FamilyData Schlüssel freigeben');
       await this.establishSession(key);
       key = null;
       return { ok: true };
     } catch (e) {
       wipeBytes(key);
+      await this.lockApp();
       return {
         ok: false,
         reason: 'failed',
@@ -172,21 +179,45 @@ class SecurityManagerImpl {
     configureDatabaseEncryption(null);
   }
 
+  /** Status snapshot for settings / lock UI (no key material). */
+  async getVaultStatus(): Promise<{
+    sqlCipherSupported: boolean;
+    hasMasterKey: boolean;
+    masterKeyAuthBound: boolean;
+    hasVaultDb: boolean;
+    hasLegacyPlainDb: boolean;
+    unlocked: boolean;
+  }> {
+    const meta = await KeyStoreService.getMasterKeyMeta();
+    return {
+      sqlCipherSupported: this.supportsSqlCipher(),
+      hasMasterKey: await KeyStoreService.hasMasterKey(),
+      masterKeyAuthBound: meta === 'auth-bound-v2',
+      hasVaultDb: await databaseFileExists(VAULT_DB_NAME),
+      hasLegacyPlainDb: await databaseFileExists(PLAIN_DB_NAME),
+      unlocked: this.isUnlocked(),
+    };
+  }
+
   async encryptIncomingFile(uri: string): Promise<string> {
-    if (!(await this.isSecurityEnabled()) || !this.sessionKey) return uri;
+    if (!this.sessionKey) throw new Error('Tresor ist gesperrt.');
     return DocumentEncryptionService.encryptFile(uri, this.sessionKey, { deleteSource: true });
   }
 
   async resolveReadableUri(uri: string, ext = '.bin'): Promise<string> {
-    if (!DocumentEncryptionService.isEncryptedPath(uri)) return uri;
     if (!this.sessionKey) throw new Error('Tresor ist gesperrt.');
+    if (!DocumentEncryptionService.isEncryptedPath(uri)) {
+      // Should not happen after vault migration; allow read-only for leftovers.
+      return uri;
+    }
     return DocumentEncryptionService.decryptFile(uri, this.sessionKey, ext);
   }
 
   private async establishSession(key: Uint8Array) {
     wipeBytes(this.sessionKey);
     this.sessionKey = new Uint8Array(key);
-    configureDatabaseEncryption(KeyStoreService.toSqlCipherHex(this.sessionKey));
+    const hex = KeyStoreService.toSqlCipherHex(this.sessionKey);
+    configureDatabaseEncryption(hex);
     await closeDatabase();
     const { ensureDatabaseReady } = await import('@/db/repository');
     await ensureDatabaseReady();

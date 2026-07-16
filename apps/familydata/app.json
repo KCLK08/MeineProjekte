@@ -19,11 +19,14 @@
       "infoPlist": {
         "NSFaceIDUsageDescription": "FamilyData nutzt biometrische Freigabe nur auf diesem Gerät, um den Zugriff zu schützen.",
         "NSCameraUsageDescription": "Kamera nur zum Erfassen eigener Dokumentfotos (lokal).",
-        "NSPhotoLibraryUsageDescription": "Galerie nur zum Anhängen eigener Dokumentfotos (lokal)."
+        "NSPhotoLibraryUsageDescription": "Galerie nur zum Anhängen eigener Dokumentfotos (lokal).",
+        "UIFileSharingEnabled": false,
+        "LSSupportsOpeningDocumentsInPlace": false
       }
     },
     "android": {
       "package": "de.meineprojekte.familydata",
+      "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0c3b2e"
@@ -40,7 +43,16 @@
         }
       ],
       "expo-secure-store",
-      "expo-crypto",
+      "expo-screen-capture",
+      "./plugins/withAndroidHardening.js",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": false
+          }
+        }
+      ],
       [
         "expo-local-authentication",
         {

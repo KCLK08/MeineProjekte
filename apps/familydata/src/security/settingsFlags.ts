@@ -21,7 +21,7 @@ export async function writeSecurityEnabled(enabled: boolean): Promise<void> {
 export async function readAutoLock(): Promise<AutoLockOption> {
   const value = await SecureStore.getItemAsync(AUTO_LOCK_KEY, OPTIONS);
   if (value === 'immediate' || value === '1' || value === '5' || value === '15') return value;
-  return '1';
+  return 'immediate';
 }
 
 export async function writeAutoLock(option: AutoLockOption): Promise<void> {
