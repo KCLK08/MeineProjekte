@@ -1,4 +1,4 @@
-# FamilyData – Release Security Check
+# Family Vault – Release Security Check
 
 Stand: 2026-07-16 · Scope: produktionsnahe Konfiguration (Expo / EAS)
 
