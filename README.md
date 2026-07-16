@@ -103,17 +103,18 @@ Nach erfolgreichem Build:
 2. GitHub Release-Tag `{slug}-apk-latest`
 3. Update `website/releases.json` (Landing-Fallback)
 
-## Cloudflare Pages
+## Cloudflare
 
-Landing unter `website/`, Deploy über `deploy-cloudflare.yml`:
+Landing unter `website/`, Deploy über `deploy-cloudflare.yml` (Worker `kclk08`):
 
-- App-Name, Kurzbeschreibung
-- **Web öffnen** (relativ `./apps/{slug}/`)
-- **APK herunterladen** (Release-Asset / `releases.json`)
-- Version + Build-Datum (GitHub Releases API)
+- **Web öffnen** → `./apps/{slug}/`
+- **APK herunterladen** → R2 über `/apks/<Datei>.apk` (Repo kann privat bleiben)
+- Metadaten in `website/releases.json`
 
-GitHub Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`  
-Projektname: `kclk08` → https://kclk08.workers.dev/
+Einmalig: R2-Bucket `kclk08-apks` anlegen, dann Workflow **Sync APKs to Cloudflare R2**.  
+Details: `website/CLOUDFLARE.md`.
+
+GitHub Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
 
 ## Designsystem
 

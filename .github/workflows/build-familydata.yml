@@ -63,6 +63,15 @@ jobs:
           path: apps/familydata/FamilyVault.apk
           retention-days: 90
 
+
+      - name: Upload APK to Cloudflare R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          chmod +x scripts/upload-apk-r2.sh
+          bash scripts/upload-apk-r2.sh apps/familydata/FamilyVault.apk FamilyVault.apk
+
       - name: Update releases.json
         run: |
           node <<'EOF'
@@ -72,7 +81,7 @@ jobs:
           data.familydata = {
             version: process.env.APP_VERSION,
             buildDate: new Date().toISOString(),
-            apkUrl: `https://github.com/${process.env.GITHUB_REPOSITORY}/releases/download/familydata-apk-latest/FamilyVault.apk`,
+            apkUrl: '/apks/FamilyVault.apk',
           };
           fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
           EOF
