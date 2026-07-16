@@ -121,7 +121,7 @@ export default function DocumentPreviewScreen() {
     }
     Alert.alert(
       'Dokument exportieren',
-      'Der Export erstellt eine entschlüsselte Datei außerhalb des geschützten FamilyData Tresors.',
+      'Der Export erstellt eine entschlüsselte Datei außerhalb des geschützten Family Vault Tresors.',
       [
         { text: 'Abbrechen', style: 'cancel' },
         {
@@ -149,7 +149,7 @@ export default function DocumentPreviewScreen() {
                 await SecurityEventLog.record('export_performed');
                 Alert.alert(
                   'Export abgeschlossen',
-                  'Die exportierte Datei liegt außerhalb von FamilyData und sollte nach Verwendung gelöscht werden.'
+                  'Die exportierte Datei liegt außerhalb von Family Vault und sollte nach Verwendung gelöscht werden.'
                 );
               } catch (e) {
                 Alert.alert('PDF-Export fehlgeschlagen', (e as Error).message);

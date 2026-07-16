@@ -67,7 +67,7 @@ export default function SecurityScreen() {
     if (!sqlCipherSupported) {
       Alert.alert(
         'Development Build nötig',
-        'SQLCipher und auth-gebundener Master Key funktionieren nicht in Expo Go. Bitte die FamilyData-APK oder einen Expo Dev Client verwenden.'
+        'SQLCipher und auth-gebundener Master Key funktionieren nicht in Expo Go. Bitte die Family Vault-APK oder einen Expo Dev Client verwenden.'
       );
       return;
     }
@@ -115,7 +115,7 @@ export default function SecurityScreen() {
     <Screen>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 + insets.bottom }}>
         <Text className="mb-5 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
-          FamilyData speichert Daten ausschließlich verschlüsselt (SQLCipher + AES-256-GCM). Der Master Key
+          Family Vault speichert Daten ausschließlich verschlüsselt (SQLCipher + AES-256-GCM). Der Master Key
           ist an Biometrie bzw. Gerätecode gebunden. Klartextbetrieb und Deaktivierung des Schutzes sind
           nicht möglich.
         </Text>
@@ -292,7 +292,7 @@ export default function SecurityScreen() {
         <SectionTitle>Gerätewechsel</SectionTitle>
         <Panel className="mb-5 px-4 py-4">
           <Text className="font-sans text-[14px] leading-5 text-ink dark:text-[#e7f2ec]">
-            FamilyData verwendet gerätegebundene Verschlüsselung.
+            Family Vault verwendet gerätegebundene Verschlüsselung.
           </Text>
           <Text className="mt-2 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
             Bei Verlust des Gerätes oder Wechsel auf ein neues Gerät können Daten ohne den ursprünglichen

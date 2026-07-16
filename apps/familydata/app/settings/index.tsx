@@ -86,7 +86,7 @@ export default function SettingsScreen() {
         </View>
 
         <View className="mt-8">
-          <SectionTitle>Über FamilyData</SectionTitle>
+          <SectionTitle>Über Family Vault</SectionTitle>
           <View className="rounded-2xl border border-line bg-paper px-4 py-4 dark:border-[#2a3f35] dark:bg-[#15241d]">
             <Text className="font-sans text-[15px] leading-6 text-mute dark:text-[#9bb0a6]">
               Alles bleibt lokal auf diesem Gerät. Ideal für Familienakten ohne Account und ohne Sync.

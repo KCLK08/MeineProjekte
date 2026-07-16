@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "FamilyData",
+    "name": "Family Vault",
     "slug": "familydata",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -17,11 +17,12 @@
       "supportsTablet": true,
       "bundleIdentifier": "de.meineprojekte.familydata",
       "infoPlist": {
-        "NSFaceIDUsageDescription": "FamilyData nutzt biometrische Freigabe nur auf diesem Gerät, um den Zugriff zu schützen.",
+        "NSFaceIDUsageDescription": "Family Vault nutzt biometrische Freigabe nur auf diesem Gerät, um den Zugriff zu schützen.",
         "NSCameraUsageDescription": "Kamera nur zum Erfassen eigener Dokumentfotos (lokal).",
         "NSPhotoLibraryUsageDescription": "Galerie nur zum Anhängen eigener Dokumentfotos (lokal).",
         "UIFileSharingEnabled": false,
-        "LSSupportsOpeningDocumentsInPlace": false
+        "LSSupportsOpeningDocumentsInPlace": false,
+        "CFBundleDisplayName": "Family Vault"
       }
     },
     "android": {
@@ -55,7 +56,7 @@
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "FamilyData nutzt Face ID zum Entsperren auf diesem Gerät."
+          "faceIDPermission": "Family Vault nutzt Face ID zum Entsperren auf diesem Gerät."
         }
       ],
       [

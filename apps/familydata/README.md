@@ -1,4 +1,4 @@
-# FamilyData
+# Family Vault
 
 Privater digitaler Familienordner — **nur mobile** (iOS/Android), vollständig offline.
 
@@ -9,18 +9,17 @@ npm install
 npm run start:familydata
 ```
 
-Expo Go oder Emulator/Gerät. Keine Web-Version.
+Development Build / Release-APK (nicht Expo Go) für den Vault.
 
 ## Sicherheitshinweise
 
-- Nur Dummy-/Testdaten
+- Nur Dummy-/Testdaten zum Ausprobieren
 - Keine echten Dokumente, Ausweise oder Familieninfos committen
 - Lokale DB und Dateien liegen außerhalb von Git (siehe `.gitignore`)
-- PIN / Biometrie / Verschlüsselung sind vorbereitet (Settings → Sicherheit)
+- Vault mit Biometrie / Gerätecode (Settings → Sicherheit)
 
 ## Navigation
 
 1. Familie  
 2. Dokumente  
-3. Suche  
-4. Einstellungen  
+3. Einstellungen (Zahnrad oben)

@@ -263,7 +263,7 @@ export const SecurityAuditService = {
           tips.push('Vault auf einem Development Build / der Release-APK einrichten oder migrieren.');
           break;
         case 'master_key_present':
-          tips.push('FamilyData entsperren, um den Master Key zu erzeugen.');
+          tips.push('Family Vault entsperren, um den Master Key zu erzeugen.');
           break;
         case 'key_binding_active':
           tips.push('App entsperren, damit der Legacy-Key an Biometrie/Gerätecode gebunden wird.');

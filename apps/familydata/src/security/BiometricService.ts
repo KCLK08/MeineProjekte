@@ -30,7 +30,7 @@ export const BiometricService = {
   /**
    * Prompts Face ID / fingerprint, with the system device passcode as fallback.
    */
-  async authenticateUser(promptMessage = 'FamilyData entsperren'): Promise<AuthResult> {
+  async authenticateUser(promptMessage = 'Family Vault entsperren'): Promise<AuthResult> {
     const availability = await this.checkBiometricAvailability();
     if (!availability.canAuthenticate) {
       return {

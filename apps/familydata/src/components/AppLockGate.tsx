@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -35,21 +36,16 @@ export function AppLockGate() {
       }}
     >
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <View
-          style={{
-            width: 72,
-            height: 72,
-            borderRadius: 36,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: colors.pineSoft,
-            marginBottom: 20,
-          }}
-        >
-          <Ionicons name={unsupported ? 'construct-outline' : 'lock-closed'} size={32} color={colors.pine} />
-        </View>
+        <Image
+          source={require('../../assets/images/FamilyVault.png')}
+          style={{ width: 88, height: 88, borderRadius: 22, marginBottom: 18 }}
+          contentFit="cover"
+        />
+        {unsupported ? (
+          <Ionicons name="construct-outline" size={22} color={colors.pine} style={{ marginBottom: 8 }} />
+        ) : null}
         <Text style={{ fontFamily: 'Fraunces_700Bold', fontSize: 28, color: colors.ink, letterSpacing: -0.5 }}>
-          FamilyData
+          Family Vault
         </Text>
         <Text
           style={{
@@ -62,7 +58,7 @@ export function AppLockGate() {
           }}
         >
           {unsupported
-            ? 'Verschlüsselter Vault-Betrieb benötigt einen Development Build bzw. die FamilyData-APK (nicht Expo Go).'
+            ? 'Verschlüsselter Vault-Betrieb benötigt einen Development Build bzw. die Family-Vault-APK (nicht Expo Go).'
             : setupCopy
               ? 'Erste Einrichtung oder Migration: Master Key wird an Biometrie bzw. Gerätecode gebunden. Klartextbetrieb ist nicht möglich.'
               : 'Tresor gesperrt. Entsperren mit Biometrie oder Gerätecode – ohne Authentifizierung ist der Master Key nicht lesbar.'}
