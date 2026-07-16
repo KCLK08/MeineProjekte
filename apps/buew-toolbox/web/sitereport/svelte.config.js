@@ -9,7 +9,7 @@ export default {
     }),
     paths: {
       relative: true,
-      base: '/MeineProjekte/apps/buew-toolbox/sitereport'
+      base: '/apps/buew-toolbox/sitereport'
     }
   }
 };

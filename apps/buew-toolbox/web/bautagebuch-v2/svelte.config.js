@@ -1,7 +1,7 @@
 import adapter from '@sveltejs/adapter-static';
 
 const base =
-  process.env.BTB_WEB_BASE || '/MeineProjekte/apps/buew-toolbox/bautagebuch';
+  process.env.BTB_WEB_BASE || '/apps/buew-toolbox/bautagebuch';
 
 export default {
   kit: {

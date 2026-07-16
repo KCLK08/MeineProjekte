@@ -2,8 +2,8 @@
 
 Monorepo für **Expo / React Native**-Apps mit gemeinsamer Landingpage, Shared Packages und automatischen APK-Builds.
 
-**Pages:** https://kclk08.github.io/MeineProjekte/  
-(Groß-/Kleinschreibung beachten: `MeineProjekte`)
+**Pages:** https://meineprojekte.pages.dev/  
+(Cloudflare Pages-Projekt: `meineprojekte`)
 
 **APKs:** path-gefilterte Workflows pro App → Artifacts + Release-Tags `*-apk-latest`
 
@@ -33,10 +33,10 @@ packages/
 ├── hooks/
 └── catalog/              # App-Katalog für Docs/CI
 
-website/                  # GitHub Pages Landing
+website/                  # Cloudflare Pages Landing
 .github/
 ├── actions/              # Composite Actions (setup-expo, build-apk)
-└── workflows/            # build-*.yml + deploy-pages.yml + reusable-build-apk.yml
+└── workflows/            # build-*.yml + deploy-cloudflare.yml + reusable-build-apk.yml
 ```
 
 ## Lokale Entwicklung
@@ -91,7 +91,7 @@ Ohne Token fällt CI auf **lokales** `expo prebuild` + Gradle zurück.
 | `build-ds-datenbank.yml` | nur Expo-Shell (ohne `web/`) | APK |
 | `build-elifba.yml` | nur Expo-Shell (ohne `web/`) | APK |
 | `build-familydata.yml` | nur `apps/familydata/**` | APK |
-| `deploy-pages.yml` | `website/**`, `apps/**/web/**`, … | Landing + Web-Apps |
+| `deploy-cloudflare.yml` | `website/**`, `apps/**/web/**`, … | Landing + Web-Apps → Cloudflare |
 
 APK-Builds laufen **pro App** und nur bei Änderungen an genau dieser App (manuell jederzeit per *Run workflow*).
 
@@ -103,16 +103,17 @@ Nach erfolgreichem Build:
 2. GitHub Release-Tag `{slug}-apk-latest`
 3. Update `website/releases.json` (Landing-Fallback)
 
-## GitHub Pages
+## Cloudflare Pages
 
-Landing unter `website/`:
+Landing unter `website/`, Deploy über `deploy-cloudflare.yml`:
 
 - App-Name, Kurzbeschreibung
 - **Web öffnen** (relativ `./apps/{slug}/`)
 - **APK herunterladen** (Release-Asset / `releases.json`)
 - Version + Build-Datum (GitHub Releases API)
 
-`Settings → Pages → Source: GitHub Actions` aktivieren.
+GitHub Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`  
+Projektname: `meineprojekte` → https://meineprojekte.pages.dev/
 
 ## Designsystem
 
@@ -131,4 +132,4 @@ npm run format
 1. Ordner `apps/<slug>/` mit Expo (`app.json`, `eas.json`, `package.json`)
 2. Eintrag in `packages/catalog` + `website/app.js`
 3. Workflow `build-<slug>.yml` (Path-Filter + reusable workflow)
-4. Optional `web/` + Eintrag in `deploy-pages.yml`
+4. Optional `web/` + Eintrag in `deploy-cloudflare.yml`
