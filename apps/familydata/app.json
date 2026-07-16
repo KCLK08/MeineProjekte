@@ -4,14 +4,14 @@
     "slug": "familydata",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/FamilyVault.png",
     "scheme": "familydata",
     "userInterfaceStyle": "automatic",
     "platforms": ["ios", "android"],
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/FamilyVault.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0c3b2e"
+      "backgroundColor": "#fafafb"
     },
     "ios": {
       "supportsTablet": true,
@@ -29,8 +29,8 @@
       "package": "de.meineprojekte.familydata",
       "allowBackup": false,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#0c3b2e"
+        "foregroundImage": "./assets/images/FamilyVault.png",
+        "backgroundColor": "#fafafb"
       },
       "permissions": ["CAMERA", "READ_MEDIA_IMAGES", "USE_BIOMETRIC", "USE_FINGERPRINT"]
     },
