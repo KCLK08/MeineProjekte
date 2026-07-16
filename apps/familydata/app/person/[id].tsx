@@ -65,7 +65,7 @@ export default function PersonDetailScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 48 }}>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
         <Animated.View entering={FadeInDown.springify().damping(16)} className="mb-5 items-center">
           <Avatar initials={initials(person.vorname, person.nachname)} size={76} />
           <Text className="mt-4 font-display text-3xl text-ink" style={{ letterSpacing: -0.5 }}>
