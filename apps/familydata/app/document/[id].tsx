@@ -6,9 +6,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FilePreview } from '@/components/FilePreview';
 import { EmptyState, LoadingBlock, PrimaryButton, Screen } from '@/components/ui';
 import * as repo from '@/db/repository';
+import { DocumentEncryptionService } from '@/security/DocumentEncryptionService';
+import { SecurityManager } from '@/security/SecurityManager';
 import { useFamilyStore } from '@/store/familyStore';
 import type { FamilyDocument } from '@/types/models';
-import { exportUriAsPdf } from '@/utils/files';
+import { exportUriAsPdf, guessFileKind } from '@/utils/files';
 
 export default function DocumentPreviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -18,11 +20,35 @@ export default function DocumentPreviewScreen() {
   const people = useFamilyStore((s) => s.people);
   const removeDocument = useFamilyStore((s) => s.removeDocument);
   const [doc, setDoc] = useState<FamilyDocument | null>(null);
+  const [readableUri, setReadableUri] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (!id) return;
-    (async () => setDoc(await repo.getDocument(id)))();
+    let cancelled = false;
+    (async () => {
+      const row = await repo.getDocument(id);
+      if (cancelled) return;
+      setDoc(row);
+      if (!row?.filePath?.trim()) {
+        setReadableUri(null);
+        return;
+      }
+      try {
+        const kind = guessFileKind(row.filePath);
+        const ext = kind === 'pdf' ? '.pdf' : kind === 'image' ? '.jpg' : '.bin';
+        const uri = await SecurityManager.resolveReadableUri(row.filePath, ext);
+        if (!cancelled) setReadableUri(uri);
+      } catch (e) {
+        if (!cancelled) {
+          setReadableUri(null);
+          Alert.alert('Datei', (e as Error).message);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   const assignedPeople = useMemo(
@@ -58,7 +84,8 @@ export default function DocumentPreviewScreen() {
     try {
       setExporting(true);
       const name = `${doc.name || 'Dokument'}_${assignedPeople[0]?.nachname || 'export'}`;
-      await exportUriAsPdf(doc.filePath, name);
+      const source = readableUri || (await SecurityManager.resolveReadableUri(doc.filePath, '.bin'));
+      await exportUriAsPdf(source, name);
     } catch (e) {
       Alert.alert('PDF-Export fehlgeschlagen', (e as Error).message);
     } finally {
@@ -68,30 +95,34 @@ export default function DocumentPreviewScreen() {
 
   return (
     <Screen>
-      <View className="border-b border-line bg-paper px-4 py-3">
-        <Text className="font-sansBold text-base text-ink" numberOfLines={1}>
+      <View className="border-b border-line bg-paper px-4 py-3 dark:border-[#2a3f35]">
+        <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]" numberOfLines={1}>
           {title}
         </Text>
-        <Text className="mt-0.5 font-sans text-sm text-mute" numberOfLines={2}>
+        <Text className="mt-0.5 font-sans text-sm text-mute dark:text-[#9bb0a6]" numberOfLines={2}>
           {subtitle}
           {doc.documentNumber ? ` · Nr. ${doc.documentNumber}` : ''}
         </Text>
       </View>
 
       <View className="flex-1">
-        {hasFile ? (
-          <FilePreview uri={doc.filePath} />
+        {hasFile && readableUri ? (
+          <FilePreview uri={readableUri} />
         ) : (
           <EmptyState
             icon="document-outline"
-            title="Keine Datei hinterlegt"
-            subtitle="Bearbeite das Dokument, um ein Foto oder PDF anzuhängen."
+            title={hasFile ? 'Datei wird vorbereitet…' : 'Keine Datei hinterlegt'}
+            subtitle={
+              hasFile
+                ? 'Verschlüsselter Anhang wird für die Vorschau entschlüsselt.'
+                : 'Bearbeite das Dokument, um ein Foto oder PDF anzuhängen.'
+            }
           />
         )}
       </View>
 
       <View
-        className="gap-2 border-t border-line bg-paper px-4 pt-3"
+        className="gap-2 border-t border-line bg-paper px-4 pt-3 dark:border-[#2a3f35]"
         style={{ paddingBottom: Math.max(insets.bottom, 12) + 4 }}
       >
         {hasFile ? (
@@ -123,6 +154,9 @@ export default function DocumentPreviewScreen() {
                     text: 'Löschen',
                     style: 'destructive',
                     onPress: async () => {
+                      if (doc.filePath) {
+                        await DocumentEncryptionService.deleteEncryptedFile(doc.filePath);
+                      }
                       await removeDocument(doc.id);
                       router.back();
                     },

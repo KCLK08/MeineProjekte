@@ -32,8 +32,15 @@
     },
     "plugins": [
       "expo-router",
-      "expo-sqlite",
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true,
+          "enableFTS": true
+        }
+      ],
       "expo-secure-store",
+      "expo-crypto",
       [
         "expo-local-authentication",
         {

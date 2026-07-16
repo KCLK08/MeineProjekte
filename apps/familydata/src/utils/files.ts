@@ -106,18 +106,30 @@ export async function readFileBase64(uri: string) {
   return readBase64(uri);
 }
 
-/** Copy picker/cache URIs into a stable app document folder. */
+/** Copy picker/cache URIs into a stable app document folder; encrypt when vault is unlocked. */
 export async function persistAttachment(uri: string, key: string) {
   const root = FileSystem.documentDirectory;
   if (!root) return uri;
-  if (uri.startsWith(root)) return uri;
 
-  const dir = `${root}familydata-files/`;
-  await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
-  const clean = (uri.split('?')[0] || uri).toLowerCase();
-  const extMatch = clean.match(/\.([a-z0-9]+)$/);
-  const ext = extMatch ? `.${extMatch[1]}` : isPdfUri(uri) ? '.pdf' : '.jpg';
-  const dest = `${dir}${key.replace(/[^\w-]+/g, '_')}${ext}`;
-  await FileSystem.copyAsync({ from: uri, to: dest });
-  return dest;
+  let localUri = uri;
+  if (!uri.startsWith(root) || uri.includes('/familydata-decrypt-tmp/')) {
+    const dir = `${root}familydata-files/`;
+    await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+    const clean = (uri.split('?')[0] || uri).toLowerCase();
+    const extMatch = clean.match(/\.([a-z0-9]+)$/);
+    const ext = extMatch ? `.${extMatch[1]}` : isPdfUri(uri) ? '.pdf' : '.jpg';
+    const dest = `${dir}${key.replace(/[^\w-]+/g, '_')}${ext}`;
+    await FileSystem.copyAsync({ from: uri, to: dest });
+    localUri = dest;
+  }
+
+  try {
+    const { SecurityManager } = await import('@/security/SecurityManager');
+    if ((await SecurityManager.isSecurityEnabled()) && SecurityManager.isUnlocked()) {
+      return SecurityManager.encryptIncomingFile(localUri);
+    }
+  } catch {
+    // Keep plaintext path if vault layer is unavailable (e.g. Expo Go without encryption).
+  }
+  return localUri;
 }
