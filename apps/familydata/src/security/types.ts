@@ -14,7 +14,7 @@ export type AuthResult =
   | { ok: false; reason: 'unavailable' | 'cancelled' | 'failed' | 'locked_out'; message: string };
 
 export const AUTO_LOCK_OPTIONS: { id: AutoLockOption; label: string; ms: number | null }[] = [
-  { id: 'immediate', label: 'Sofort', ms: 0 },
+  { id: 'immediate', label: 'Sofort (empfohlen)', ms: 0 },
   { id: '1', label: 'Nach 1 Minute', ms: 60_000 },
   { id: '5', label: 'Nach 5 Minuten', ms: 5 * 60_000 },
   { id: '15', label: 'Nach 15 Minuten', ms: 15 * 60_000 },

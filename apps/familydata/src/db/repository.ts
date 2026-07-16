@@ -6,7 +6,7 @@ import { createId, isFamilyRole, nowIso } from '@/utils/helpers';
 
 export const PLAIN_DB_NAME = 'familydata.db';
 export const VAULT_DB_NAME = 'familydata.vault.db';
-const SCHEMA_VERSION = '3';
+const SCHEMA_VERSION = '4';
 
 export type DocumentListRow = FamilyDocument & { personNames: string };
 
@@ -73,7 +73,16 @@ export async function copyAllTablesBetween(source: SQLite.SQLiteDatabase, target
   await ensureSchema(target);
 
   await target.execAsync('PRAGMA foreign_keys = OFF;');
-  for (const table of ['document_people', 'documents', 'id_entries', 'identification', 'people', 'app_meta']) {
+  for (const table of [
+    'document_people',
+    'documents',
+    'id_entries',
+    'identification',
+    'people',
+    'app_meta',
+    'security_events',
+    'export_history',
+  ]) {
     await target.execAsync(`DELETE FROM ${table};`).catch(() => undefined);
   }
 
@@ -144,6 +153,29 @@ export async function copyAllTablesBetween(source: SQLite.SQLiteDatabase, target
   const meta = await source.getAllAsync<{ key: string; value: string }>('SELECT * FROM app_meta').catch(() => []);
   for (const row of meta) {
     await target.runAsync(`INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)`, [row.key, row.value]);
+  }
+
+  const events = await source
+    .getAllAsync<{ id: string; at: string; type: string }>('SELECT * FROM security_events')
+    .catch(() => []);
+  for (const row of events) {
+    await target.runAsync(`INSERT OR REPLACE INTO security_events (id, at, type) VALUES (?, ?, ?)`, [
+      row.id,
+      row.at,
+      row.type,
+    ]);
+  }
+
+  const exports = await source
+    .getAllAsync<{ id: string; at: string; documentId: string; exportType: string }>(
+      'SELECT * FROM export_history'
+    )
+    .catch(() => []);
+  for (const row of exports) {
+    await target.runAsync(
+      `INSERT OR REPLACE INTO export_history (id, at, documentId, exportType) VALUES (?, ?, ?, ?)`,
+      [row.id, row.at, row.documentId, row.exportType]
+    );
   }
 
   await target.execAsync('PRAGMA foreign_keys = ON;');
@@ -424,6 +456,42 @@ async function ensureSchema(db: SQLite.SQLiteDatabase) {
     if (!(await columnExists(db, 'people', 'rolle'))) {
       await db.execAsync(`ALTER TABLE people ADD COLUMN rolle TEXT NOT NULL DEFAULT ''`);
     }
+  }
+
+  if (version < 4) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS security_events (
+        id TEXT PRIMARY KEY NOT NULL,
+        at TEXT NOT NULL,
+        type TEXT NOT NULL
+      );
+    `);
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS export_history (
+        id TEXT PRIMARY KEY NOT NULL,
+        at TEXT NOT NULL,
+        documentId TEXT NOT NULL,
+        exportType TEXT NOT NULL
+      );
+    `);
+    version = 4;
+    await setMeta(db, 'schema_version', '4');
+  } else {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS security_events (
+        id TEXT PRIMARY KEY NOT NULL,
+        at TEXT NOT NULL,
+        type TEXT NOT NULL
+      );
+    `);
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS export_history (
+        id TEXT PRIMARY KEY NOT NULL,
+        at TEXT NOT NULL,
+        documentId TEXT NOT NULL,
+        exportType TEXT NOT NULL
+      );
+    `);
   }
 }
 
@@ -765,4 +833,66 @@ export async function countDocumentsForPerson(personId: string): Promise<number>
     [personId]
   );
   return row?.c || 0;
+}
+
+/** Security / export metadata – no document contents. Requires unlocked vault. */
+
+export async function appendSecurityEvent(event: { id: string; at: string; type: string }) {
+  const db = await getDb();
+  await db.runAsync(`INSERT OR REPLACE INTO security_events (id, at, type) VALUES (?, ?, ?)`, [
+    event.id,
+    event.at,
+    event.type,
+  ]);
+}
+
+export async function listSecurityEvents(limit = 20): Promise<{ id: string; at: string; type: string }[]> {
+  const db = await getDb();
+  return db.getAllAsync<{ id: string; at: string; type: string }>(
+    `SELECT id, at, type FROM security_events ORDER BY at DESC LIMIT ?`,
+    [limit]
+  );
+}
+
+export async function trimSecurityEvents(keep = 200) {
+  const db = await getDb();
+  await db.runAsync(
+    `DELETE FROM security_events WHERE id NOT IN (
+      SELECT id FROM security_events ORDER BY at DESC LIMIT ?
+    )`,
+    [keep]
+  );
+}
+
+export async function appendExportHistory(entry: {
+  id: string;
+  at: string;
+  documentId: string;
+  exportType: string;
+}) {
+  const db = await getDb();
+  await db.runAsync(
+    `INSERT OR REPLACE INTO export_history (id, at, documentId, exportType) VALUES (?, ?, ?, ?)`,
+    [entry.id, entry.at, entry.documentId, entry.exportType]
+  );
+}
+
+export async function listExportHistory(
+  limit = 20
+): Promise<{ id: string; at: string; documentId: string; exportType: string }[]> {
+  const db = await getDb();
+  return db.getAllAsync<{ id: string; at: string; documentId: string; exportType: string }>(
+    `SELECT id, at, documentId, exportType FROM export_history ORDER BY at DESC LIMIT ?`,
+    [limit]
+  );
+}
+
+export async function trimExportHistory(keep = 100) {
+  const db = await getDb();
+  await db.runAsync(
+    `DELETE FROM export_history WHERE id NOT IN (
+      SELECT id FROM export_history ORDER BY at DESC LIMIT ?
+    )`,
+    [keep]
+  );
 }

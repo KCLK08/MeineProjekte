@@ -4,10 +4,12 @@ import { BiometricService } from '@/security/BiometricService';
 import { DocumentEncryptionService } from '@/security/DocumentEncryptionService';
 import { KeyStoreService, wipeBytes } from '@/security/KeyStoreService';
 import { MigrationService } from '@/security/MigrationService';
+import { SecurityEventLog } from '@/security/SecurityEventLog';
 import {
   readAutoLock,
   readSecurityEnabled,
   writeAutoLock,
+  writeAutoLockPromptPending,
   writeSecurityEnabled,
 } from '@/security/settingsFlags';
 import type { AuthResult, AutoLockOption, BiometricAvailability } from '@/security/types';
@@ -112,6 +114,8 @@ class SecurityManagerImpl {
       }
 
       await writeSecurityEnabled(true);
+      await writeAutoLockPromptPending(true);
+      await SecurityEventLog.record('encryption_enabled');
       return { migratedDocuments, created: true };
     } finally {
       wipeBytes(key);
@@ -129,6 +133,7 @@ class SecurityManagerImpl {
   }
 
   async disableSecurity(): Promise<void> {
+    await SecurityEventLog.record('encryption_disable_blocked');
     throw new Error('Der Tresor-Schutz kann nicht deaktiviert werden. Klartextbetrieb ist nicht erlaubt.');
   }
 
@@ -141,26 +146,40 @@ class SecurityManagerImpl {
       };
     }
 
+    let vaultJustCreated = false;
     if (!(await readSecurityEnabled()) || !(await KeyStoreService.hasMasterKey())) {
       try {
-        await this.ensureVaultInitialized();
+        const init = await this.ensureVaultInitialized();
+        vaultJustCreated = init.created;
       } catch (e) {
+        await SecurityEventLog.record('auth_failed');
         return { ok: false, reason: 'failed', message: (e as Error).message };
       }
     }
 
     // User presence (biometrics / device passcode), then Keystore-bound key fetch.
     const auth = await this.authenticateUser('FamilyData Tresor öffnen');
-    if (!auth.ok) return auth;
+    if (!auth.ok) {
+      if (auth.reason !== 'cancelled') {
+        await SecurityEventLog.record('auth_failed');
+      }
+      return auth;
+    }
 
     let key: Uint8Array | null = null;
     try {
       key = await KeyStoreService.getMasterKey('FamilyData Schlüssel freigeben');
       await this.establishSession(key);
       key = null;
+      await SecurityEventLog.flushPendingToVault();
+      await SecurityEventLog.record('vault_unlocked');
+      if (vaultJustCreated) {
+        await writeAutoLockPromptPending(true);
+      }
       return { ok: true };
     } catch (e) {
       wipeBytes(key);
+      await SecurityEventLog.record('auth_failed');
       await this.lockApp();
       return {
         ok: false,
@@ -171,6 +190,11 @@ class SecurityManagerImpl {
   }
 
   async lockApp(): Promise<void> {
+    const wasUnlocked = this.unlocked;
+    if (wasUnlocked) {
+      // Record while DB session is still open (SQLCipher).
+      await SecurityEventLog.record('vault_locked').catch(() => undefined);
+    }
     wipeBytes(this.sessionKey);
     this.sessionKey = null;
     this.unlocked = false;

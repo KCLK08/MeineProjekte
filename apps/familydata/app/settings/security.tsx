@@ -3,10 +3,14 @@ import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { FilterChip, Panel, PrimaryButton, Screen, SectionTitle, StatusBadge } from '@/components/ui';
+import {
+  SecurityAuditService,
+  type SecurityCheckReport,
+} from '@/security/SecurityAuditService';
+import { SecurityEventLog, type SecurityEvent } from '@/security/SecurityEventLog';
 import { SecurityManager } from '@/security/SecurityManager';
 import { AUTO_LOCK_OPTIONS, type AutoLockOption, type BiometricAvailability } from '@/security/types';
 import { useSecurityStore } from '@/store/securityStore';
-import { useAppTheme } from '@/theme/useAppTheme';
 
 type VaultStatus = {
   sqlCipherSupported: boolean;
@@ -19,7 +23,6 @@ type VaultStatus = {
 
 export default function SecurityScreen() {
   const router = useRouter();
-  const { colors } = useAppTheme();
   const securityEnabled = useSecurityStore((s) => s.securityEnabled);
   const autoLock = useSecurityStore((s) => s.autoLock);
   const sqlCipherSupported = useSecurityStore((s) => s.sqlCipherSupported);
@@ -32,10 +35,16 @@ export default function SecurityScreen() {
 
   const [availability, setAvailability] = useState<BiometricAvailability | null>(null);
   const [vault, setVault] = useState<VaultStatus | null>(null);
+  const [audit, setAudit] = useState<SecurityCheckReport | null>(null);
+  const [auditBusy, setAuditBusy] = useState(false);
+  const [events, setEvents] = useState<SecurityEvent[]>([]);
 
   const reload = useCallback(async () => {
     setAvailability(await SecurityManager.checkBiometricAvailability());
     setVault(await SecurityManager.getVaultStatus());
+    if (!useSecurityStore.getState().isLocked) {
+      setEvents(await SecurityEventLog.listRecent(8));
+    }
   }, []);
 
   useFocusEffect(
@@ -80,6 +89,18 @@ export default function SecurityScreen() {
     );
   }
 
+  async function onRunSecurityCheck() {
+    setAuditBusy(true);
+    try {
+      const report = await SecurityAuditService.runSecurityCheck();
+      setAudit(report);
+    } catch (e) {
+      Alert.alert('Prüfung fehlgeschlagen', (e as Error).message);
+    } finally {
+      setAuditBusy(false);
+    }
+  }
+
   const needsAction = Boolean(
     sqlCipherSupported && vault && (!vault.hasVaultDb || vault.hasLegacyPlainDb || !vault.hasMasterKey)
   );
@@ -92,6 +113,59 @@ export default function SecurityScreen() {
           ist an Biometrie bzw. Gerätecode gebunden. Klartextbetrieb und Deaktivierung des Schutzes sind
           nicht möglich.
         </Text>
+
+        <SectionTitle>Sicherheitsprüfung</SectionTitle>
+        <Panel className="mb-5 px-4 py-4">
+          <View className="mb-3 flex-row items-center justify-between">
+            <View className="flex-1 pr-3">
+              <Text className="font-sansBold text-lg text-ink dark:text-[#e7f2ec]">Sicherheitsstatus</Text>
+              <Text className="mt-1 font-sans text-sm text-mute dark:text-[#9bb0a6]">
+                {audit
+                  ? `${audit.status} · Score ${audit.score}/100 · ${audit.passed}/${audit.total} Checks`
+                  : 'Lokale Prüfung – keine Daten verlassen das Gerät.'}
+              </Text>
+            </View>
+            {audit ? (
+              <StatusBadge label={audit.status} tone={audit.status === 'Sehr gut' ? 'ok' : 'warn'} />
+            ) : null}
+          </View>
+
+          {audit ? (
+            <View className="mb-3 gap-2">
+              {audit.checks.map((check) => (
+                <View key={check.id} className="flex-row items-start gap-2">
+                  <Text
+                    className={`font-sansBold text-sm ${check.ok ? 'text-pine-700 dark:text-pine-400' : 'text-danger'}`}
+                  >
+                    {check.ok ? '✓' : '!'}
+                  </Text>
+                  <View className="flex-1">
+                    <Text className="font-sansMedium text-sm text-ink dark:text-[#e7f2ec]">{check.label}</Text>
+                    <Text className="font-sans text-xs text-mute dark:text-[#9bb0a6]">{check.detail}</Text>
+                  </View>
+                </View>
+              ))}
+              {audit.recommendations.length ? (
+                <View className="mt-2 rounded-xl bg-canvas px-3 py-2 dark:bg-[#152019]">
+                  <Text className="mb-1 font-sansBold text-xs text-ink dark:text-[#e7f2ec]">Empfehlungen</Text>
+                  {audit.recommendations.map((tip) => (
+                    <Text key={tip} className="font-sans text-xs leading-5 text-mute dark:text-[#9bb0a6]">
+                      • {tip}
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
+          <PrimaryButton
+            label={auditBusy ? 'Prüfe…' : 'Sicherheitsprüfung starten'}
+            tone="soft"
+            icon="shield-checkmark-outline"
+            disabled={auditBusy}
+            onPress={() => void onRunSecurityCheck()}
+          />
+        </Panel>
 
         <SectionTitle>Vault-Status</SectionTitle>
         <Panel className="mb-5 px-4 py-4">
@@ -161,6 +235,9 @@ export default function SecurityScreen() {
         </Panel>
 
         <SectionTitle>Automatische Sperre</SectionTitle>
+        <Text className="mb-2 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+          Standard: Sofort (empfohlen). Nach der ersten Vault-Einrichtung kannst du die Dauer wählen.
+        </Text>
         <View className="mb-5 flex-row flex-wrap">
           {AUTO_LOCK_OPTIONS.map((option) => (
             <FilterChip
@@ -171,6 +248,36 @@ export default function SecurityScreen() {
             />
           ))}
         </View>
+
+        <SectionTitle>Gerätewechsel</SectionTitle>
+        <Panel className="mb-5 px-4 py-4">
+          <Text className="font-sans text-[14px] leading-5 text-ink dark:text-[#e7f2ec]">
+            FamilyData verwendet gerätegebundene Verschlüsselung.
+          </Text>
+          <Text className="mt-2 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+            Bei Verlust des Gerätes oder Wechsel auf ein neues Gerät können Daten ohne den ursprünglichen
+            Geräteschlüssel nicht wiederhergestellt werden. Es gibt keine Cloud-Wiederherstellung.
+          </Text>
+        </Panel>
+
+        {!isLocked && events.length ? (
+          <>
+            <SectionTitle>Sicherheitsprotokoll</SectionTitle>
+            <Panel className="mb-5 px-4 py-4">
+              <Text className="mb-3 font-sans text-xs text-mute dark:text-[#9bb0a6]">
+                Lokal verschlüsselt. Keine Dokumentnamen, Inhalte oder Schlüssel.
+              </Text>
+              {events.map((event) => (
+                <Text
+                  key={event.id}
+                  className="mb-2 font-sans text-[13px] leading-5 text-ink dark:text-[#e7f2ec]"
+                >
+                  {SecurityEventLog.formatDisplay(event)}
+                </Text>
+              ))}
+            </Panel>
+          </>
+        ) : null}
 
         {needsAction ? (
           <PrimaryButton
