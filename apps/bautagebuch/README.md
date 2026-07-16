@@ -4,7 +4,7 @@ Expo-App für das elektronische Bautagebuch (eBTB) – derselbe Stand wie im Ori
 
 ## Web (Cloudflare Pages)
 
-Live: https://meineprojekte.pages.dev/apps/bautagebuch/
+Live: https://kclk08.workers.dev/apps/bautagebuch/
 
 Statischer Expo-Web-Export (`expo export --platform web`) mit Base-Pfad.
 

@@ -9,6 +9,8 @@ on:
       - 'apps/bautagebuch/**'
       - 'scripts/**'
       - '.github/workflows/deploy-cloudflare.yml'
+      - 'package.json'
+      - 'package-lock.json'
   workflow_dispatch:
 
 permissions:
@@ -35,49 +37,13 @@ jobs:
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
-      - name: Build web apps
-        run: |
-          set -euo pipefail
-
-          # Bautagebuch (Expo static web) → /apps/bautagebuch/
-          EXPO_WEB_BASE=/apps/bautagebuch bash scripts/build-bautagebuch-web.sh
-
-          # Elifba (static)
-          node scripts/prepare-elifba.mjs
-
-          # DS-Datenbank (Vite)
-          npm install --prefix apps/ds-datenbank/web
-          VITE_BASE=/apps/ds-datenbank/ npm run build --prefix apps/ds-datenbank/web
-
-          # BÜW Toolbox
-          npm install --prefix apps/buew-toolbox/web
-          npm install --prefix apps/buew-toolbox/web/sitereport
-          npm install --prefix apps/buew-toolbox/web/bautagebuch-v2
-          BTB_WEB_BASE=/apps/buew-toolbox/bautagebuch \
-            npm run build --prefix apps/buew-toolbox/web/bautagebuch-v2
-          npm run build --prefix apps/buew-toolbox/web/sitereport
-          node scripts/assemble-buew-toolbox.mjs
-
-      - name: Assemble site
-        run: |
-          set -euo pipefail
-          rm -rf _site
-          mkdir -p \
-            _site/apps/bautagebuch \
-            _site/apps/elifba \
-            _site/apps/ds-datenbank \
-            _site/apps/buew-toolbox
-
-          cp -R website/. _site/
-          cp -R apps/bautagebuch/dist/. _site/apps/bautagebuch/
-          cp -R apps/elifba/web/dist/. _site/apps/elifba/
-          cp -R apps/ds-datenbank/web/dist/. _site/apps/ds-datenbank/
-          cp -R apps/buew-toolbox/web/dist/. _site/apps/buew-toolbox/
+      - name: Build site
+        run: npm run build:pages
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy _site --project-name=meineprojekte --branch=main
+          command: pages deploy _site --project-name=kclk08 --branch=main
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}

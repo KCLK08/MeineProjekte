@@ -2,8 +2,8 @@
 
 Monorepo für **Expo / React Native**-Apps mit gemeinsamer Landingpage, Shared Packages und automatischen APK-Builds.
 
-**Pages:** https://meineprojekte.pages.dev/  
-(Cloudflare Pages-Projekt: `meineprojekte`)
+**Pages:** https://kclk08.workers.dev/  
+(Cloudflare: `kclk08.workers.dev`, Projekt `kclk08`)
 
 **APKs:** path-gefilterte Workflows pro App → Artifacts + Release-Tags `*-apk-latest`
 
@@ -113,7 +113,7 @@ Landing unter `website/`, Deploy über `deploy-cloudflare.yml`:
 - Version + Build-Datum (GitHub Releases API)
 
 GitHub Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`  
-Projektname: `meineprojekte` → https://meineprojekte.pages.dev/
+Projektname: `kclk08` → https://kclk08.workers.dev/
 
 ## Designsystem
 
