@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
@@ -55,13 +56,14 @@ export default function DocumentsScreen() {
               }
             />
 
-            <View className="mb-4 rounded-2xl border border-line bg-paper px-3.5 dark:border-[#2a3f35] dark:bg-[#15241d]">
+            <View className="mb-4 flex-row items-center rounded-2xl border border-line bg-paper px-3.5 dark:border-[#2a3f35] dark:bg-[#15241d]">
+              <Ionicons name="search" size={18} color={colors.mute} />
               <TextInput
                 value={query}
                 onChangeText={setQuery}
                 placeholder="Dokumentname suchen…"
                 placeholderTextColor={colors.placeholder}
-                className="min-h-[48px] font-sans text-base text-ink dark:text-[#e7f2ec]"
+                className="ml-2 min-h-[48px] flex-1 font-sans text-base text-ink dark:text-[#e7f2ec]"
                 autoCorrect={false}
                 clearButtonMode="while-editing"
               />
