@@ -58,7 +58,7 @@ export default function FamilySetupScreen() {
 
     for (const m of filled) {
       if (m.geburtsdatum.trim() && !parseDateDe(m.geburtsdatum)) {
-        Alert.alert('Datum ungültig', `Geburtsdatum für ${m.fullName} als TT-MM-JJJJ eingeben.`);
+        Alert.alert('Datum ungültig', `Geburtsdatum für ${m.fullName} als TT.MM.JJJJ eingeben.`);
         return;
       }
     }
@@ -150,10 +150,10 @@ export default function FamilySetupScreen() {
             </View>
 
             <Field
-              label="Geburtsdatum (TT-MM-JJJJ)"
+              label="Geburtsdatum (TT.MM.JJJJ)"
               value={member.geburtsdatum}
               onChangeText={(geburtsdatum) => updateMember(member.key, { geburtsdatum })}
-              placeholder="21-11-2014"
+              placeholder="21.11.2014"
               keyboardType="numbers-and-punctuation"
             />
           </View>

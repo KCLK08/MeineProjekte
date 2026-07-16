@@ -10,7 +10,7 @@ const optionalDateDe = z
   .optional()
   .or(z.literal(''))
   .refine((v) => !v || Boolean(parseDateDe(v)), {
-    message: 'Datum als TT-MM-JJJJ eingeben',
+    message: 'Datum als TT.MM.JJJJ eingeben',
   });
 
 export const personFormSchema = z.object({

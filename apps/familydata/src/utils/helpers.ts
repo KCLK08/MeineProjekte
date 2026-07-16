@@ -36,16 +36,16 @@ export function isFamilyRole(value: string): value is FamilyRole {
   return FAMILY_ROLE_OPTIONS.some((r) => r.id === value);
 }
 
-/** Display / input as DD-MM-YYYY. Accepts ISO YYYY-MM-DD storage. */
+/** Display / input as DD.MM.YYYY. Accepts ISO YYYY-MM-DD storage. */
 export function formatDateDe(value?: string | null) {
   if (!value) return '—';
   const iso = toIsoDate(value);
   if (!iso) return value;
   const [y, m, d] = iso.split('-');
-  return `${d}-${m}-${y}`;
+  return `${d}.${m}.${y}`;
 }
 
-/** Parse DD-MM-YYYY / DD.MM.YYYY / YYYY-MM-DD → YYYY-MM-DD or null. */
+/** Parse DD.MM.YYYY / DD-MM-YYYY / YYYY-MM-DD → YYYY-MM-DD or null. */
 export function parseDateDe(input?: string | null): string | null {
   if (!input?.trim()) return null;
   const raw = input.trim();
