@@ -17,6 +17,7 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppTheme } from '@/theme/useAppTheme';
 
@@ -25,13 +26,20 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function Screen({
   children,
   className = '',
+  /** Add bottom inset for stack screens (not tab roots – tab bar already pads). */
+  safeBottom = true,
 }: {
   children: React.ReactNode;
   className?: string;
+  safeBottom?: boolean;
 }) {
   const { colors, scheme } = useAppTheme();
+  const insets = useSafeAreaInsets();
   return (
-    <View className={`flex-1 bg-canvas dark:bg-[#0d1612] ${className}`}>
+    <View
+      className={`flex-1 bg-canvas dark:bg-[#0d1612] ${className}`}
+      style={safeBottom ? { paddingBottom: insets.bottom } : undefined}
+    >
       <LinearGradient
         colors={
           scheme === 'dark'
@@ -354,18 +362,26 @@ export function IconButton({
   icon,
   onPress,
   label,
+  tone = 'solid',
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
   label: string;
+  tone?: 'solid' | 'soft';
 }) {
+  const { colors } = useAppTheme();
+  const soft = tone === 'soft';
   return (
     <Pressable
       accessibilityLabel={label}
       onPress={onPress}
-      className="h-11 w-11 items-center justify-center rounded-2xl bg-pine-700 active:opacity-90 dark:bg-pine-500"
+      className={
+        soft
+          ? 'h-11 w-11 items-center justify-center rounded-2xl border border-line bg-paper active:opacity-90 dark:border-[#2a3f35] dark:bg-[#15241d]'
+          : 'h-11 w-11 items-center justify-center rounded-2xl bg-pine-700 active:opacity-90 dark:bg-pine-500'
+      }
     >
-      <Ionicons name={icon} size={22} color="#fff" />
+      <Ionicons name={icon} size={22} color={soft ? colors.pine : '#fff'} />
     </Pressable>
   );
 }

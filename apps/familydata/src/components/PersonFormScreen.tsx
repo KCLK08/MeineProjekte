@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { Alert, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Field, FilterChip, PrimaryButton, Screen, SectionTitle } from '@/components/ui';
 import * as repo from '@/db/repository';
@@ -22,6 +23,7 @@ const emptyValues: PersonFormValues = {
 
 export default function PersonFormScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id?: string }>();
   const editingId = typeof params.id === 'string' ? params.id : undefined;
   const savePerson = useFamilyStore((s) => s.savePerson);
@@ -97,7 +99,10 @@ export default function PersonFormScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={{ padding: 20, paddingBottom: 48 + insets.bottom }}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text className="mb-5 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
           Name und Rolle reichen für den Start. Identifikation ist optional und geschützt.
         </Text>

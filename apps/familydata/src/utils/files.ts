@@ -18,6 +18,14 @@ export function isPdfUri(uri?: string | null) {
 }
 
 export function guessFileKind(uri?: string | null): 'image' | 'pdf' | 'unknown' {
+  if (!uri) return 'unknown';
+  // Encrypted vault paths: …/<hex>.pdf.dat or …/<hex>.jpg.dat
+  const enc = uri.match(/\.([a-z0-9]+)\.dat$/i);
+  if (enc && uri.includes('familydata-encrypted')) {
+    const ext = `.${enc[1].toLowerCase()}`;
+    if (PDF_EXT.test(ext)) return 'pdf';
+    if (IMAGE_EXT.test(ext)) return 'image';
+  }
   if (isPdfUri(uri)) return 'pdf';
   if (isImageUri(uri)) return 'image';
   return 'unknown';
@@ -63,6 +71,29 @@ async function embedImageHalfPage(pdf: PDFDocument, imageBytes: Uint8Array, pref
   const x = (A4.width - w) / 2;
   const y = A4.height - PAGE_MARGIN - h;
   page.drawImage(image, { x, y, width: w, height: h });
+}
+
+/** Build one PDF from multiple image URIs (half page per image). */
+export async function buildPdfFromImageUris(uris: string[], suggestedName = 'dokument'): Promise<string> {
+  if (!uris.length) throw new Error('Keine Bilder ausgewählt.');
+  const cacheDir = FileSystem.cacheDirectory;
+  if (!cacheDir) throw new Error('Kein Cache-Verzeichnis verfügbar.');
+
+  const pdf = await PDFDocument.create();
+  for (const uri of uris) {
+    const base64 = await readBase64(uri);
+    const bytes = base64ToUint8Array(base64);
+    const lower = (uri.split('?')[0] || '').toLowerCase();
+    const preferPng = lower.endsWith('.png');
+    await embedImageHalfPage(pdf, bytes, preferPng);
+  }
+  const pdfBytes = await pdf.save();
+  const safeName = suggestedName.replace(/[^\w\-äöüÄÖÜß]+/g, '_').slice(0, 48) || 'dokument';
+  const outPath = `${cacheDir}${safeName}-${Date.now()}.pdf`;
+  await FileSystem.writeAsStringAsync(outPath, uint8ArrayToBase64(pdfBytes), {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  return outPath;
 }
 
 /** Convert image (or pass-through PDF) into a local PDF, then open the share sheet. */

@@ -14,16 +14,15 @@ import {
 } from '@expo-google-fonts/fraunces';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
-import * as ScreenCapture from 'expo-screen-capture';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { Platform, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AppLockGate } from '@/components/AppLockGate';
-import { markScreenCaptureProtected } from '@/security/runtimeHardening';
+import { enableScreenshotProtection } from '@/security/screenCaptureSession';
 import { useFamilyStore } from '@/store/familyStore';
 import { useSecurityStore } from '@/store/securityStore';
 import { useThemeStore } from '@/theme/themeStore';
@@ -47,25 +46,7 @@ function RootNavigator() {
   }, [hydrateTheme, hydrateSecurity]);
 
   useEffect(() => {
-    // Android FLAG_SECURE (+ iOS screen-capture / recent-apps protection).
-    void (async () => {
-      try {
-        await ScreenCapture.preventScreenCaptureAsync('familydata-vault');
-        if (Platform.OS === 'ios') {
-          await ScreenCapture.enableAppSwitcherProtectionAsync(0.7);
-        }
-        markScreenCaptureProtected(true);
-      } catch {
-        markScreenCaptureProtected(false);
-      }
-    })();
-    return () => {
-      markScreenCaptureProtected(false);
-      void ScreenCapture.allowScreenCaptureAsync('familydata-vault').catch(() => undefined);
-      if (Platform.OS === 'ios') {
-        void ScreenCapture.disableAppSwitcherProtectionAsync().catch(() => undefined);
-      }
-    };
+    void enableScreenshotProtection();
   }, []);
 
   useEffect(() => {
@@ -139,6 +120,7 @@ function RootNavigator() {
         <Stack.Screen name="document/[id]" options={{ headerShown: true, title: 'Vorschau', presentation: 'card' }} />
         <Stack.Screen name="document/new" options={{ headerShown: true, title: 'Dokument hinzufügen', presentation: 'modal' }} />
         <Stack.Screen name="document/edit/[id]" options={{ headerShown: true, title: 'Dokument bearbeiten', presentation: 'modal' }} />
+        <Stack.Screen name="settings/index" options={{ headerShown: true, title: 'Einstellungen', presentation: 'card' }} />
         <Stack.Screen name="settings/security" options={{ headerShown: true, title: 'Sicherheit', presentation: 'card' }} />
         <Stack.Screen
           name="settings/appearance"

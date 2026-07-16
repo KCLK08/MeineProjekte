@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FilterChip, Panel, PrimaryButton, Screen, SectionTitle, StatusBadge } from '@/components/ui';
 import {
@@ -11,6 +12,7 @@ import { SecurityEventLog, type SecurityEvent } from '@/security/SecurityEventLo
 import { SecurityManager } from '@/security/SecurityManager';
 import { AUTO_LOCK_OPTIONS, type AutoLockOption, type BiometricAvailability } from '@/security/types';
 import { useSecurityStore } from '@/store/securityStore';
+import { useAppTheme } from '@/theme/useAppTheme';
 
 type VaultStatus = {
   sqlCipherSupported: boolean;
@@ -23,14 +25,18 @@ type VaultStatus = {
 
 export default function SecurityScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { colors } = useAppTheme();
   const securityEnabled = useSecurityStore((s) => s.securityEnabled);
   const autoLock = useSecurityStore((s) => s.autoLock);
   const sqlCipherSupported = useSecurityStore((s) => s.sqlCipherSupported);
   const busy = useSecurityStore((s) => s.busy);
   const isLocked = useSecurityStore((s) => s.isLocked);
+  const screenshotsAllowedThisSession = useSecurityStore((s) => s.screenshotsAllowedThisSession);
   const enableSecurity = useSecurityStore((s) => s.enableSecurity);
   const lock = useSecurityStore((s) => s.lock);
   const setAutoLock = useSecurityStore((s) => s.setAutoLock);
+  const setScreenshotsAllowedForSession = useSecurityStore((s) => s.setScreenshotsAllowedForSession);
   const testAuth = useSecurityStore((s) => s.testAuth);
 
   const [availability, setAvailability] = useState<BiometricAvailability | null>(null);
@@ -107,7 +113,7 @@ export default function SecurityScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 + insets.bottom }}>
         <Text className="mb-5 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
           FamilyData speichert Daten ausschließlich verschlüsselt (SQLCipher + AES-256-GCM). Der Master Key
           ist an Biometrie bzw. Gerätecode gebunden. Klartextbetrieb und Deaktivierung des Schutzes sind
@@ -248,6 +254,40 @@ export default function SecurityScreen() {
             />
           ))}
         </View>
+
+        <SectionTitle>Screenshot-Schutz</SectionTitle>
+        <Panel className="mb-5 px-4 py-4">
+          <View className="flex-row items-center justify-between gap-3">
+            <View className="flex-1 pr-2">
+              <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">
+                Screenshots für diese Sitzung erlauben
+              </Text>
+              <Text className="mt-1 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+                Bis zum nächsten Entsperren. Danach ist der Schutz wieder aktiv.
+              </Text>
+            </View>
+            <Switch
+              trackColor={{ true: colors.pine }}
+              value={screenshotsAllowedThisSession}
+              disabled={isLocked || busy}
+              onValueChange={(v) => {
+                void setScreenshotsAllowedForSession(v).catch((e) =>
+                  Alert.alert('Screenshot-Schutz', (e as Error).message)
+                );
+              }}
+            />
+          </View>
+          <View className="mt-3">
+            <StatusBadge
+              label={
+                screenshotsAllowedThisSession
+                  ? 'Sitzung: Screenshots erlaubt'
+                  : 'FLAG_SECURE aktiv'
+              }
+              tone={screenshotsAllowedThisSession ? 'warn' : 'ok'}
+            />
+          </View>
+        </Panel>
 
         <SectionTitle>Gerätewechsel</SectionTitle>
         <Panel className="mb-5 px-4 py-4">
