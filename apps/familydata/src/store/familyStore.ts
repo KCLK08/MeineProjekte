@@ -2,16 +2,9 @@ import { create } from 'zustand';
 
 import * as repo from '@/db/repository';
 import type { DocumentListRow } from '@/db/repository';
-import { DUMMY_FAMILY } from '@/db/seed';
-import type { FamilyDocument, IdentificationData, Person } from '@/types/models';
+import type { FamilyDocument, FamilyRole, Person } from '@/types/models';
 
 const BOOTSTRAP_TIMEOUT_MS = 6_000;
-
-function memorySeed() {
-  const people = DUMMY_FAMILY.map((m) => m.person);
-  const documents: DocumentListRow[] = [];
-  return { people, documents };
-}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -32,15 +25,24 @@ type FamilyState = {
   ready: boolean;
   loading: boolean;
   error: string;
+  setupComplete: boolean;
+  familyName: string;
   people: Person[];
   documents: DocumentListRow[];
   bootstrap: () => Promise<void>;
+  refreshFamilyMeta: () => Promise<void>;
   refreshPeople: () => Promise<void>;
   refreshDocuments: (filters?: { personId?: string; query?: string }) => Promise<void>;
-  savePerson: (
-    person: Omit<Person, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
-    identification: Omit<IdentificationData, 'personId'>
-  ) => Promise<string>;
+  completeSetup: (input: {
+    familyName: string;
+    members: Array<{
+      vorname: string;
+      nachname: string;
+      rolle: FamilyRole;
+      geburtsdatum?: string;
+    }>;
+  }) => Promise<void>;
+  savePerson: (person: Omit<Person, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => Promise<string>;
   removePerson: (id: string) => Promise<void>;
   saveDocument: (doc: Omit<FamilyDocument, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => Promise<string>;
   removeDocument: (id: string) => Promise<void>;
@@ -52,36 +54,37 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
   ready: false,
   loading: false,
   error: '',
+  setupComplete: false,
+  familyName: '',
   people: [],
   documents: [],
 
   bootstrap: async () => {
     if (bootstrapInFlight) return bootstrapInFlight;
 
-    // Show screens immediately with dummy seed – never block UI on SQLite.
-    const seed = memorySeed();
     set({
-      ...seed,
       ready: true,
       loading: true,
       error: '',
+      people: [],
+      documents: [],
     });
 
     bootstrapInFlight = (async () => {
       try {
         await withTimeout(
           (async () => {
+            await get().refreshFamilyMeta();
             await get().refreshPeople();
             await get().refreshDocuments();
           })(),
           BOOTSTRAP_TIMEOUT_MS,
-          'SQLite antwortet nicht – App läuft mit Demo-Daten.'
+          'SQLite antwortet nicht.'
         );
         set({ error: '' });
       } catch (e) {
-        // Keep memory seed so the app remains usable in Expo Go.
         set({
-          error: (e as Error).message || 'Datenbank nicht erreichbar – Demo-Daten aktiv.',
+          error: (e as Error).message || 'Datenbank nicht erreichbar.',
         });
       } finally {
         set({ loading: false, ready: true });
@@ -92,6 +95,11 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
     return bootstrapInFlight;
   },
 
+  refreshFamilyMeta: async () => {
+    const [familyName, setupComplete] = await Promise.all([repo.getFamilyName(), repo.isSetupComplete()]);
+    set({ familyName, setupComplete });
+  },
+
   refreshPeople: async () => {
     set({ people: await repo.listPeople() });
   },
@@ -100,8 +108,14 @@ export const useFamilyStore = create<FamilyState>((set, get) => ({
     set({ documents: await repo.listDocuments(filters) });
   },
 
-  savePerson: async (person, identification) => {
-    const id = await repo.upsertPerson(person, identification);
+  completeSetup: async (input) => {
+    await repo.completeFamilySetup(input);
+    await get().refreshFamilyMeta();
+    await get().refreshPeople();
+  },
+
+  savePerson: async (person) => {
+    const id = await repo.upsertPerson(person);
     await get().refreshPeople();
     await get().refreshDocuments();
     return id;

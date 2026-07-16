@@ -43,6 +43,28 @@ async function readBase64(uri: string) {
   return FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
 }
 
+/** A4 points – images are placed in the upper half so they print smaller than full-page. */
+const A4 = { width: 595.28, height: 841.89 };
+const PAGE_MARGIN = 36;
+
+async function embedImageHalfPage(pdf: PDFDocument, imageBytes: Uint8Array, preferPng: boolean) {
+  let image;
+  try {
+    image = preferPng ? await pdf.embedPng(imageBytes) : await pdf.embedJpg(imageBytes);
+  } catch {
+    image = preferPng ? await pdf.embedJpg(imageBytes) : await pdf.embedPng(imageBytes);
+  }
+  const page = pdf.addPage([A4.width, A4.height]);
+  const maxW = A4.width - PAGE_MARGIN * 2;
+  const maxH = A4.height / 2 - PAGE_MARGIN;
+  const scale = Math.min(maxW / image.width, maxH / image.height, 1);
+  const w = image.width * scale;
+  const h = image.height * scale;
+  const x = (A4.width - w) / 2;
+  const y = A4.height - PAGE_MARGIN - h;
+  page.drawImage(image, { x, y, width: w, height: h });
+}
+
 /** Convert image (or pass-through PDF) into a local PDF, then open the share sheet. */
 export async function exportUriAsPdf(uri: string, suggestedName = 'dokument') {
   if (!(await Sharing.isAvailableAsync())) {
@@ -59,33 +81,13 @@ export async function exportUriAsPdf(uri: string, suggestedName = 'dokument') {
   if (kind === 'pdf') {
     outPath = `${cacheDir}${safeName}-${Date.now()}.pdf`;
     await FileSystem.copyAsync({ from: uri, to: outPath });
-  } else if (kind === 'image') {
+  } else {
     const base64 = await readBase64(uri);
     const bytes = base64ToUint8Array(base64);
     const pdf = await PDFDocument.create();
     const lower = (uri.split('?')[0] || '').toLowerCase();
-    const image = lower.endsWith('.png')
-      ? await pdf.embedPng(bytes)
-      : await pdf.embedJpg(bytes);
-    const page = pdf.addPage([image.width, image.height]);
-    page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
-    const pdfBytes = await pdf.save();
-    await FileSystem.writeAsStringAsync(outPath, uint8ArrayToBase64(pdfBytes), {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-  } else {
-    // Best effort: try embedding as JPEG first, then PNG.
-    const base64 = await readBase64(uri);
-    const bytes = base64ToUint8Array(base64);
-    const pdf = await PDFDocument.create();
-    let image;
-    try {
-      image = await pdf.embedJpg(bytes);
-    } catch {
-      image = await pdf.embedPng(bytes);
-    }
-    const page = pdf.addPage([image.width, image.height]);
-    page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
+    const preferPng = lower.endsWith('.png') || kind !== 'image';
+    await embedImageHalfPage(pdf, bytes, preferPng);
     const pdfBytes = await pdf.save();
     await FileSystem.writeAsStringAsync(outPath, uint8ArrayToBase64(pdfBytes), {
       encoding: FileSystem.EncodingType.Base64,

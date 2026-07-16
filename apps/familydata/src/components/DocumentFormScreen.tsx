@@ -11,7 +11,7 @@ import * as repo from '@/db/repository';
 import { documentFormSchema, type DocumentFormValues } from '@/schemas/forms';
 import { useFamilyStore } from '@/store/familyStore';
 import { persistAttachment } from '@/utils/files';
-import { createId } from '@/utils/helpers';
+import { createId, formatDateDe, parseDateDe } from '@/utils/helpers';
 
 export default function DocumentFormScreen() {
   const router = useRouter();
@@ -52,7 +52,7 @@ export default function DocumentFormScreen() {
         name: doc.name,
         personIds: doc.personIds,
         documentNumber: doc.documentNumber,
-        expiryDate: doc.expiryDate,
+        expiryDate: doc.expiryDate ? formatDateDe(doc.expiryDate) : '',
         notes: doc.notes,
         filePath: doc.filePath,
       });
@@ -90,7 +90,7 @@ export default function DocumentFormScreen() {
         name: values.name.trim(),
         personIds: values.personIds,
         documentNumber: values.documentNumber || '',
-        expiryDate: values.expiryDate || '',
+        expiryDate: parseDateDe(values.expiryDate || '') || '',
         filePath: persistedPath,
         notes: values.notes || '',
       });
@@ -160,7 +160,14 @@ export default function DocumentFormScreen() {
           control={control}
           name="expiryDate"
           render={({ field: { onChange, value } }) => (
-            <Field label="Ablaufdatum (optional, JJJJ-MM-TT)" value={value} onChangeText={onChange} placeholder="2030-01-01" />
+            <Field
+              label="Ablaufdatum (optional, TT-MM-JJJJ)"
+              value={value}
+              onChangeText={onChange}
+              placeholder="01-01-2030"
+              keyboardType="numbers-and-punctuation"
+              error={errors.expiryDate?.message}
+            />
           )}
         />
 
