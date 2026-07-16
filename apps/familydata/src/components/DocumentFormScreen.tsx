@@ -15,7 +15,6 @@ import { createId } from '@/utils/helpers';
 
 export default function DocumentFormScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id?: string; personId?: string }>();
   const editingId = typeof params.id === 'string' ? params.id : undefined;
   const presetPersonId = typeof params.personId === 'string' ? params.personId : '';
