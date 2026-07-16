@@ -9,6 +9,7 @@ on:
     paths:
       - 'apps/familydata/**'
       - 'scripts/ci-build-apk.sh'
+      - 'scripts/upload-apk-r2.sh'
       - '.github/workflows/build-familydata.yml'
   workflow_dispatch:
 

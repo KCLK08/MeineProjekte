@@ -7,6 +7,7 @@ on:
       - 'apps/ds-datenbank/**'
       - '!apps/ds-datenbank/web/**'
       - 'scripts/ci-build-apk.sh'
+      - 'scripts/upload-apk-r2.sh'
       - '.github/workflows/build-ds-datenbank.yml'
   workflow_dispatch:
 

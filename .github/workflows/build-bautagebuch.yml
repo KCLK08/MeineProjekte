@@ -9,6 +9,7 @@ on:
     paths:
       - 'apps/bautagebuch/**'
       - 'scripts/ci-build-apk.sh'
+      - 'scripts/upload-apk-r2.sh'
       - '.github/workflows/build-bautagebuch.yml'
   workflow_dispatch:
 

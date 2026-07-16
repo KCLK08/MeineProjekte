@@ -7,6 +7,7 @@ on:
       - 'apps/buew-toolbox/**'
       - '!apps/buew-toolbox/web/**'
       - 'scripts/ci-build-apk.sh'
+      - 'scripts/upload-apk-r2.sh'
       - '.github/workflows/build-buew-toolbox.yml'
   workflow_dispatch:
 
