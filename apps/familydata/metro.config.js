@@ -12,5 +12,7 @@ config.resolver.nodeModulesPaths = [
   path.resolve(monorepoRoot, 'node_modules'),
 ];
 config.resolver.disableHierarchicalLookup = true;
+// Vendored pdf.js sources shipped as .txt so they are not executed as modules.
+config.resolver.assetExts = Array.from(new Set([...(config.resolver.assetExts || []), 'txt']));
 
 module.exports = withNativeWind(config, { input: './global.css' });

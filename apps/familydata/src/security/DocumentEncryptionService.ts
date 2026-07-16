@@ -83,10 +83,8 @@ export const DocumentEncryptionService = {
     let packed: Uint8Array | null = null;
     try {
       packed = await EncryptionService.encryptBytes(plain, key);
-      const name = (await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, `${Date.now()}-${Math.random()}`)).slice(
-        0,
-        32
-      );
+      const rand = await Crypto.getRandomBytesAsync(16);
+      const name = Array.from(rand, (b) => b.toString(16).padStart(2, '0')).join('');
       const dest = `${encryptedDir()}${name}${ENCRYPTED_EXT}`;
       await FileSystem.writeAsStringAsync(dest, bytesToBase64(packed), {
         encoding: FileSystem.EncodingType.Base64,
@@ -112,7 +110,9 @@ export const DocumentEncryptionService = {
     let plain: Uint8Array | null = null;
     try {
       plain = EncryptionService.decryptBytes(packed, key);
-      const dest = `${tempDir()}${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}${suggestedExt}`;
+      const rand = await Crypto.getRandomBytesAsync(8);
+      const token = Array.from(rand, (b) => b.toString(16).padStart(2, '0')).join('');
+      const dest = `${tempDir()}${token}${suggestedExt}`;
       await FileSystem.writeAsStringAsync(dest, bytesToBase64(plain), {
         encoding: FileSystem.EncodingType.Base64,
       });

@@ -15,8 +15,13 @@ export function AppLockGate() {
   const busy = useSecurityStore((s) => s.busy);
   const error = useSecurityStore((s) => s.error);
   const unlock = useSecurityStore((s) => s.unlock);
+  const sqlCipherSupported = useSecurityStore((s) => s.sqlCipherSupported);
+  const needsVaultSetup = useSecurityStore((s) => s.needsVaultSetup);
 
   if (!hydrated || !securityEnabled || !isLocked) return null;
+
+  const unsupported = !sqlCipherSupported;
+  const setupCopy = needsVaultSetup && !error;
 
   return (
     <View
@@ -41,7 +46,7 @@ export function AppLockGate() {
             marginBottom: 20,
           }}
         >
-          <Ionicons name="lock-closed" size={32} color={colors.pine} />
+          <Ionicons name={unsupported ? 'construct-outline' : 'lock-closed'} size={32} color={colors.pine} />
         </View>
         <Text style={{ fontFamily: 'Fraunces_700Bold', fontSize: 28, color: colors.ink, letterSpacing: -0.5 }}>
           FamilyData
@@ -56,7 +61,11 @@ export function AppLockGate() {
             textAlign: 'center',
           }}
         >
-          Tresor gesperrt. Entsperren mit Biometrie oder Gerätecode.
+          {unsupported
+            ? 'Verschlüsselter Vault-Betrieb benötigt einen Development Build bzw. die FamilyData-APK (nicht Expo Go).'
+            : setupCopy
+              ? 'Erste Einrichtung oder Migration: Master Key wird an Biometrie bzw. Gerätecode gebunden. Klartextbetrieb ist nicht möglich.'
+              : 'Tresor gesperrt. Entsperren mit Biometrie oder Gerätecode – ohne Authentifizierung ist der Master Key nicht lesbar.'}
         </Text>
         {error ? (
           <Text
@@ -73,24 +82,28 @@ export function AppLockGate() {
         ) : null}
       </View>
 
-      <Pressable
-        onPress={() => void unlock()}
-        disabled={busy}
-        style={{
-          minHeight: 54,
-          borderRadius: 16,
-          backgroundColor: colors.pine,
-          alignItems: 'center',
-          justifyContent: 'center',
-          opacity: busy ? 0.7 : 1,
-        }}
-      >
-        {busy ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#fff' }}>Entsperren</Text>
-        )}
-      </Pressable>
+      {!unsupported ? (
+        <Pressable
+          onPress={() => void unlock()}
+          disabled={busy}
+          style={{
+            minHeight: 54,
+            borderRadius: 16,
+            backgroundColor: colors.pine,
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: busy ? 0.7 : 1,
+          }}
+        >
+          {busy ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={{ fontFamily: 'DMSans_700Bold', fontSize: 16, color: '#fff' }}>
+              {setupCopy ? 'Vault einrichten / entsperren' : 'Entsperren'}
+            </Text>
+          )}
+        </Pressable>
+      ) : null}
     </View>
   );
 }

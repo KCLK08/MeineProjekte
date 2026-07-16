@@ -7,8 +7,10 @@ import { FilePreview } from '@/components/FilePreview';
 import { EmptyState, LoadingBlock, PrimaryButton, Screen } from '@/components/ui';
 import * as repo from '@/db/repository';
 import { DocumentEncryptionService } from '@/security/DocumentEncryptionService';
+import { subscribePreviewWipe } from '@/security/previewSession';
 import { SecurityManager } from '@/security/SecurityManager';
 import { useFamilyStore } from '@/store/familyStore';
+import { useSecurityStore } from '@/store/securityStore';
 import type { FamilyDocument } from '@/types/models';
 import { exportUriAsPdf, guessFileKind } from '@/utils/files';
 
@@ -19,12 +21,28 @@ export default function DocumentPreviewScreen() {
   const insets = useSafeAreaInsets();
   const people = useFamilyStore((s) => s.people);
   const removeDocument = useFamilyStore((s) => s.removeDocument);
+  const wipeToken = useSecurityStore((s) => s.wipeToken);
+  const isLocked = useSecurityStore((s) => s.isLocked);
   const [doc, setDoc] = useState<FamilyDocument | null>(null);
   const [readableUri, setReadableUri] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
-    if (!id) return;
+    return subscribePreviewWipe(() => {
+      setReadableUri(null);
+      setDoc(null);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (isLocked) {
+      setReadableUri(null);
+      setDoc(null);
+    }
+  }, [isLocked, wipeToken]);
+
+  useEffect(() => {
+    if (!id || isLocked) return;
     let cancelled = false;
     (async () => {
       const row = await repo.getDocument(id);
@@ -48,8 +66,9 @@ export default function DocumentPreviewScreen() {
     })();
     return () => {
       cancelled = true;
+      setReadableUri(null);
     };
-  }, [id]);
+  }, [id, isLocked, wipeToken]);
 
   const assignedPeople = useMemo(
     () => people.filter((p) => doc?.personIds.includes(p.id)),
@@ -106,8 +125,8 @@ export default function DocumentPreviewScreen() {
       </View>
 
       <View className="flex-1">
-        {hasFile && readableUri ? (
-          <FilePreview uri={readableUri} />
+        {hasFile && readableUri && !isLocked ? (
+          <FilePreview uri={readableUri} wipeToken={wipeToken} />
         ) : (
           <EmptyState
             icon="document-outline"

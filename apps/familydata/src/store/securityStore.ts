@@ -1,6 +1,7 @@
 import { AppState, type AppStateStatus } from 'react-native';
 import { create } from 'zustand';
 
+import { wipeAllPreviews } from '@/security/previewSession';
 import { SecurityManager } from '@/security/SecurityManager';
 import { autoLockMs, type AutoLockOption } from '@/security/types';
 import { useFamilyStore } from '@/store/familyStore';
@@ -14,11 +15,12 @@ type SecurityState = {
   sqlCipherSupported: boolean;
   busy: boolean;
   error: string;
+  wipeToken: number;
+  needsVaultSetup: boolean;
   hydrate: () => Promise<void>;
   unlock: () => Promise<boolean>;
   lock: () => Promise<void>;
   enableSecurity: () => Promise<void>;
-  disableSecurity: () => Promise<void>;
   setAutoLock: (option: AutoLockOption) => Promise<void>;
   testAuth: () => Promise<boolean>;
 };
@@ -41,38 +43,60 @@ function wipeSensitiveUiState() {
     familyName: '',
     error: '',
   });
+  wipeAllPreviews();
 }
 
 export const useSecurityStore = create<SecurityState>((set, get) => ({
   hydrated: false,
-  securityEnabled: false,
-  isLocked: false,
+  securityEnabled: true,
+  isLocked: true,
   lastAuthentication: null,
-  autoLock: '1',
+  autoLock: 'immediate',
   sqlCipherSupported: SecurityManager.supportsSqlCipher(),
   busy: false,
   error: '',
+  wipeToken: 0,
+  needsVaultSetup: false,
 
   hydrate: async () => {
-    const securityEnabled = await SecurityManager.isSecurityEnabled();
+    const sqlCipherSupported = SecurityManager.supportsSqlCipher();
     const autoLock = await SecurityManager.getAutoLock();
+
+    if (!sqlCipherSupported) {
+      set({
+        hydrated: true,
+        securityEnabled: true,
+        isLocked: true,
+        autoLock,
+        sqlCipherSupported: false,
+        needsVaultSetup: false,
+        error: 'Vault benötigt Development Build / Release-APK (SQLCipher). Expo Go ist nicht erlaubt.',
+      });
+      return;
+    }
+
+    const status = await SecurityManager.getVaultStatus();
+    const needsVaultSetup = !status.hasVaultDb || !status.hasMasterKey || status.hasLegacyPlainDb;
+
     set({
       hydrated: true,
-      securityEnabled,
+      securityEnabled: true,
+      isLocked: true,
       autoLock,
-      sqlCipherSupported: SecurityManager.supportsSqlCipher(),
-      isLocked: securityEnabled,
+      sqlCipherSupported: true,
+      needsVaultSetup,
       lastAuthentication: null,
+      error: '',
     });
 
     if (!appStateSub) {
       appStateSub = AppState.addEventListener('change', (next: AppStateStatus) => {
-        const { securityEnabled: enabled, autoLock: mode, isLocked } = get();
-        if (!enabled) return;
+        const { isLocked } = get();
+        if (!SecurityManager.supportsSqlCipher()) return;
 
         if (next === 'background' || next === 'inactive') {
           backgroundedAt = Date.now();
-          const ms = autoLockMs(mode);
+          const ms = autoLockMs(get().autoLock);
           clearLockTimer();
           if (ms === 0) {
             void get().lock();
@@ -103,15 +127,16 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
     try {
       const result = await SecurityManager.unlockApp();
       if (!result.ok) {
-        set({ error: result.message, busy: false, isLocked: true });
+        set({ error: result.message, busy: false, isLocked: true, needsVaultSetup: false });
         return false;
       }
       set({
         isLocked: false,
         lastAuthentication: Date.now(),
-        securityEnabled: await SecurityManager.isSecurityEnabled(),
+        securityEnabled: true,
         busy: false,
         error: '',
+        needsVaultSetup: false,
       });
       await useFamilyStore.getState().bootstrap();
       return true;
@@ -125,10 +150,11 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
     clearLockTimer();
     await SecurityManager.lockApp();
     wipeSensitiveUiState();
-    set({
-      isLocked: get().securityEnabled,
+    set((state) => ({
+      isLocked: true,
       lastAuthentication: null,
-    });
+      wipeToken: state.wipeToken + 1,
+    }));
   },
 
   enableSecurity: async () => {
@@ -140,27 +166,11 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
         isLocked: false,
         lastAuthentication: Date.now(),
         busy: false,
+        needsVaultSetup: false,
       });
       await useFamilyStore.getState().bootstrap();
     } catch (e) {
-      set({ busy: false, error: (e as Error).message });
-      throw e;
-    }
-  },
-
-  disableSecurity: async () => {
-    set({ busy: true, error: '' });
-    try {
-      await SecurityManager.disableSecurity();
-      set({
-        securityEnabled: false,
-        isLocked: false,
-        lastAuthentication: null,
-        busy: false,
-      });
-      await useFamilyStore.getState().bootstrap();
-    } catch (e) {
-      set({ busy: false, error: (e as Error).message });
+      set({ busy: false, error: (e as Error).message, isLocked: true });
       throw e;
     }
   },

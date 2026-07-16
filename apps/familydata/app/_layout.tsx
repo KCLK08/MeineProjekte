@@ -14,10 +14,11 @@ import {
 } from '@expo-google-fonts/fraunces';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import * as ScreenCapture from 'expo-screen-capture';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Platform, Pressable, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -43,6 +44,20 @@ function RootNavigator() {
     hydrateTheme();
     void hydrateSecurity();
   }, [hydrateTheme, hydrateSecurity]);
+
+  useEffect(() => {
+    // Android FLAG_SECURE (+ iOS screen-capture / recent-apps protection).
+    void ScreenCapture.preventScreenCaptureAsync('familydata-vault').catch(() => undefined);
+    if (Platform.OS === 'ios') {
+      void ScreenCapture.enableAppSwitcherProtectionAsync(0.7).catch(() => undefined);
+    }
+    return () => {
+      void ScreenCapture.allowScreenCaptureAsync('familydata-vault').catch(() => undefined);
+      if (Platform.OS === 'ios') {
+        void ScreenCapture.disableAppSwitcherProtectionAsync().catch(() => undefined);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => undefined);

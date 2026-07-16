@@ -123,13 +123,14 @@ export async function persistAttachment(uri: string, key: string) {
     localUri = dest;
   }
 
-  try {
-    const { SecurityManager } = await import('@/security/SecurityManager');
-    if ((await SecurityManager.isSecurityEnabled()) && SecurityManager.isUnlocked()) {
-      return SecurityManager.encryptIncomingFile(localUri);
-    }
-  } catch {
-    // Keep plaintext path if vault layer is unavailable (e.g. Expo Go without encryption).
+  const { SecurityManager } = await import('@/security/SecurityManager');
+  if (!SecurityManager.supportsSqlCipher()) {
+    throw new Error(
+      'Anhänge können nur im Vault gespeichert werden. Bitte Development Build / FamilyData-APK verwenden.'
+    );
   }
-  return localUri;
+  if (!SecurityManager.isUnlocked()) {
+    throw new Error('Tresor ist gesperrt. Anhänge werden nicht im Klartext gespeichert.');
+  }
+  return SecurityManager.encryptIncomingFile(localUri);
 }

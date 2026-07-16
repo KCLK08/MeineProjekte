@@ -16,7 +16,9 @@
 ```
 
 FamilyData is a **local vault**: no cloud, no accounts, no app-owned password database.
+On supported builds (Dev Client / APK), **vault mode is mandatory** – no plaintext operation and no disable path.
 Unlock uses **native biometrics** with the **system device passcode** as fallback (`expo-local-authentication`).
+The master key is stored with `requireAuthentication: true` (Keystore / Keychain).
 
 | Layer | Mechanism |
 | --- | --- |
@@ -78,42 +80,46 @@ npx expo run:android
 
 ```
 src/security/
-  SecurityManager.ts          Orchestration (enable/disable/lock/unlock)
-  KeyStoreService.ts          Master key create/get/delete
+  SecurityManager.ts          Orchestration (vault init/lock/unlock; disable blocked)
+  KeyStoreService.ts          Auth-bound master key create/get/delete
   BiometricService.ts         Native auth
   EncryptionService.ts        AES-256-GCM bytes
   DocumentEncryptionService.ts File encrypt/decrypt/temp wipe
-  MigrationService.ts         Plain ↔ vault migration
+  MigrationService.ts         Plain → vault migration
+  previewSession.ts           Preview wipe listeners on lock
   settingsFlags.ts            Non-secret flags in SecureStore
   access.ts                   UI gate for Identifikation
-src/store/securityStore.ts    Zustand: enabled / locked / auto-lock
+src/store/securityStore.ts    Zustand: locked / wipeToken / auto-lock
 src/components/AppLockGate.tsx Full-screen lock UI
 ```
 
+See also `SECURITY_HARDENING_REPORT.md` for audit remediations.
+
 ## Install / build steps
 
-1. Install deps (already in `package.json`): `expo-crypto`, `@noble/ciphers`, SQLCipher plugin.
-2. Use a **development build** or CI APK (not Expo Go) for full vault mode.
-3. On device: Settings → Sicherheit → enable protection (native auth prompt).
+1. Install deps (already in `package.json`): `expo-crypto`, `@noble/ciphers`, SQLCipher plugin, `expo-screen-capture`, `expo-build-properties`.
+2. Use a **development build** or CI APK (not Expo Go) for vault mode.
+3. First unlock creates the vault (or migrates legacy plaintext).
 4. Existing plaintext DB/files are migrated; originals are removed after encryption.
 
 ## Runtime behaviour
 
-- **Locked:** DB connection closed, session key wiped, decrypted temp files deleted, Zustand people/documents cleared.
+- **Locked:** DB connection closed, session key wiped, decrypted temp files deleted, Zustand people/documents cleared, preview/PDF/WebView state wiped (`wipeToken`).
 - **Unlocked:** `PRAGMA key = x'<hex>'` on `familydata.vault.db`, documents decrypted to a temp path only for preview/export.
-- **Auto-lock:** immediate / 1 / 5 / 15 minutes after backgrounding (AppState).
+- **Auto-lock:** immediate (default) / 1 / 5 / 15 minutes after backgrounding (AppState).
+- **Screen:** `FLAG_SECURE` via `expo-screen-capture`; Android backup disabled.
 
 ## Test plan
 
-1. Fresh install without security → app works on plaintext DB.
-2. Enable security on Dev Build → auth prompt → status “Geschützt”.
+1. Fresh install on Dev Build → vault setup on first unlock (no plaintext mode).
+2. Legacy plaintext install → migrate → vault only.
 3. Kill app → relaunch → lock screen → unlock with biometrics/device code → data visible.
-4. Background longer than auto-lock → lock → memory cleared.
-5. Add document → file appears under `familydata-encrypted/*.dat`, not plaintext.
-6. Preview/export works; after lock, temp decrypt folder is empty.
-7. Disable security (confirm) → data readable again, master key deleted.
-8. Expo Go: enabling security shows clear “Dev Build required” for SQLCipher.
-9. Identifikation still requires auth when session is not already unlocked.
+4. Background (immediate auto-lock) → lock → memory/preview cleared.
+5. Add document → file under `familydata-encrypted/*.dat` only.
+6. Preview/export works; after lock, temp decrypt folder empty and PDF HTML gone.
+7. Disable security is rejected (error).
+8. Expo Go: blocked with Dev Build message.
+9. Screenshots / recent apps blank (Android FLAG_SECURE).
 10. No secrets in logs (avoid logging key material / plaintext file contents).
 
 ## Explicit non-goals (by design)
