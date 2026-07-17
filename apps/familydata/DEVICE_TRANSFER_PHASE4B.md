@@ -72,13 +72,14 @@ Chunk-Rohgröße: ~2400 Bytes (Base64 bleibt unter dem Payload-Limit).
 
 ```
 X25519 shared secret
-    ↓ HKDF-SHA256 (64 Byte OKM)
+    ↓ HKDF-SHA256 (96 Byte OKM)
 transportKey (32)  → SecureChannel AES-256-GCM
 integrityKey (32)  → HMAC für Manifests (4A) und Dokumente (4B)
+docWrapKey (32)    → Dokument-Rekey für Phase 4C (kein Master-Key-Transfer)
 ```
 
-- Keine eigene Dokument-Verschlüsselung zusätzlich – `.dat` bleibt Vault-Ciphertext
-- Kein Klartext, kein Master Key, kein Keystore-Export
+- Sender: Vault-.dat → transient Master-Decrypt (RAM) → Encrypt mit `docWrapKey` → Staging
+- Kein persistenter Klartext, kein Master Key, kein Keystore-Export
 - Absolute Gerätepfade werden nicht übernommen; Empfänger erzeugt `UUID.dat`
 
 ### Mapping

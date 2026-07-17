@@ -18,6 +18,9 @@ export const MESSAGE_TYPES = [
   'document_end',
   'document_ack',
   'document_reject',
+  'cutover_complete',
+  'cutover_ack',
+  'cutover_reject',
 ] as const;
 export type TransferMessageType = (typeof MESSAGE_TYPES)[number];
 

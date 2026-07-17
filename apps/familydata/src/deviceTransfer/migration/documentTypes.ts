@@ -1,5 +1,7 @@
 /** Phase 4B – encrypted document staging transfer (no vault cutover). */
 
+import { DOC_WRAP_FORMAT } from '@/deviceTransfer/migration/DocumentTransferWrap';
+
 export type DocumentMappingEntry = {
   documentId: string;
   localFileName: string;
@@ -7,6 +9,8 @@ export type DocumentMappingEntry = {
   sha256: string;
   byteLength: number;
   status: 'receiving' | 'validated' | 'failed';
+  /** Present when bytes are transfer-wrap ciphertext (not opaque vault .dat). */
+  wrapFormat?: typeof DOC_WRAP_FORMAT;
 };
 
 export type DocumentMappingFile = {
@@ -25,6 +29,8 @@ export type DocumentStartPayload = {
   fileSha256: string;
   /** HMAC over fileSha256 with integrity key (domain fv-doc-v1). */
   integrity: string;
+  /** aes-gcm-docwrap-v1 – required for Phase 4C rekey. */
+  wrapFormat: typeof DOC_WRAP_FORMAT;
 };
 
 export type DocumentChunkPayload = {
@@ -33,7 +39,7 @@ export type DocumentChunkPayload = {
   total: number;
   size: number;
   chunkSha256: string;
-  /** Base64 of ciphertext chunk (still .dat bytes – never plaintext). */
+  /** Base64 of transfer-wrap ciphertext chunk (never vault-master ciphertext, never plaintext). */
   data: string;
 };
 

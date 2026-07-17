@@ -55,6 +55,7 @@ class TransportManagerImpl {
   private channel: SecureChannel | null = null;
   private transportKey: Uint8Array | null = null;
   private integrityKey: Uint8Array | null = null;
+  private docWrapKey: Uint8Array | null = null;
 
   constructor() {
     this.cached = this.build();
@@ -90,6 +91,17 @@ class TransportManagerImpl {
     return new Uint8Array(this.integrityKey);
   }
 
+  /**
+   * Copy of the document wrap key (Phase 4B/4C rekey).
+   * Caller MUST wipe the returned buffer. Never equals the vault master key.
+   */
+  borrowDocWrapKey(): Uint8Array {
+    if (!this.docWrapKey || this.status !== 'connected') {
+      throw new Error('Kein Doc-Wrap-Key – Kanal nicht verbunden.');
+    }
+    return new Uint8Array(this.docWrapKey);
+  }
+
   /** @deprecated Prefer borrowIntegrityKey – returns integrity key copy. */
   borrowSessionKey(): Uint8Array {
     return this.borrowIntegrityKey();
@@ -105,6 +117,7 @@ class TransportManagerImpl {
 
     let transportKey: Uint8Array | null = null;
     let integrityKey: Uint8Array | null = null;
+    let docWrapKey: Uint8Array | null = null;
     try {
       const derived = SessionKeyService.deriveSessionKeys({
         localSecretKey: params.keyPair.secretKey,
@@ -113,15 +126,17 @@ class TransportManagerImpl {
       });
       transportKey = derived.transportKey;
       integrityKey = derived.integrityKey;
+      docWrapKey = derived.docWrapKey;
       this.transportKey = new Uint8Array(transportKey);
       this.integrityKey = new Uint8Array(integrityKey);
+      this.docWrapKey = new Uint8Array(docWrapKey);
       this.channel = new SecureChannel(this.transportKey, params.sessionId);
       this.connection = new ConnectionService();
 
       const handlers = {
         onConnected: () => {
           this.status = 'connected';
-          this.pushLog('Kanal verbunden (AEAD + getrennte Integrity-Keys).');
+          this.pushLog('Kanal verbunden (AEAD + Integrity + Doc-Wrap Keys).');
           this.emit();
         },
         onData: (frame: Uint8Array) => {
@@ -150,6 +165,7 @@ class TransportManagerImpl {
     } finally {
       wipeBytes(transportKey);
       wipeBytes(integrityKey);
+      wipeBytes(docWrapKey);
     }
   }
 
@@ -248,8 +264,10 @@ class TransportManagerImpl {
     this.channel = null;
     wipeBytes(this.transportKey);
     wipeBytes(this.integrityKey);
+    wipeBytes(this.docWrapKey);
     this.transportKey = null;
     this.integrityKey = null;
+    this.docWrapKey = null;
   }
 
   private pushLog(line: string) {

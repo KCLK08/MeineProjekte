@@ -3,11 +3,14 @@ import { Alert, Text, View } from 'react-native';
 import { Panel, PrimaryButton, SectionTitle, StatusBadge } from '@/components/ui';
 import { DocumentTransferService } from '@/deviceTransfer/migration/DocumentTransferService';
 import { MigrationTransferService } from '@/deviceTransfer/migration/MigrationTransferService';
+import { VaultCutoverService } from '@/deviceTransfer/migration/VaultCutoverService';
 import { TransferSessionManager } from '@/deviceTransfer/TransferSessionManager';
 import { TransportManager } from '@/deviceTransfer/transport/TransportManager';
 import { useDocumentTransfer } from '@/deviceTransfer/useDocumentTransfer';
 import { useMigrationTransfer } from '@/deviceTransfer/useMigrationTransfer';
 import { useTransportSession } from '@/deviceTransfer/useTransportSession';
+import { useVaultCutover } from '@/deviceTransfer/useVaultCutover';
+import { useFamilyStore } from '@/store/familyStore';
 
 function transportTone(status: string): 'ok' | 'warn' | 'danger' | 'neutral' {
   if (status === 'connected') return 'ok';
@@ -32,22 +35,45 @@ function transportLabel(status: string): string {
 }
 
 function migrationTone(phase: string): 'ok' | 'warn' | 'danger' | 'neutral' {
-  if (phase === 'committed' || phase === 'validated' || phase === 'ready_for_4c') return 'ok';
-  if (phase === 'sending' || phase === 'receiving') return 'warn';
+  if (
+    phase === 'committed' ||
+    phase === 'validated' ||
+    phase === 'ready_for_4c' ||
+    phase === 'awaiting_sender_choice'
+  ) {
+    return 'ok';
+  }
+  if (phase === 'sending' || phase === 'receiving' || phase === 'building' || phase === 'prepared') {
+    return 'warn';
+  }
   if (phase === 'failed') return 'danger';
   return 'neutral';
 }
 
 /**
- * Phase 3 channel + Phase 4A/4B transfer test UI.
+ * Phase 3 channel + Phase 4A/4B/4C transfer UI.
  */
 export function SecureChannelPanel({ paired }: { paired: boolean }) {
   const transport = useTransportSession();
   const migration = useMigrationTransfer();
   const docs = useDocumentTransfer();
+  const cutover = useVaultCutover();
   const role = TransferSessionManager.getSnapshot().role;
+  const bootstrap = useFamilyStore((s) => s.bootstrap);
+  const transferId = migration.transferId;
 
   if (!paired) return null;
+
+  const canRunCutover =
+    role === 'joiner' &&
+    migration.phase === 'committed' &&
+    docs.phase === 'ready_for_4c' &&
+    cutover.phase !== 'building' &&
+    cutover.phase !== 'prepared' &&
+    cutover.phase !== 'validated' &&
+    cutover.phase !== 'committed' &&
+    transport.status === 'connected' &&
+    Boolean(transferId);
 
   return (
     <View className="mt-4">
@@ -58,7 +84,7 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
           <StatusBadge label={transportLabel(transport.status)} tone={transportTone(transport.status)} />
         </View>
         <Text className="mb-3 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-          TCP + AES-256-GCM (Transport-Key). Integrity-Key getrennt via HKDF. Zuerst Host öffnen.
+          TCP + AES-256-GCM. HKDF: Transport-, Integrity- und Doc-Wrap-Key. Zuerst Host öffnen.
         </Text>
 
         {transport.error ? (
@@ -170,11 +196,11 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
           <SectionTitle>Dokumenttransfer (Phase 4B)</SectionTitle>
           <Panel className="px-4 py-4">
             <View className="mb-3 flex-row items-center justify-between">
-              <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">.dat → Staging</Text>
+              <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Doc-Wrap → Staging</Text>
               <StatusBadge label={docs.phase} tone={migrationTone(docs.phase)} />
             </View>
             <Text className="mb-3 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-              Nur verschlüsselte Dateien, Chunk-Hashes, neue UUID.dat-Namen. Kein Vault-Cutover.
+              Vault-.dat wird mit Doc-Wrap-Key umgeschlüsselt (Klartext nur RAM). Kein Master-Key-Transfer.
             </Text>
             {docs.progress ? (
               <Text className="mb-2 font-sans text-sm text-ink dark:text-[#e7f2ec]">{docs.progress}</Text>
@@ -198,12 +224,113 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
               />
             ) : (
               <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-                Empfänger: speichert unter …/documents/ mit Mapping alter documentId → neue Datei.
+                Empfänger: speichert Wrap-Ciphertext unter …/documents/ mit Mapping.
               </Text>
             )}
             {migration.phase !== 'committed' && role === 'host' ? (
               <Text className="mt-2 font-sans text-[12px] text-mute dark:text-[#9bb0a6]">
                 Zuerst Phase 4A (Metadaten) abschließen.
+              </Text>
+            ) : null}
+          </Panel>
+        </View>
+      ) : null}
+
+      {transport.status === 'connected' || cutover.phase === 'awaiting_sender_choice' || cutover.phase === 'committed' ? (
+        <View className="mt-4">
+          <SectionTitle>Vault-Cutover (Phase 4C)</SectionTitle>
+          <Panel className="px-4 py-4">
+            <View className="mb-3 flex-row items-center justify-between">
+              <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Finale Migration</Text>
+              <StatusBadge label={cutover.phase} tone={migrationTone(cutover.phase)} />
+            </View>
+            <Text className="mb-3 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+              Neuer Master Key (Keystore), neue SQLCipher-Vault, Dokument-Rekey, atomarer Commit. Kein
+              Master-Key-Transfer.
+            </Text>
+            {cutover.progress ? (
+              <Text className="mb-2 font-sans text-sm text-ink dark:text-[#e7f2ec]">{cutover.progress}</Text>
+            ) : null}
+            {cutover.phase === 'committed' || cutover.people > 0 ? (
+              <Text className="mb-3 font-sans text-[13px] text-mute dark:text-[#9bb0a6]">
+                Personen: {cutover.people} · Dokumente: {cutover.documents} · Dateien: {cutover.files}
+              </Text>
+            ) : null}
+            {cutover.error ? (
+              <Text className="mb-3 font-sans text-sm text-danger">{cutover.error}</Text>
+            ) : null}
+
+            {role === 'joiner' && transferId ? (
+              <PrimaryButton
+                label="Migration starten (neuer Vault)"
+                icon="shield-checkmark-outline"
+                disabled={!canRunCutover}
+                onPress={() => {
+                  Alert.alert(
+                    'Vault-Cutover',
+                    'Es wird eine neue Vault mit neuem Master Key erzeugt. Bestehende Empfänger-Daten werden ersetzt.',
+                    [
+                      { text: 'Abbrechen', style: 'cancel' },
+                      {
+                        text: 'Starten',
+                        style: 'destructive',
+                        onPress: () => {
+                          void VaultCutoverService.runCutover(transferId)
+                            .then(() => bootstrap())
+                            .catch((e) => Alert.alert('Cutover', (e as Error).message));
+                        },
+                      },
+                    ]
+                  );
+                }}
+              />
+            ) : null}
+
+            {role === 'host' && cutover.phase === 'awaiting_sender_choice' ? (
+              <View className="gap-2">
+                <Text className="mb-1 font-sansBold text-sm text-ink dark:text-[#e7f2ec]">
+                  Übertragung abgeschlossen.
+                </Text>
+                <Text className="mb-2 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+                  Möchten Sie die Daten auf diesem Gerät behalten oder entfernen?
+                </Text>
+                <PrimaryButton
+                  label="Behalten"
+                  icon="checkmark-outline"
+                  onPress={() => {
+                    VaultCutoverService.markSenderKept();
+                    Alert.alert('Sender', 'Daten bleiben auf diesem Gerät.');
+                  }}
+                />
+                <PrimaryButton
+                  label="Sicher löschen"
+                  tone="ghost"
+                  icon="trash-outline"
+                  onPress={() => {
+                    Alert.alert(
+                      'Sicher löschen',
+                      'Alle Personen, Dokumente und verschlüsselten Dateien auf diesem Gerät werden entfernt. Der gerätegebundene Master Key bleibt erhalten.',
+                      [
+                        { text: 'Abbrechen', style: 'cancel' },
+                        {
+                          text: 'Löschen',
+                          style: 'destructive',
+                          onPress: () => {
+                            void VaultCutoverService.secureWipeSenderVault()
+                              .then(() => bootstrap())
+                              .catch((e) => Alert.alert('Löschen', (e as Error).message));
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                />
+              </View>
+            ) : null}
+
+            {role === 'host' && cutover.phase !== 'awaiting_sender_choice' ? (
+              <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+                Sender: wartet auf Cutover-Bestätigung vom Empfänger. Kein automatisches Löschen.
               </Text>
             ) : null}
           </Panel>
