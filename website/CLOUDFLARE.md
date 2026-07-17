@@ -1,37 +1,55 @@
 # Cloudflare – Setup (Projekt `kclk08`)
 
-Das Root enthält `wrangler.toml`. Dadurch funktioniert Cloudflare CI mit:
+Worker **`kclk08`** liefert die Website aus `_site/` und APKs aus dem R2-Bucket **`kclk08-apks`** unter `/apks/<Datei>.apk`.
+
+Das Root enthält `wrangler.toml`. Cloudflare CI / GitHub Actions:
 
 ```bash
 npx wrangler deploy
 ```
 
-Wrangler baut zuerst (`npm run build:pages` → `_site/`) und deployt die Assets als Worker **`kclk08`**.
+## Einmalig: R2-Bucket
 
-Live (typisch): `https://kclk08.<account-subdomain>.workers.dev/`  
-(Account-abhängig kann auch `https://kclk08.workers.dev/` konfiguriert sein.)
+Im Cloudflare-Dashboard → **R2** → Create bucket: `kclk08-apks`  
+oder lokal (mit Token):
 
-## Empfohlen: eine Deploy-Quelle wählen
+```bash
+npx wrangler r2 bucket create kclk08-apks
+```
 
-### A) Cloudflare Git / Workers Builds (aktueller Fehlerfall)
+`CLOUDFLARE_API_TOKEN` braucht Rechte für **Workers** + **R2 Edit**.
 
-Dashboard → Worker **kclk08** → Settings → Builds:
+## APKs nach R2 (privates Repo)
+
+GitHub Releases bleiben privat. Downloads laufen über denselben Hostname wie die Site  
+(Zero Trust Access gilt dann auch für APKs).
+
+1. Bucket anlegen (oben).
+2. Worker deployen (`wrangler deploy` / GitHub Action).
+3. Einmalig vorhandene Releases spiegeln:  
+   Actions → **Sync APKs to Cloudflare R2** → Run workflow  
+   (`scripts/sync-github-apks-to-r2.sh`)
+4. Danach lädt jeder APK-Build automatisch nach R2 hoch.
+
+Website-Links: `/apks/FamilyVault.apk` usw. (`website/releases.json` + HEAD-Check in `app.js`).
+
+## Deploy-Quelle
+
+### A) Cloudflare Git / Workers Builds
 
 | Einstellung | Wert |
 |---|---|
-| Root directory | `/` (Repo-Root) |
-| Build command | leer lassen (Build steckt in `wrangler.toml`) |
+| Root directory | `/` |
+| Build command | leer |
 | Deploy command | `npx wrangler deploy` |
 | Node version | `22` |
 
-Dann reicht der bisherige Deploy-Command – die Workspace-Detection scheitert nicht mehr, weil `wrangler.toml` im Root liegt.
-
-### B) GitHub Actions (Direct Upload)
+### B) GitHub Actions
 
 Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`  
-Workflow: `.github/workflows/deploy-cloudflare.yml` → `wrangler deploy`
+Workflow: `.github/workflows/deploy-cloudflare.yml`
 
-Wenn Actions und Cloudflare-Git **beide** aktiv sind, deployen sie denselben Worker und können sich überschreiben. Eine Quelle genügt.
+Nur eine Quelle aktiv lassen.
 
 ## Lokal
 

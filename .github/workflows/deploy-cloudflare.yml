@@ -9,6 +9,7 @@ on:
       - 'apps/bautagebuch/**'
       - 'scripts/**'
       - 'wrangler.toml'
+      - 'workers/**'
       - '.github/workflows/deploy-cloudflare.yml'
       - 'package.json'
       - 'package-lock.json'
@@ -39,7 +40,8 @@ jobs:
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
       # `wrangler.toml` [build] runs `npm run build:pages` before upload.
-      - name: Deploy Worker (static assets)
+      # R2 bucket `kclk08-apks` must already exist (see website/CLOUDFLARE.md).
+      - name: Deploy Worker (static assets + APK proxy)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}

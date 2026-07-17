@@ -54,15 +54,15 @@ const CATALOG = [
   },
 ];
 
-const OWNER = 'KCLK08';
-const REPO = 'MeineProjekte';
-
 function pagesWebUrl(slug) {
   return new URL(`./apps/${slug}/`, window.location.href).href;
 }
 
-function releaseTag(slug) {
-  return `${slug}-apk-latest`;
+function apkDownloadUrl(apkFile, metaUrl) {
+  if (metaUrl && (metaUrl.startsWith('/') || metaUrl.startsWith('./') || metaUrl.startsWith('http'))) {
+    return new URL(metaUrl, window.location.href).href;
+  }
+  return new URL(`./apks/${apkFile}`, window.location.href).href;
 }
 
 function formatDate(iso) {
@@ -72,47 +72,46 @@ function formatDate(iso) {
   return d.toLocaleDateString('de-DE', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-async function fetchRelease(slug, apkFile, versionFallback) {
-  const tag = releaseTag(slug);
+async function probeApk(url) {
   try {
-    const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/releases/tags/${tag}`, {
-      headers: { Accept: 'application/vnd.github+json' },
-    });
-    if (!res.ok) throw new Error(String(res.status));
-    const data = await res.json();
-    const asset =
-      (data.assets || []).find((a) => a.name === apkFile) ||
-      (data.assets || []).find((a) => a.name.endsWith('.apk'));
-    return {
-      version: versionFallback || data.name || data.tag_name || '—',
-      buildDate: data.published_at || data.created_at,
-      apkUrl: asset?.browser_download_url || null,
-      ready: Boolean(asset?.browser_download_url),
-    };
+    const head = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+    if (head.ok) return true;
   } catch {
-    try {
-      const local = await fetch('./releases.json', { cache: 'no-store' });
-      if (local.ok) {
-        const json = await local.json();
-        if (json[slug]) {
-          return {
-            version: json[slug].version || versionFallback || '—',
-            buildDate: json[slug].buildDate,
-            apkUrl: json[slug].apkUrl,
-            ready: false,
-          };
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-    return {
-      version: versionFallback || '—',
-      buildDate: null,
-      apkUrl: null,
-      ready: false,
-    };
+    /* ignore */
   }
+  try {
+    const get = await fetch(url, {
+      method: 'GET',
+      headers: { Range: 'bytes=0-0' },
+      cache: 'no-store',
+    });
+    return get.ok || get.status === 206;
+  } catch {
+    return false;
+  }
+}
+
+async function fetchRelease(slug, apkFile, versionFallback) {
+  let meta = {};
+  try {
+    const local = await fetch('./releases.json', { cache: 'no-store' });
+    if (local.ok) {
+      const json = await local.json();
+      meta = json[slug] || {};
+    }
+  } catch {
+    /* ignore */
+  }
+
+  const apkUrl = apkDownloadUrl(apkFile, meta.apkUrl);
+  const ready = await probeApk(apkUrl);
+
+  return {
+    version: meta.version || versionFallback || '—',
+    buildDate: meta.buildDate || null,
+    apkUrl,
+    ready,
+  };
 }
 
 function renderApp(app, release) {
