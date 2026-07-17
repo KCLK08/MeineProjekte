@@ -74,15 +74,17 @@ export function resolveTransferActionHint(args: {
     cutoverPhase === 'building' || cutoverPhase === 'prepared' || cutoverPhase === 'validated';
 
   if (role === 'host') {
-    if (!connected && !connecting) return 'Als Nächstes: Verbindung herstellen';
+    if (!connected && !connecting) return 'Warte: Sichere Verbindung wird aufgebaut…';
     if (connecting) return 'Warte: Verbindung wird aufgebaut…';
     if (!familyDone) {
       return familyBusy
         ? 'Warte: Familiendaten werden gesendet…'
-        : 'Als Nächstes: Familiendaten senden';
+        : 'Warte: Familiendaten werden gesendet…';
     }
     if (!docsDone) {
-      return docsBusy ? 'Warte: Dokumente werden gesendet…' : 'Als Nächstes: Dokumente senden';
+      return docsBusy
+        ? 'Warte: Dokumente werden gesendet…'
+        : 'Warte: Dokumente werden gesendet…';
     }
     if (!cutoverDone) {
       return 'Warte: Das neue Gerät richtet die Daten ein.';
@@ -91,17 +93,13 @@ export function resolveTransferActionHint(args: {
   }
 
   // joiner
-  if (!connected && !connecting) return 'Als Nächstes: Mit altem Gerät verbinden';
+  if (!connected && !connecting) return 'Warte: Sichere Verbindung wird aufgebaut…';
   if (connecting) return 'Warte: Verbindung wird aufgebaut…';
   if (!familyDone) {
-    return familyBusy
-      ? 'Warte: Das alte Gerät sendet die Daten.'
-      : 'Warte: Das alte Gerät sendet die Daten.';
+    return 'Warte: Das alte Gerät sendet die Daten.';
   }
   if (!docsDone) {
-    return docsBusy
-      ? 'Warte: Das alte Gerät sendet die Dokumente.'
-      : 'Warte: Das alte Gerät sendet die Daten.';
+    return 'Warte: Das alte Gerät sendet die Dokumente.';
   }
   if (!cutoverDone) {
     return cutoverBusy

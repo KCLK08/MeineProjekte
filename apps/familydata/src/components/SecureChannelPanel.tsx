@@ -4,11 +4,8 @@ import { Alert, Text, View } from 'react-native';
 import { TransferActionHint } from '@/components/TransferActionHint';
 import { TransferTimeline, type TimelineStep } from '@/components/TransferTimeline';
 import { LoadingBlock, Panel, PrimaryButton, StatusBadge } from '@/components/ui';
-import { DocumentTransferService } from '@/deviceTransfer/migration/DocumentTransferService';
-import { MigrationTransferService } from '@/deviceTransfer/migration/MigrationTransferService';
 import { VaultCutoverService } from '@/deviceTransfer/migration/VaultCutoverService';
 import { TransferSessionManager } from '@/deviceTransfer/TransferSessionManager';
-import { TransportManager } from '@/deviceTransfer/transport/TransportManager';
 import { resolveTransferActionHint } from '@/deviceTransfer/transferUiActions';
 import {
   formatDocumentTransferDetail,
@@ -16,10 +13,10 @@ import {
   friendlyTransferError,
   KEEP_APP_OPEN_HINT,
 } from '@/deviceTransfer/transferUiCopy';
-import { useDocumentTransfer } from '@/deviceTransfer/useDocumentTransfer';
-import { useMigrationTransfer } from '@/deviceTransfer/useMigrationTransfer';
-import { useTransportSession } from '@/deviceTransfer/useTransportSession';
-import { useVaultCutover } from '@/deviceTransfer/useVaultCutover';
+import {
+  resetTransferSession,
+  useProductionTransferFlow,
+} from '@/deviceTransfer/useProductionTransferFlow';
 import { useFamilyStore } from '@/store/familyStore';
 
 function alertFriendly(title: string, error: unknown) {
@@ -61,9 +58,7 @@ function TransferSummaryPanel({
       ) : null}
       {people > 0 ? (
         <Text className="mt-1 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
-          {people === 1
-            ? '1 Person übernommen'
-            : `${people} Personen übernommen`}
+          {people === 1 ? '1 Person übernommen' : `${people} Personen übernommen`}
         </Text>
       ) : null}
     </Panel>
@@ -168,19 +163,17 @@ function buildTimeline(args: {
 
 /**
  * Productive transfer progress UI after pairing + SAS confirmation.
- * No debug/test controls. Services unchanged.
+ * Snapshots come from live Transfer services; host auto-advances connect→meta→docs.
  */
 export function SecureChannelPanel({ paired }: { paired: boolean }) {
   const router = useRouter();
-  const transport = useTransportSession();
-  const migration = useMigrationTransfer();
-  const docs = useDocumentTransfer();
-  const cutover = useVaultCutover();
-  const role = TransferSessionManager.getSnapshot().role;
   const bootstrap = useFamilyStore((s) => s.bootstrap);
-  const transferId = migration.transferId;
+  const flow = useProductionTransferFlow(paired);
 
   if (!paired) return null;
+
+  const { role, transport, migration, docs, cutover, displayError, hasHardFailure } = flow;
+  const transferId = migration.transferId;
 
   const connected = transport.status === 'connected';
   const familyDone = migration.phase === 'committed' || migration.phase === 'validated';
@@ -218,10 +211,7 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
       migration.progress,
       'Familieninformationen werden übertragen…'
     ),
-    cutoverDetail: friendlyProgressLine(
-      cutover.progress,
-      'Neues Gerät wird eingerichtet…'
-    ),
+    cutoverDetail: friendlyProgressLine(cutover.progress, 'Neues Gerät wird eingerichtet…'),
   });
 
   const actionHint = resolveTransferActionHint({
@@ -231,10 +221,6 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
     docsPhase: docs.phase,
     cutoverPhase: cutover.phase,
   });
-
-  const displayError = friendlyTransferError(
-    transport.error || migration.error || docs.error || cutover.error
-  );
 
   const busy =
     transport.status === 'connecting' ||
@@ -246,10 +232,17 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
     cutover.phase === 'prepared' ||
     cutover.phase === 'validated';
 
-  const summaryPeople =
-    cutover.people > 0 ? cutover.people : migration.peopleCount ?? 0;
+  const summaryPeople = cutover.people > 0 ? cutover.people : migration.peopleCount ?? 0;
   const summaryDocuments =
-    cutover.documents > 0 ? cutover.documents : migration.documentCount ?? docs.receivedCount ?? 0;
+    cutover.documents > 0
+      ? cutover.documents
+      : migration.documentCount ?? docs.receivedCount ?? 0;
+
+  const goHubAfterReset = () => {
+    void resetTransferSession()
+      .then(() => router.replace('/settings/transfer' as Href))
+      .catch((e) => alertFriendly('Neu starten', e));
+  };
 
   if (cutoverDone && role === 'joiner') {
     return (
@@ -372,16 +365,30 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
       ) : null}
 
       <Panel className="mt-4 px-4 py-4">
-        {displayError ? (
-          <Text
-            className="mb-3 font-sans text-sm text-danger"
-            accessibilityRole="alert"
-          >
+        {hasHardFailure ? (
+          <View className="mb-3 gap-3">
+            <StatusBadge label="Fehler" tone="danger" />
+            {displayError ? (
+              <Text className="font-sans text-sm text-danger" accessibilityRole="alert">
+                {displayError}
+              </Text>
+            ) : null}
+            <PrimaryButton
+              label="Neu starten"
+              icon="refresh-outline"
+              accessibilityLabel="Übertragung neu starten"
+              onPress={goHubAfterReset}
+            />
+          </View>
+        ) : null}
+
+        {!hasHardFailure && displayError ? (
+          <Text className="mb-3 font-sans text-sm text-danger" accessibilityRole="alert">
             {displayError}
           </Text>
         ) : null}
 
-        {busy ? (
+        {busy && !hasHardFailure ? (
           <View className="mb-3 py-2" accessibilityLabel="Übertragung läuft">
             <LoadingBlock
               label={
@@ -399,95 +406,67 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
           </View>
         ) : null}
 
-        <View className="gap-2">
-          {!connected && transport.status !== 'connecting' ? (
-            <PrimaryButton
-              label={role === 'host' ? 'Verbindung herstellen' : 'Mit altem Gerät verbinden'}
-              icon="link-outline"
-              onPress={() => {
-                const params = TransferSessionManager.getTransportConnectParams();
-                if (!params) {
+        {!hasHardFailure ? (
+          <View className="gap-2">
+            {!connected && transport.status === 'connecting' ? (
+              <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+                Sichere Verbindung wird aufgebaut…
+              </Text>
+            ) : null}
+
+            {connected && role === 'joiner' && !familyDone ? (
+              <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+                Warte auf Daten
+              </Text>
+            ) : null}
+
+            {connected && role === 'joiner' && familyDone && !docsDone ? (
+              <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+                Dokumente werden übertragen
+              </Text>
+            ) : null}
+
+            {connected && role === 'joiner' && docsDone && !cutoverDone ? (
+              <PrimaryButton
+                label="Einrichtung starten"
+                icon="shield-checkmark-outline"
+                disabled={!canRunCutover}
+                onPress={() => {
+                  if (!transferId) return;
                   Alert.alert(
-                    'Verbindung',
-                    'Bitte vergleiche zuerst den Sicherheitscode auf beiden Geräten.'
-                  );
-                  return;
-                }
-                void TransportManager.connect(params).catch((e) => alertFriendly('Verbindung', e));
-              }}
-            />
-          ) : null}
-
-          {connected && role === 'host' && !familyDone ? (
-            <PrimaryButton
-              label="Familiendaten senden"
-              icon="cloud-upload-outline"
-              disabled={migration.phase === 'sending'}
-              onPress={() => {
-                void MigrationTransferService.sendMetadataTransfer().catch((e) =>
-                  alertFriendly('Übertragung', e)
-                );
-              }}
-            />
-          ) : null}
-
-          {connected && role === 'joiner' && !familyDone ? (
-            <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-              Warte auf Daten
-            </Text>
-          ) : null}
-
-          {connected && role === 'host' && familyDone && !docsDone ? (
-            <PrimaryButton
-              label="Dokumente senden"
-              icon="document-outline"
-              disabled={docs.phase === 'sending'}
-              onPress={() => {
-                void DocumentTransferService.sendAllEncryptedDocuments().catch((e) =>
-                  alertFriendly('Übertragung', e)
-                );
-              }}
-            />
-          ) : null}
-
-          {connected && role === 'joiner' && familyDone && !docsDone ? (
-            <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-              Dokumente werden übertragen
-            </Text>
-          ) : null}
-
-          {connected && role === 'joiner' && docsDone && !cutoverDone ? (
-            <PrimaryButton
-              label="Einrichtung starten"
-              icon="shield-checkmark-outline"
-              disabled={!canRunCutover}
-              onPress={() => {
-                if (!transferId) return;
-                Alert.alert(
-                  'Einrichtung',
-                  'FamilyData wird auf diesem Gerät eingerichtet. Bestehende Daten auf diesem Gerät werden ersetzt.',
-                  [
-                    { text: 'Abbrechen', style: 'cancel' },
-                    {
-                      text: 'Starten',
-                      onPress: () => {
-                        void VaultCutoverService.runCutover(transferId)
-                          .then(() => bootstrap())
-                          .catch((e) => alertFriendly('Einrichtung', e));
+                    'Einrichtung',
+                    'FamilyData wird auf diesem Gerät eingerichtet. Bestehende Daten auf diesem Gerät werden ersetzt.',
+                    [
+                      { text: 'Abbrechen', style: 'cancel' },
+                      {
+                        text: 'Starten',
+                        onPress: () => {
+                          void VaultCutoverService.runCutover(transferId)
+                            .then(() => bootstrap())
+                            .catch((e) => alertFriendly('Einrichtung', e));
+                        },
                       },
-                    },
-                  ]
-                );
-              }}
-            />
-          ) : null}
+                    ]
+                  );
+                }}
+              />
+            ) : null}
 
-          {connected && role === 'host' && docsDone && !awaitingSenderChoice && !cutoverDone ? (
-            <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-              Neues Gerät wird eingerichtet
-            </Text>
-          ) : null}
-        </View>
+            {connected && role === 'host' && docsDone && !awaitingSenderChoice && !cutoverDone ? (
+              <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+                Neues Gerät wird eingerichtet
+              </Text>
+            ) : null}
+
+            {connected && role === 'host' && !docsDone ? (
+              <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+                {familyDone
+                  ? 'Dokumente werden gesendet…'
+                  : 'Familiendaten werden gesendet…'}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
       </Panel>
     </View>
   );
