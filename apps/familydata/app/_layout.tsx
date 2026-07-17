@@ -47,6 +47,8 @@ function RootNavigator() {
 
   useEffect(() => {
     void enableScreenshotProtection();
+    // Transfer sessions are RAM-only; wipe any orphaned staging from prior crashes.
+    void import('@/deviceTransfer/wipeOrphanStaging').then((m) => m.wipeOrphanTransferStaging());
   }, []);
 
   useEffect(() => {

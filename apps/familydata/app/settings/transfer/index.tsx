@@ -40,8 +40,9 @@ export default function TransferHubScreen() {
               icon="phone-portrait-outline"
               disabled={isLocked}
               onPress={() => {
-                TransferSessionManager.clear();
-                router.push('/settings/transfer/host' as Href);
+                void TransferSessionManager.clear().then(() =>
+                  router.push('/settings/transfer/host' as Href)
+                );
               }}
             />
           </View>
@@ -59,8 +60,9 @@ export default function TransferHubScreen() {
               icon="qr-code-outline"
               disabled={isLocked}
               onPress={() => {
-                TransferSessionManager.clear();
-                router.push('/settings/transfer/join' as Href);
+                void TransferSessionManager.clear().then(() =>
+                  router.push('/settings/transfer/join' as Href)
+                );
               }}
             />
           </View>

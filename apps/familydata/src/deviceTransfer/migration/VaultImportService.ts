@@ -1,6 +1,8 @@
+import { wipeBytes } from '@/deviceTransfer/bytes';
 import { MigrationManifestService } from '@/deviceTransfer/migration/MigrationManifest';
 import { StagingStore } from '@/deviceTransfer/migration/StagingStore';
 import type { MigrationManifest, StagingRecord, VaultMetadataPayload } from '@/deviceTransfer/migration/types';
+import { TransportManager } from '@/deviceTransfer/transport/TransportManager';
 
 /**
  * Receiver-side import into staging only.
@@ -18,18 +20,24 @@ export const VaultImportService = {
   },
 
   async storePayload(transferId: string, payloadJson: string) {
-    await StagingStore.writePayload(transferId, payloadJson);
-    await StagingStore.setStatus(transferId, 'staged');
+    const stagingKey = TransportManager.borrowStagingKey();
+    try {
+      await StagingStore.writePayload(transferId, payloadJson, stagingKey);
+      await StagingStore.setStatus(transferId, 'staged');
+    } finally {
+      wipeBytes(stagingKey);
+    }
   },
 
   /**
    * Validate manifest + payload integrity. On failure: rollback staging.
    */
   async validate(transferId: string, integrityKey: Uint8Array): Promise<VaultMetadataPayload> {
+    const stagingKey = TransportManager.borrowStagingKey();
     try {
       const manifest = await StagingStore.readManifest(transferId);
       if (!manifest) throw new Error('Manifest fehlt im Staging.');
-      const payloadJson = await StagingStore.readPayload(transferId);
+      const payloadJson = await StagingStore.readPayload(transferId, stagingKey);
       const payload = MigrationManifestService.verifyBeforeImport({
         manifest,
         payloadJson,
@@ -41,6 +49,8 @@ export const VaultImportService = {
       await StagingStore.setStatus(transferId, 'failed', (e as Error).message).catch(() => undefined);
       await StagingStore.rollback(transferId);
       throw e;
+    } finally {
+      wipeBytes(stagingKey);
     }
   },
 

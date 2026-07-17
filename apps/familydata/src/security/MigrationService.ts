@@ -53,37 +53,10 @@ export const MigrationService = {
     return { documentsEncrypted };
   },
 
-  async migrateToPlaintext(masterKey: Uint8Array): Promise<void> {
-    const keyHex = KeyStoreService.toSqlCipherHex(masterKey);
-    await closeDatabase();
-
-    const vault = await SQLite.openDatabaseAsync(VAULT_DB_NAME);
-    await vault.execAsync(`PRAGMA key = "x'${keyHex}'";`);
-    await vault.execAsync('PRAGMA foreign_keys = ON;');
-
-    const plain = await SQLite.openDatabaseAsync(PLAIN_DB_NAME);
-    await plain.execAsync('PRAGMA foreign_keys = ON;');
-    await copyAllTablesBetween(vault, plain);
-
-    const docs = await plain.getAllAsync<{ id: string; filePath: string }>(
-      `SELECT id, filePath FROM documents WHERE TRIM(filePath) != ''`
-    );
-    for (const doc of docs) {
-      if (!DocumentEncryptionService.isEncryptedPath(doc.filePath)) continue;
-      const decrypted = await DocumentEncryptionService.decryptFile(doc.filePath, masterKey, '.bin');
-      const permanent = `${FileSystem.documentDirectory}familydata-files/${doc.id}.bin`;
-      await FileSystem.makeDirectoryAsync(`${FileSystem.documentDirectory}familydata-files/`, {
-        intermediates: true,
-      });
-      await FileSystem.copyAsync({ from: decrypted, to: permanent });
-      await DocumentEncryptionService.deleteEncryptedFile(doc.filePath);
-      await plain.runAsync('UPDATE documents SET filePath = ? WHERE id = ?', [permanent, doc.id]);
-    }
-
-    await vault.closeAsync();
-    await plain.closeAsync();
-    await deleteDatabaseFile(VAULT_DB_NAME);
-    await DocumentEncryptionService.clearDecryptedTemps();
-    await writeVaultMigrated(false);
+  /**
+   * Hardened builds must not recreate plaintext vaults.
+   */
+  async migrateToPlaintext(_masterKey: Uint8Array): Promise<void> {
+    throw new Error('Klartext-Migration ist deaktiviert (Sicherheitsrichtlinie).');
   },
 };

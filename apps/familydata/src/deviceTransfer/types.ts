@@ -10,6 +10,12 @@ export const PAIRING_ACCEPT_TYPE = 'fv-pair-accept' as const;
 /** Default session lifetime for QR payloads. */
 export const SESSION_TTL_MS = 5 * 60 * 1000;
 
+/**
+ * Absolute lifetime after local SAS confirmation (transfer window).
+ * Prevents immortal paired ephemeral material.
+ */
+export const TRANSFER_SESSION_TTL_MS = 30 * 60 * 1000;
+
 /** Default TCP listen port for Phase 3 secure channel. */
 export const TRANSFER_TCP_PORT = 27891;
 
@@ -67,6 +73,8 @@ export type TransferSessionSnapshot = {
   expiresAt: number | null;
   /** Short confirmation code derived after mutual keys (no secret material). */
   confirmationCode: string | null;
+  /** User explicitly confirmed SAS match locally (required before channel open). */
+  sasConfirmed: boolean;
   /** Advertised TCP endpoint from offer (joiner uses to connect). */
   transportHost: string | null;
   transportPort: number | null;
