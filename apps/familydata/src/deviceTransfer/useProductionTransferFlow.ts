@@ -42,13 +42,26 @@ export function useProductionTransferFlow(enabled: boolean) {
   const connectStarted = useRef(false);
   const metaStarted = useRef(false);
   const docsStarted = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const safeSetFlowError = (message: string | null) => {
+    if (!mountedRef.current) return;
+    setFlowError(message);
+  };
 
   useEffect(() => {
     if (!enabled) {
       connectStarted.current = false;
       metaStarted.current = false;
       docsStarted.current = false;
-      setFlowError(null);
+      if (mountedRef.current) setFlowError(null);
     }
   }, [enabled]);
 
@@ -71,18 +84,17 @@ export function useProductionTransferFlow(enabled: boolean) {
     if (!params) return;
 
     connectStarted.current = true;
-    let cancelled = false;
+    let active = true;
 
     void (async () => {
       try {
         if (role === 'joiner') {
-          // Give the host a moment to start listening.
           await delay(700);
         }
         const attempts = role === 'joiner' ? 20 : 1;
         let lastError: unknown = null;
         for (let i = 0; i < attempts; i += 1) {
-          if (cancelled) return;
+          if (!active || !mountedRef.current) return;
           const liveParams = TransferSessionManager.getTransportConnectParams();
           if (!liveParams) {
             throw new Error(
@@ -100,21 +112,18 @@ export function useProductionTransferFlow(enabled: boolean) {
         }
         throw lastError ?? new Error('Verbindung fehlgeschlagen.');
       } catch (error) {
-        if (cancelled) return;
+        if (!active || !mountedRef.current) return;
         connectStarted.current = false;
-        setFlowError(friendlyTransferError(error));
+        safeSetFlowError(friendlyTransferError(error));
       }
     })();
 
     return () => {
-      cancelled = true;
-      // Allow remount/retry unless the channel is already up.
+      active = false;
       if (TransportManager.getSnapshot().status !== 'connected') {
         connectStarted.current = false;
       }
     };
-    // Intentionally not keyed on transport.status — status changes during connect()
-    // must not cancel/restart the in-flight connection attempt.
   }, [enabled, role, restartToken]);
 
   // Host: metadata after channel is up.
@@ -125,10 +134,17 @@ export function useProductionTransferFlow(enabled: boolean) {
     if (metaStarted.current) return;
 
     metaStarted.current = true;
+    let active = true;
+
     void MigrationTransferService.sendMetadataTransfer().catch((error) => {
+      if (!active || !mountedRef.current) return;
       metaStarted.current = false;
-      setFlowError(friendlyTransferError(error));
+      safeSetFlowError(friendlyTransferError(error));
     });
+
+    return () => {
+      active = false;
+    };
   }, [enabled, role, transport.status, migration.phase, restartToken]);
 
   // Host: documents after metadata ACK / committed.
@@ -140,29 +156,39 @@ export function useProductionTransferFlow(enabled: boolean) {
     if (docsStarted.current) return;
 
     docsStarted.current = true;
+    let active = true;
+
     void DocumentTransferService.sendAllEncryptedDocuments().catch((error) => {
+      if (!active || !mountedRef.current) return;
       docsStarted.current = false;
-      setFlowError(friendlyTransferError(error));
+      safeSetFlowError(friendlyTransferError(error));
     });
+
+    return () => {
+      active = false;
+    };
   }, [enabled, role, transport.status, migration.phase, docs.phase, restartToken]);
 
   const serviceError =
     transport.error || migration.error || docs.error || cutover.error || null;
   const displayError = flowError || (serviceError ? friendlyTransferError(serviceError) : null);
 
+  /** Hard failures only — not user abort / SAS mismatch (handled outside this hook). */
   const hasHardFailure =
-    Boolean(displayError) ||
+    Boolean(flowError) ||
     transport.status === 'error' ||
     migration.phase === 'failed' ||
     docs.phase === 'failed' ||
     cutover.phase === 'failed';
 
   async function restartFlow() {
+    if (!mountedRef.current) return;
     setFlowError(null);
     connectStarted.current = false;
     metaStarted.current = false;
     docsStarted.current = false;
     await resetTransferSession();
+    if (!mountedRef.current) return;
     setRestartToken((value) => value + 1);
   }
 
