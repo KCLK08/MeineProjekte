@@ -1,5 +1,5 @@
 import { useRouter, type Href } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -9,7 +9,6 @@ import { SecureChannelPanel } from '@/components/SecureChannelPanel';
 import { Panel, PrimaryButton, Screen, SectionTitle, StatusBadge } from '@/components/ui';
 import { TransferSessionManager } from '@/deviceTransfer/TransferSessionManager';
 import { useTransferSession } from '@/deviceTransfer/useTransferSession';
-import { beginAutoLockSuppress, endAutoLockSuppress } from '@/security/autoLockSuppress';
 
 function statusLabel(status: string) {
   switch (status) {
@@ -34,10 +33,7 @@ export default function TransferJoinScreen() {
   const session = useTransferSession();
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    beginAutoLockSuppress();
-    return () => endAutoLockSuppress();
-  }, []);
+  // Auto-lock stays active. Live QR camera suppresses only while scanning.
 
   const acceptQr = TransferSessionManager.getAcceptQr();
 

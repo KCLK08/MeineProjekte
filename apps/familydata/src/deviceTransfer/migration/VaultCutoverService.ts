@@ -144,10 +144,12 @@ class VaultCutoverServiceImpl {
 
   /**
    * Receiver: run full cutover for a staging transfer that completed 4A+4B.
+   * Auto-lock stays active during prepare/build/validate; only the atomic
+   * commit (file swap + Keystore) is briefly suppressed.
    */
   async runCutover(transferId: string): Promise<void> {
     if (this.running) throw new Error('Cutover läuft bereits.');
-    return withAutoLockSuppressed(() => this.runCutoverInternal(transferId));
+    return this.runCutoverInternal(transferId);
   }
 
   private async runCutoverInternal(transferId: string): Promise<void> {
@@ -296,7 +298,10 @@ class VaultCutoverServiceImpl {
       this.emit();
 
       // —— committed (atomic swap) ——
-      await this.commitSwap(transferId, newMaster, keyHex);
+      // Atomic commit only – keep suppress window as short as possible.
+      if (!newMaster) throw new Error('Neuer Master Key fehlt vor Commit.');
+      const masterForCommit = newMaster;
+      await withAutoLockSuppressed(() => this.commitSwap(transferId, masterForCommit, keyHex));
 
       wipeBytes(newMaster);
       newMaster = null;

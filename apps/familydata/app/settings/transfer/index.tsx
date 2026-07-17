@@ -1,22 +1,15 @@
 import { useRouter, type Href } from 'expo-router';
-import { useEffect } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Panel, PrimaryButton, Screen, SectionTitle, StatusBadge } from '@/components/ui';
 import { TransferSessionManager } from '@/deviceTransfer/TransferSessionManager';
-import { beginAutoLockSuppress, endAutoLockSuppress } from '@/security/autoLockSuppress';
 import { useSecurityStore } from '@/store/securityStore';
 
 export default function TransferHubScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const isLocked = useSecurityStore((s) => s.isLocked);
-
-  useEffect(() => {
-    beginAutoLockSuppress();
-    return () => endAutoLockSuppress();
-  }, []);
 
   return (
     <Screen>
