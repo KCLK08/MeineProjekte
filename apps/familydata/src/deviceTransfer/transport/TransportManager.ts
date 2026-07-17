@@ -32,12 +32,13 @@ export type TransportConnectParams = {
 };
 
 type Listener = (snapshot: TransportSnapshot) => void;
+type MessageHandler = (message: TransferMessage) => void;
 
 const TEST_PAYLOAD = 'FamilyData Transfer Test';
 
 /**
- * Orchestrates TCP connection + SecureChannel for Phase 3 test messaging.
- * No vault data – only protocol test messages.
+ * Orchestrates TCP connection + SecureChannel.
+ * Phase 3: test messages. Phase 4A: metadata message types via handlers.
  */
 class TransportManagerImpl {
   private status: TransportStatus = 'idle';
@@ -49,6 +50,7 @@ class TransportManagerImpl {
   private updatedAt = Date.now();
   private cached: TransportSnapshot;
   private listeners = new Set<Listener>();
+  private messageHandlers = new Set<MessageHandler>();
   private connection: ConnectionService | null = null;
   private channel: SecureChannel | null = null;
   private sessionKey: Uint8Array | null = null;
@@ -63,12 +65,28 @@ class TransportManagerImpl {
     return () => this.listeners.delete(listener);
   }
 
+  addMessageHandler(handler: MessageHandler): () => void {
+    this.messageHandlers.add(handler);
+    return () => this.messageHandlers.delete(handler);
+  }
+
   getSnapshot(): TransportSnapshot {
     return this.cached;
   }
 
   getTestPayload(): string {
     return TEST_PAYLOAD;
+  }
+
+  /**
+   * Returns a copy of the session key for integrity operations.
+   * Caller MUST wipe the returned buffer.
+   */
+  borrowSessionKey(): Uint8Array {
+    if (!this.sessionKey || this.status !== 'connected') {
+      throw new Error('Kein Session-Key – Kanal nicht verbunden.');
+    }
+    return new Uint8Array(this.sessionKey);
   }
 
   async connect(params: TransportConnectParams): Promise<void> {
@@ -161,6 +179,13 @@ class TransportManagerImpl {
         this.closeInternal(true);
         return;
       }
+      for (const handler of this.messageHandlers) {
+        try {
+          handler(message);
+        } catch {
+          /* handlers must not break the channel */
+        }
+      }
       this.emit();
     } catch (e) {
       this.fail((e as Error).message || 'Empfang fehlgeschlagen');
@@ -195,7 +220,6 @@ class TransportManagerImpl {
     if (emit) {
       this.pushLog('Kanal geschlossen – Keys gelöscht.');
       this.emit();
-      // Reset to idle after close for next attempt
       this.status = 'idle';
       this.lastReceived = null;
       this.lastSentType = null;

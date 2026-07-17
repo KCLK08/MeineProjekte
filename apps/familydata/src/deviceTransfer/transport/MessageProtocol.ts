@@ -2,7 +2,18 @@ import { z } from 'zod';
 
 import { DeviceIdentityService } from '@/deviceTransfer/DeviceIdentityService';
 
-export const MESSAGE_TYPES = ['ping', 'pong', 'test', 'ack', 'close'] as const;
+export const MESSAGE_TYPES = [
+  'ping',
+  'pong',
+  'test',
+  'ack',
+  'close',
+  'meta_manifest',
+  'meta_chunk',
+  'meta_done',
+  'meta_ack',
+  'meta_reject',
+] as const;
 export type TransferMessageType = (typeof MESSAGE_TYPES)[number];
 
 export type TransferMessage = {
@@ -19,7 +30,8 @@ const messageSchema = z.object({
   timestamp: z.number().int().positive(),
   type: z.enum(MESSAGE_TYPES),
   seq: z.number().int().positive(),
-  payload: z.string().max(4096),
+  /** Chunked metadata may use larger payloads than Phase 3 test strings. */
+  payload: z.string().max(8192),
 });
 
 /** Max clock skew accepted for incoming messages (ms). */

@@ -5,6 +5,7 @@ export { QRCodeService } from '@/deviceTransfer/QRCodeService';
 export { TransferSessionManager } from '@/deviceTransfer/TransferSessionManager';
 export { useTransferSession } from '@/deviceTransfer/useTransferSession';
 export { useTransportSession } from '@/deviceTransfer/useTransportSession';
+export { useMigrationTransfer } from '@/deviceTransfer/useMigrationTransfer';
 export {
   TransportManager,
   connect,
@@ -12,6 +13,13 @@ export {
   receiveMessage,
   close,
 } from '@/deviceTransfer/transport';
+export {
+  VaultExportService,
+  VaultImportService,
+  MigrationTransferService,
+  IntegrityService,
+  MigrationManifestService,
+} from '@/deviceTransfer/migration';
 export type {
   PairingAcceptPayload,
   PairingOfferPayload,
