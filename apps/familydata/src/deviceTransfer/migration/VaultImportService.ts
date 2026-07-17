@@ -25,7 +25,7 @@ export const VaultImportService = {
   /**
    * Validate manifest + payload integrity. On failure: rollback staging.
    */
-  async validate(transferId: string, sessionKey: Uint8Array): Promise<VaultMetadataPayload> {
+  async validate(transferId: string, integrityKey: Uint8Array): Promise<VaultMetadataPayload> {
     try {
       const manifest = await StagingStore.readManifest(transferId);
       if (!manifest) throw new Error('Manifest fehlt im Staging.');
@@ -33,7 +33,7 @@ export const VaultImportService = {
       const payload = MigrationManifestService.verifyBeforeImport({
         manifest,
         payloadJson,
-        sessionKey,
+        integrityKey,
       });
       await StagingStore.setStatus(transferId, 'validated');
       return payload;

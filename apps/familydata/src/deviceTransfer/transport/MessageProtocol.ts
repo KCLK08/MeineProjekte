@@ -13,6 +13,11 @@ export const MESSAGE_TYPES = [
   'meta_done',
   'meta_ack',
   'meta_reject',
+  'document_start',
+  'document_chunk',
+  'document_end',
+  'document_ack',
+  'document_reject',
 ] as const;
 export type TransferMessageType = (typeof MESSAGE_TYPES)[number];
 

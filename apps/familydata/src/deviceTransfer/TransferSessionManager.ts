@@ -207,6 +207,9 @@ class TransferSessionManagerImpl {
     void import('@/deviceTransfer/migration/MigrationTransferService')
       .then(({ MigrationTransferService }) => MigrationTransferService.reset())
       .catch(() => undefined);
+    void import('@/deviceTransfer/migration/DocumentTransferService')
+      .then(({ DocumentTransferService }) => DocumentTransferService.reset())
+      .catch(() => undefined);
     EphemeralKeyService.dispose(this.keyPair);
     this.role = null;
     this.status = 'idle';

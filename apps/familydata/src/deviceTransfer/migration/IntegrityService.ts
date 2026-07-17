@@ -17,34 +17,34 @@ export const IntegrityService = {
   },
 
   /**
-   * Canonical JSON: stable key order via JSON.stringify of already-built objects
-   * plus UTF-8 bytes. Callers must pass a stable serialization.
+   * Canonical HMAC over a checksum using the integrity key (never master key).
+   * domain: e.g. fv-meta-v1 / fv-doc-v1
    */
-  sign(sessionKey: Uint8Array, checksumHex: string): string {
-    if (sessionKey.byteLength !== 32) {
+  sign(integrityKey: Uint8Array, checksumHex: string, domain = 'fv-meta-v1'): string {
+    if (integrityKey.byteLength !== 32) {
       throw new Error('Integrity-Key muss 32 Byte sein.');
     }
-    const msg = new TextEncoder().encode(`fv-meta-v1:${checksumHex}`);
-    const mac = hmac(sha256, sessionKey, msg);
+    const msg = new TextEncoder().encode(`${domain}:${checksumHex}`);
+    const mac = hmac(sha256, integrityKey, msg);
     const hex = bytesToHex(mac);
     wipeBytes(mac);
     wipeBytes(msg);
     return hex;
   },
 
-  verify(sessionKey: Uint8Array, checksumHex: string, integrityHex: string): boolean {
-    const expected = this.sign(sessionKey, checksumHex);
-    try {
-      if (expected.length !== integrityHex.length) return false;
-      // Constant-time-ish compare
-      let diff = 0;
-      for (let i = 0; i < expected.length; i += 1) {
-        diff |= expected.charCodeAt(i) ^ integrityHex.charCodeAt(i);
-      }
-      return diff === 0;
-    } finally {
-      /* expected is string */
+  verify(
+    integrityKey: Uint8Array,
+    checksumHex: string,
+    integrityHex: string,
+    domain = 'fv-meta-v1'
+  ): boolean {
+    const expected = this.sign(integrityKey, checksumHex, domain);
+    if (expected.length !== integrityHex.length) return false;
+    let diff = 0;
+    for (let i = 0; i < expected.length; i += 1) {
+      diff |= expected.charCodeAt(i) ^ integrityHex.charCodeAt(i);
     }
+    return diff === 0;
   },
 
   assertValidHex(hex: string, label: string) {

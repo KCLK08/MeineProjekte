@@ -51,12 +51,12 @@ export const MigrationManifestService = {
 
   buildManifest(params: {
     payloadJson: string;
-    sessionKey: Uint8Array;
+    integrityKey: Uint8Array;
     databaseVersion: number;
     documentCount: number;
   }): MigrationManifest {
     const checksum = IntegrityService.checksumUtf8(params.payloadJson);
-    const integrity = IntegrityService.sign(params.sessionKey, checksum);
+    const integrity = IntegrityService.sign(params.integrityKey, checksum, 'fv-meta-v1');
     const chunkCount = Math.max(1, Math.ceil(params.payloadJson.length / CHUNK_PAYLOAD_CHARS));
     return {
       version: 1,
@@ -90,13 +90,13 @@ export const MigrationManifestService = {
   verifyBeforeImport(params: {
     manifest: MigrationManifest;
     payloadJson: string;
-    sessionKey: Uint8Array;
+    integrityKey: Uint8Array;
   }) {
     const checksum = IntegrityService.checksumUtf8(params.payloadJson);
     if (checksum !== params.manifest.checksum) {
       throw new Error('Checksum-Mismatch – Payload manipuliert oder unvollständig.');
     }
-    if (!IntegrityService.verify(params.sessionKey, checksum, params.manifest.integrity)) {
+    if (!IntegrityService.verify(params.integrityKey, checksum, params.manifest.integrity, 'fv-meta-v1')) {
       throw new Error('Integrity-HMAC ungültig – Manifest abgelehnt.');
     }
     if (params.manifest.databaseVersion < 1) {

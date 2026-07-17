@@ -86,19 +86,18 @@ class MigrationTransferServiceImpl {
       this.transferId = transferId;
       const { payload, schemaVersion } = await VaultExportService.exportMetadataPackage();
       const payloadJson = MigrationManifestService.serializePayload(payload);
-      const sessionKey = TransportManager.borrowSessionKey();
+      const integrityKey = TransportManager.borrowIntegrityKey();
       let manifest: MigrationManifest;
       try {
         manifest = MigrationManifestService.buildManifest({
           payloadJson,
-          sessionKey,
+          integrityKey,
           databaseVersion: schemaVersion,
           documentCount: payload.documents.length,
         });
       } finally {
-        // borrowSessionKey returns a copy – wipe after use
         const { wipeBytes } = await import('@/deviceTransfer/bytes');
-        wipeBytes(sessionKey);
+        wipeBytes(integrityKey);
       }
 
       this.documentCount = payload.documents.length;
@@ -180,9 +179,9 @@ class MigrationTransferServiceImpl {
         this.progress = 'Validiere Staging…';
         this.emit();
         await VaultImportService.storePayload(this.recvTransferId, payloadJson);
-        const sessionKey = TransportManager.borrowSessionKey();
+        const integrityKey = TransportManager.borrowIntegrityKey();
         try {
-          const validated = await VaultImportService.validate(this.recvTransferId, sessionKey);
+          const validated = await VaultImportService.validate(this.recvTransferId, integrityKey);
           this.peopleCount = validated.people.length;
           this.documentCount = validated.documents.length;
           const committed = await VaultImportService.commitStaging(this.recvTransferId);
@@ -200,7 +199,7 @@ class MigrationTransferServiceImpl {
           );
         } finally {
           const { wipeBytes } = await import('@/deviceTransfer/bytes');
-          wipeBytes(sessionKey);
+          wipeBytes(integrityKey);
         }
         return;
       }
