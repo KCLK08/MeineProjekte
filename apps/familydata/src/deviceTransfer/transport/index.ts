@@ -9,5 +9,5 @@ export {
   receiveMessage,
   close,
 } from '@/deviceTransfer/transport/TransportManager';
-export type { TransportConnectParams, TransportSnapshot, TransportStatus } from '@/deviceTransfer/transport/TransportManager';
+export type { TransportConnectParams, TransportLastReceivedMeta, TransportSnapshot, TransportStatus } from '@/deviceTransfer/transport/TransportManager';
 export type { TransferMessage, TransferMessageType } from '@/deviceTransfer/transport/MessageProtocol';

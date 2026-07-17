@@ -25,6 +25,17 @@ async function resetTransferSession() {
   await TransferSessionManager.clear();
 }
 
+/** Pairing still usable for join connect retries (not expired / not cleared). */
+function pairingAllowsConnectRetry(): boolean {
+  const session = TransferSessionManager.getSnapshot();
+  if (!session.sasConfirmed) return false;
+  if (session.status === 'expired' || session.status === 'error' || session.status === 'idle') {
+    return false;
+  }
+  if (session.expiresAt != null && Date.now() >= session.expiresAt) return false;
+  return session.status === 'paired';
+}
+
 /**
  * After SAS confirmation: open channel, then host auto-sends metadata → documents.
  * Joiner receives via service message handlers; cutover stays user-triggered.
@@ -38,8 +49,10 @@ export function useProductionTransferFlow(enabled: boolean) {
 
   const [flowError, setFlowError] = useState<string | null>(null);
   const [restartToken, setRestartToken] = useState(0);
+  const [joinWaitingForPeer, setJoinWaitingForPeer] = useState(false);
 
   const connectStarted = useRef(false);
+  const connectGeneration = useRef(0);
   const metaStarted = useRef(false);
   const docsStarted = useRef(false);
   const mountedRef = useRef(true);
@@ -56,73 +69,124 @@ export function useProductionTransferFlow(enabled: boolean) {
     setFlowError(message);
   };
 
+  const safeSetJoinWaiting = (value: boolean) => {
+    if (!mountedRef.current) return;
+    setJoinWaitingForPeer(value);
+  };
+
   useEffect(() => {
     if (!enabled) {
       connectStarted.current = false;
+      connectGeneration.current += 1;
       metaStarted.current = false;
       docsStarted.current = false;
-      if (mountedRef.current) setFlowError(null);
+      if (mountedRef.current) {
+        setFlowError(null);
+        setJoinWaitingForPeer(false);
+      }
     }
   }, [enabled]);
 
-  // Auto-connect after SAS (host listens first; joiner retries briefly).
+  // Auto-connect after SAS (host listens first; joiner retries until pairing expires).
   useEffect(() => {
     if (!enabled || !role) return;
     if (connectStarted.current) return;
 
     const snapshot = TransportManager.getSnapshot();
-    if (
-      snapshot.status === 'connected' ||
-      snapshot.status === 'connecting' ||
-      snapshot.status === 'error' ||
-      snapshot.status === 'closed'
-    ) {
-      return;
-    }
+    if (snapshot.status === 'connected') return;
+    if (snapshot.status === 'error' || snapshot.status === 'closed') return;
+    // Allow continue if already connecting from this flow; skip duplicate start.
+    if (snapshot.status === 'connecting' && connectStarted.current) return;
 
     const params = TransferSessionManager.getTransportConnectParams();
     if (!params) return;
 
     connectStarted.current = true;
+    const generation = ++connectGeneration.current;
     let active = true;
 
     void (async () => {
       try {
         if (role === 'joiner') {
+          safeSetJoinWaiting(true);
           await delay(700);
         }
-        const attempts = role === 'joiner' ? 20 : 1;
+
         let lastError: unknown = null;
-        for (let i = 0; i < attempts; i += 1) {
+        // Host: single listen attempt. Join: retry until pairing expires (bounded by expiresAt).
+        for (;;) {
           if (!active || !mountedRef.current) return;
+          if (generation !== connectGeneration.current) return;
+
+          if (role === 'joiner' && !pairingAllowsConnectRetry()) {
+            throw lastError ?? new Error('Die Verbindung ist abgelaufen. Bitte starte die Übertragung erneut.');
+          }
+
           const liveParams = TransferSessionManager.getTransportConnectParams();
           if (!liveParams) {
+            if (role === 'joiner' && pairingAllowsConnectRetry()) {
+              await delay(1000);
+              continue;
+            }
             throw new Error(
               'Verbindung noch nicht bereit. Bitte Sicherheitscode erneut bestätigen.'
             );
           }
+
           try {
             await TransportManager.connect(liveParams);
+            if (!active || generation !== connectGeneration.current) return;
+
+            if (role === 'host') {
+              // listen() resolves while still "connecting"; keep gate until peer connects or fails.
+              for (;;) {
+                if (!active || !mountedRef.current) return;
+                if (generation !== connectGeneration.current) return;
+                const st = TransportManager.getSnapshot().status;
+                if (st === 'connected') {
+                  connectStarted.current = false;
+                  return;
+                }
+                if (st === 'error' || st === 'closed') {
+                  throw new Error(
+                    TransportManager.getSnapshot().error || 'Verbindung fehlgeschlagen.'
+                  );
+                }
+                if (!pairingAllowsConnectRetry()) {
+                  throw new Error(
+                    'Die Verbindung ist abgelaufen. Bitte starte die Übertragung erneut.'
+                  );
+                }
+                await delay(500);
+              }
+            }
+
+            // Joiner: connect() resolves only after TCP is up.
+            connectStarted.current = false;
+            safeSetJoinWaiting(false);
             return;
           } catch (error) {
             lastError = error;
-            if (role === 'host' || i === attempts - 1) break;
+            if (role === 'host') break;
+            if (!pairingAllowsConnectRetry()) break;
+            if (!active || generation !== connectGeneration.current) return;
+            safeSetJoinWaiting(true);
             await delay(1000);
           }
         }
         throw lastError ?? new Error('Verbindung fehlgeschlagen.');
       } catch (error) {
         if (!active || !mountedRef.current) return;
+        if (generation !== connectGeneration.current) return;
         connectStarted.current = false;
+        safeSetJoinWaiting(false);
         safeSetFlowError(friendlyTransferError(error));
       }
     })();
 
     return () => {
+      // P1: do not clear connectStarted on cleanup while connecting/listening/retrying.
       active = false;
-      if (TransportManager.getSnapshot().status !== 'connected') {
-        connectStarted.current = false;
-      }
     };
   }, [enabled, role, restartToken]);
 
@@ -185,8 +249,10 @@ export function useProductionTransferFlow(enabled: boolean) {
     if (!mountedRef.current) return;
     setFlowError(null);
     connectStarted.current = false;
+    connectGeneration.current += 1;
     metaStarted.current = false;
     docsStarted.current = false;
+    setJoinWaitingForPeer(false);
     await resetTransferSession();
     if (!mountedRef.current) return;
     setRestartToken((value) => value + 1);
@@ -200,6 +266,7 @@ export function useProductionTransferFlow(enabled: boolean) {
     cutover,
     displayError,
     hasHardFailure,
+    joinWaitingForPeer,
     restartFlow,
     resetTransferSession,
   };

@@ -55,8 +55,10 @@ export function resolveTransferActionHint(args: {
   migrationPhase: string;
   docsPhase: string;
   cutoverPhase: string;
+  joinWaitingForPeer?: boolean;
 }): string | null {
-  const { role, transportStatus, migrationPhase, docsPhase, cutoverPhase } = args;
+  const { role, transportStatus, migrationPhase, docsPhase, cutoverPhase, joinWaitingForPeer } =
+    args;
   if (!role) return null;
 
   const connected = transportStatus === 'connected';
@@ -93,8 +95,10 @@ export function resolveTransferActionHint(args: {
   }
 
   // joiner
+  if (!connected && (connecting || joinWaitingForPeer)) {
+    return 'Warte auf das alte Gerät…';
+  }
   if (!connected && !connecting) return 'Warte: Sichere Verbindung wird aufgebaut…';
-  if (connecting) return 'Warte: Verbindung wird aufgebaut…';
   if (!familyDone) {
     return 'Warte: Das alte Gerät sendet die Daten.';
   }
