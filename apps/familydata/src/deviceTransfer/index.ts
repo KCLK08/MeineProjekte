@@ -7,6 +7,7 @@ export { useTransferSession } from '@/deviceTransfer/useTransferSession';
 export { useTransportSession } from '@/deviceTransfer/useTransportSession';
 export { useMigrationTransfer } from '@/deviceTransfer/useMigrationTransfer';
 export { useDocumentTransfer } from '@/deviceTransfer/useDocumentTransfer';
+export { useVaultCutover } from '@/deviceTransfer/useVaultCutover';
 export {
   TransportManager,
   connect,
@@ -19,6 +20,8 @@ export {
   VaultImportService,
   MigrationTransferService,
   DocumentTransferService,
+  VaultCutoverService,
+  MigrationTransaction,
   IntegrityService,
   MigrationManifestService,
 } from '@/deviceTransfer/migration';

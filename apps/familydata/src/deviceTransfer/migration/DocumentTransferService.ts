@@ -2,6 +2,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 import { wipeBytes } from '@/deviceTransfer/bytes';
 import { DocumentFileTransferIO } from '@/deviceTransfer/migration/DocumentFileTransferIO';
+import {
+  DOC_WRAP_FORMAT,
+  DocumentTransferWrap,
+} from '@/deviceTransfer/migration/DocumentTransferWrap';
 import type {
   DocumentChunkPayload,
   DocumentEndPayload,
@@ -40,8 +44,9 @@ type RecvState = {
 };
 
 /**
- * Phase 4B: stream encrypted .dat files into staging documents/.
- * No productive vault writes. No plaintext. No master key.
+ * Phase 4B: stream transfer-wrapped document ciphertext into staging documents/.
+ * Sender rekeys vault .dat → docWrapKey (transient plaintext in RAM only).
+ * No productive vault writes on receiver. No master-key transfer.
  */
 class DocumentTransferServiceImpl {
   private phase: DocumentTransferSnapshot['phase'] = 'idle';
@@ -146,9 +151,16 @@ class DocumentTransferServiceImpl {
 
   private async sendOneDocument(transferId: string, documentId: string, filePath: string) {
     const uri = DocumentFileTransferIO.resolveSourceUri(filePath);
-    const bytes = await DocumentFileTransferIO.readEncryptedBytes(uri);
+    const vaultBytes = await DocumentFileTransferIO.readEncryptedBytes(uri);
+    let wrapBytes: Uint8Array | null = null;
+    let masterKey: Uint8Array | null = null;
+    let docWrapKey: Uint8Array | null = null;
     try {
-      const fileSha256 = DocumentFileTransferIO.hashBytes(bytes);
+      masterKey = SecurityManager.borrowSessionKey();
+      docWrapKey = TransportManager.borrowDocWrapKey();
+      wrapBytes = await DocumentTransferWrap.wrapVaultCiphertext(vaultBytes, masterKey, docWrapKey);
+
+      const fileSha256 = DocumentFileTransferIO.hashBytes(wrapBytes);
       const integrityKey = TransportManager.borrowIntegrityKey();
       let integrity: string;
       try {
@@ -157,15 +169,16 @@ class DocumentTransferServiceImpl {
         wipeBytes(integrityKey);
       }
 
-      const chunks = DocumentFileTransferIO.splitChunks(bytes);
+      const chunks = DocumentFileTransferIO.splitChunks(wrapBytes);
       const start: DocumentStartPayload = {
         transferId,
         documentId,
         sourceRelativePath: DocumentFileTransferIO.toRelativePath(uri),
-        totalBytes: bytes.byteLength,
+        totalBytes: wrapBytes.byteLength,
         totalChunks: chunks.length,
         fileSha256,
         integrity,
+        wrapFormat: DOC_WRAP_FORMAT,
       };
       this.currentDocumentId = documentId;
       this.progress = `Dokument ${documentId.slice(0, 8)}… (${chunks.length} Chunks)`;
@@ -189,7 +202,10 @@ class DocumentTransferServiceImpl {
       const end: DocumentEndPayload = { documentId, fileSha256 };
       await TransportManager.sendMessage('document_end', JSON.stringify(end));
     } finally {
-      wipeBytes(bytes);
+      wipeBytes(vaultBytes);
+      wipeBytes(wrapBytes);
+      wipeBytes(masterKey);
+      wipeBytes(docWrapKey);
     }
   }
 
@@ -258,6 +274,9 @@ class DocumentTransferServiceImpl {
     if (!start.transferId || !start.documentId) {
       throw new Error('document_start unvollständig.');
     }
+    if (start.wrapFormat !== DOC_WRAP_FORMAT) {
+      throw new Error('Dokument ohne Doc-Wrap-Format – Phase 4C Rekey nicht möglich.');
+    }
     if (start.totalChunks < 1 || start.totalBytes < 0) {
       throw new Error('Ungültige Dokumentgröße.');
     }
@@ -296,6 +315,7 @@ class DocumentTransferServiceImpl {
       sha256: start.fileSha256,
       byteLength: start.totalBytes,
       status: 'receiving',
+      wrapFormat: DOC_WRAP_FORMAT,
     });
   }
 
@@ -389,6 +409,7 @@ class DocumentTransferServiceImpl {
         sha256: fileSha256,
         byteLength: this.recv.totalBytes,
         status: 'validated',
+        wrapFormat: DOC_WRAP_FORMAT,
       });
 
       this.receivedCount += 1;
