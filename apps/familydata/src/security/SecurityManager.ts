@@ -240,6 +240,44 @@ class SecurityManagerImpl {
     await ensureDatabaseReady();
     this.unlocked = true;
   }
+
+  /**
+   * After Phase 4C Keystore commit: adopt the new master key into the live session.
+   * Does not read SecureStore again (avoids a second biometric prompt).
+   */
+  async adoptCommittedMasterKey(key: Uint8Array): Promise<void> {
+    await this.establishSession(key);
+    await SecurityEventLog.record('vault_unlocked').catch(() => undefined);
+  }
+
+  /**
+   * Sender post-transfer: securely delete all vault user data and encrypted files.
+   * Keeps the device-bound master key and empty SQLCipher database.
+   */
+  async secureWipeVaultContents(): Promise<void> {
+    if (!this.isUnlocked()) throw new Error('Tresor ist gesperrt.');
+    const FS = await import('expo-file-system/legacy');
+    const { listDocuments, clearAllVaultUserData } = await import('@/db/repository');
+    const docs = await listDocuments();
+    for (const doc of docs) {
+      if (doc.filePath) {
+        await DocumentEncryptionService.deleteEncryptedFile(doc.filePath);
+      }
+    }
+    try {
+      const root = `${FS.documentDirectory}familydata-encrypted/`;
+      const info = await FS.getInfoAsync(root);
+      if (info.exists) {
+        await FS.deleteAsync(root, { idempotent: true });
+        await FS.makeDirectoryAsync(root, { intermediates: true });
+      }
+    } catch {
+      /* best-effort */
+    }
+    await clearAllVaultUserData();
+    await DocumentEncryptionService.clearDecryptedTemps();
+    await SecurityEventLog.record('encryption_enabled').catch(() => undefined);
+  }
 }
 
 export const SecurityManager = new SecurityManagerImpl();

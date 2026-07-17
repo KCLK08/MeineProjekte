@@ -137,6 +137,39 @@ export const KeyStoreService = {
     await SecureStore.deleteItemAsync(MASTER_KEY_META).catch(() => undefined);
   },
 
+  /**
+   * Generates a fresh 256-bit master key in RAM only (Phase 4C).
+   * Does NOT write Keystore/Keychain – call commitMasterKey after validation.
+   */
+  async generateMasterKeyBytes(): Promise<Uint8Array> {
+    const bytes = await Crypto.getRandomBytesAsync(KEY_BYTES);
+    return new Uint8Array(bytes);
+  },
+
+  /**
+   * Atomically replaces the device-bound master key (auth-bound SecureStore).
+   * Used only after MigrationTransaction reaches validated → committed.
+   * The previous key is overwritten; caller must already have a durable new vault.
+   */
+  async commitMasterKey(
+    rawKey: Uint8Array,
+    prompt = 'Family Vault neuen Schlüssel schützen'
+  ): Promise<void> {
+    if (rawKey.byteLength !== KEY_BYTES) {
+      throw new Error('Master-Key muss 32 Byte sein.');
+    }
+    const hex = bytesToHex(rawKey);
+    try {
+      await SecureStore.deleteItemAsync(MASTER_KEY_ITEM).catch(() => undefined);
+      await SecureStore.setItemAsync(MASTER_KEY_ITEM, hex, authBoundOptions(prompt));
+      await SecureStore.setItemAsync(MASTER_KEY_META, META_AUTH_BOUND, deviceBound);
+    } catch (e) {
+      throw new Error(
+        `Neuer Master-Key konnte nicht gebunden werden. ${(e as Error).message || ''}`.trim()
+      );
+    }
+  },
+
   toSqlCipherHex(key: Uint8Array): string {
     return bytesToHex(key);
   },

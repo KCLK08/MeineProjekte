@@ -6,6 +6,8 @@ import { createId, isFamilyRole, nowIso } from '@/utils/helpers';
 
 export const PLAIN_DB_NAME = 'familydata.db';
 export const VAULT_DB_NAME = 'familydata.vault.db';
+/** Temporary SQLCipher DB built during Phase 4C cutover (never the productive name until commit). */
+export const MIGRATION_VAULT_DB_NAME = 'familydata.vault.migration.db';
 const SCHEMA_VERSION = '4';
 
 export type DocumentListRow = FamilyDocument & { personNames: string };
@@ -56,6 +58,64 @@ export async function deleteDatabaseFile(name: string) {
     await FileSystem.deleteAsync(`${base}SQLite/${name}`, { idempotent: true }).catch(() => undefined);
     await FileSystem.deleteAsync(`${base}${name}`, { idempotent: true }).catch(() => undefined);
   }
+}
+
+/** Absolute path candidates for an expo-sqlite database file. */
+export function databaseFileCandidates(name: string): string[] {
+  const base = FileSystem.documentDirectory;
+  if (!base) return [];
+  return [`${base}SQLite/${name}`, `${base}${name}`];
+}
+
+export async function resolveDatabaseFilePath(name: string): Promise<string | null> {
+  for (const path of databaseFileCandidates(name)) {
+    const info = await FileSystem.getInfoAsync(path);
+    if (info.exists && !info.isDirectory) return path;
+  }
+  return null;
+}
+
+/**
+ * Opens a named SQLCipher DB (not the global singleton), ensures schema, runs work, closes.
+ * Used by Phase 4C to build a parallel vault before atomic cutover.
+ */
+export async function withEncryptedDatabase<T>(
+  name: string,
+  keyHex: string,
+  fn: (db: SQLite.SQLiteDatabase) => Promise<T>
+): Promise<T> {
+  if (!/^[0-9a-fA-F]+$/.test(keyHex)) {
+    throw new Error('Ungültiger SQLCipher-Schlüssel.');
+  }
+  const db = await SQLite.openDatabaseAsync(name);
+  try {
+    await db.execAsync(`PRAGMA key = "x'${keyHex.toLowerCase()}'";`);
+    await db.execAsync('PRAGMA foreign_keys = ON;');
+    await ensureSchema(db);
+    // Prove the key works (empty DB still answers).
+    await db.getFirstAsync<{ v: number }>('SELECT 1 as v');
+    return await fn(db);
+  } finally {
+    await db.closeAsync().catch(() => undefined);
+  }
+}
+
+/** Clears user tables while keeping the vault + master key (sender post-transfer wipe). */
+export async function clearAllVaultUserData() {
+  const db = await getDb();
+  await db.execAsync('PRAGMA foreign_keys = OFF;');
+  for (const table of [
+    'document_people',
+    'documents',
+    'id_entries',
+    'people',
+    'export_history',
+  ]) {
+    await db.execAsync(`DELETE FROM ${table};`).catch(() => undefined);
+  }
+  await setMeta(db, 'family_name', '');
+  await setMeta(db, 'setup_complete', '0');
+  await db.execAsync('PRAGMA foreign_keys = ON;');
 }
 
 /** Opens (or reuses) the active DB and ensures schema – used after unlock. */
