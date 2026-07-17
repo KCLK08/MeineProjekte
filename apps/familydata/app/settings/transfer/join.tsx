@@ -8,23 +8,24 @@ import { PairingQrScanner } from '@/components/PairingQrScanner';
 import { SecureChannelPanel } from '@/components/SecureChannelPanel';
 import { Panel, PrimaryButton, Screen, SectionTitle, StatusBadge } from '@/components/ui';
 import { TransferSessionManager } from '@/deviceTransfer/TransferSessionManager';
+import { formatSecurityCode, friendlyTransferError } from '@/deviceTransfer/transferUiCopy';
 import { useTransferSession } from '@/deviceTransfer/useTransferSession';
 import { beginAutoLockSuppress, endAutoLockSuppress } from '@/security/autoLockSuppress';
 
-function statusLabel(status: string) {
+function joinStatusLabel(status: string): string {
   switch (status) {
     case 'scanning_offer':
-      return 'Angebot wird gelesen…';
+      return 'Code wird gelesen…';
     case 'showing_accept':
-      return 'Antwort-QR anzeigen';
+      return 'Kopplung bestätigen';
     case 'paired':
-      return 'Sicher gekoppelt';
+      return 'Verbunden';
     case 'expired':
       return 'Abgelaufen';
     case 'error':
       return 'Fehler';
     default:
-      return 'QR scannen';
+      return 'Scannen';
   }
 }
 
@@ -40,6 +41,7 @@ export default function TransferJoinScreen() {
   }, []);
 
   const acceptQr = TransferSessionManager.getAcceptQr();
+  const securityCode = formatSecurityCode(session.confirmationCode);
 
   return (
     <Screen>
@@ -47,25 +49,31 @@ export default function TransferJoinScreen() {
         <View className="mb-4 flex-row items-center justify-between">
           <Text className="font-display text-2xl text-ink dark:text-[#e7f2ec]">Daten übernehmen</Text>
           <StatusBadge
-            label={statusLabel(session.status)}
-            tone={session.status === 'paired' ? 'ok' : session.status === 'expired' || session.status === 'error' ? 'danger' : 'neutral'}
+            label={joinStatusLabel(session.status)}
+            tone={
+              session.status === 'paired'
+                ? 'ok'
+                : session.status === 'expired' || session.status === 'error'
+                  ? 'danger'
+                  : 'neutral'
+            }
           />
         </View>
 
-        <Text className="mb-5 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
-          Scanne den QR-Code auf dem alten Gerät. Danach zeigst du deinen Antwort-QR, damit beide Geräte
-          gekoppelt werden. Es werden noch keine Vault-Daten übertragen.
-        </Text>
-
         {session.error ? (
-          <Text className="mb-3 font-sans text-sm text-danger">{session.error}</Text>
+          <Text className="mb-3 font-sans text-sm text-danger">
+            {friendlyTransferError(session.error)}
+          </Text>
         ) : null}
 
         {session.status === 'idle' || session.status === 'error' || session.status === 'expired' ? (
           <>
-            <SectionTitle>QR vom alten Gerät</SectionTitle>
+            <SectionTitle>QR-Code scannen</SectionTitle>
+            <Text className="mb-4 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
+              Scanne den QR-Code des alten Geräts.
+            </Text>
             <PairingQrScanner
-              hint="Kamerablick auf den Pairing-QR des Senders."
+              hint="Kamerablick auf den Code des alten Geräts."
               disabled={busy}
               onScan={(data) => {
                 setBusy(true);
@@ -73,7 +81,7 @@ export default function TransferJoinScreen() {
                   try {
                     await TransferSessionManager.acceptOfferFromQr(data);
                   } catch (e) {
-                    Alert.alert('QR ungültig', (e as Error).message);
+                    Alert.alert('Code ungültig', friendlyTransferError(e));
                   } finally {
                     setBusy(false);
                   }
@@ -85,72 +93,63 @@ export default function TransferJoinScreen() {
 
         {(session.status === 'showing_accept' || session.status === 'paired') && acceptQr ? (
           <>
-            <SectionTitle>Antwort-QR für das alte Gerät</SectionTitle>
-            <PairingQrDisplay value={acceptQr} label="Pairing-Antwort" />
-            <Text className="mt-3 mb-4 text-center font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-              Das alte Gerät scannt diesen Code. Bestätigungscode:
+            <SectionTitle>Kopplung bestätigen</SectionTitle>
+            <Text className="mb-3 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
+              Zeige diesen Code dem alten Gerät, damit es dich bestätigen kann.
             </Text>
-            <Text className="mb-4 text-center font-display text-3xl tracking-[4px] text-pine-700 dark:text-pine-400">
-              {session.confirmationCode}
-            </Text>
+            <PairingQrDisplay value={acceptQr} label="Antwortcode" />
             {session.status === 'showing_accept' ? (
-              <PrimaryButton
-                label="Kopplung bestätigen"
-                icon="checkmark-circle-outline"
-                onPress={() => {
-                  try {
-                    TransferSessionManager.markJoinerPaired();
-                  } catch (e) {
-                    Alert.alert('Pairing', (e as Error).message);
-                  }
-                }}
-              />
+              <View className="mt-4">
+                <PrimaryButton
+                  label="Kopplung bestätigen"
+                  icon="checkmark-circle-outline"
+                  onPress={() => {
+                    try {
+                      TransferSessionManager.markJoinerPaired();
+                    } catch (e) {
+                      Alert.alert('Kopplung', friendlyTransferError(e));
+                    }
+                  }}
+                />
+              </View>
             ) : null}
           </>
         ) : null}
 
         {session.status === 'paired' ? (
           <>
-            <Panel className="mt-4 px-4 py-4">
-              <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Geräte sind gekoppelt</Text>
-              <Text className="mt-2 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
-                Short Authentication String – muss mit dem alten Gerät übereinstimmen:
-              </Text>
-              <Text className="mt-3 mb-3 text-center font-display text-3xl tracking-[4px] text-pine-700 dark:text-pine-400">
-                {session.confirmationCode}
-              </Text>
-              {!session.sasConfirmed ? (
-                <>
-                  <PrimaryButton
-                    label="Code stimmt überein"
-                    icon="shield-checkmark-outline"
-                    onPress={() => {
-                      try {
-                        TransferSessionManager.confirmSas();
-                      } catch (e) {
-                        Alert.alert('Bestätigung', (e as Error).message);
-                      }
-                    }}
-                  />
-                  <Text className="mt-2 text-center font-sans text-[12px] text-mute dark:text-[#9bb0a6]">
-                    Erst danach Kanal öffnen (zuerst auf dem alten Gerät).
-                  </Text>
-                </>
-              ) : (
-                <Text className="font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
-                  SAS bestätigt. Zuerst auf dem alten Gerät „Kanal öffnen“, danach hier verbinden.
+            {!session.sasConfirmed ? (
+              <Panel className="mt-4 px-4 py-4">
+                <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">
+                  Gleicher Sicherheitscode?
                 </Text>
-              )}
-              {session.transportHost && session.transportPort ? (
-                <Text className="mt-2 font-sans text-xs text-mute dark:text-[#9bb0a6]">
-                  Ziel {session.transportHost}:{session.transportPort}
+                <Text className="mt-2 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
+                  Vergleiche diesen Code mit dem alten Gerät.
                 </Text>
-              ) : null}
-            </Panel>
-            <SecureChannelPanel paired={session.sasConfirmed} />
+                <Text
+                  className="mt-4 mb-4 text-center font-display text-3xl tracking-[4px] text-pine-700 dark:text-pine-400"
+                  accessibilityLabel={`Sicherheitscode ${securityCode}`}
+                >
+                  {securityCode}
+                </Text>
+                <PrimaryButton
+                  label="Code stimmt überein"
+                  icon="shield-checkmark-outline"
+                  onPress={() => {
+                    try {
+                      TransferSessionManager.confirmSas();
+                    } catch (e) {
+                      Alert.alert('Bestätigung', friendlyTransferError(e));
+                    }
+                  }}
+                />
+              </Panel>
+            ) : (
+              <SecureChannelPanel paired={session.sasConfirmed} />
+            )}
             <View className="mt-4">
               <PrimaryButton
-                label="Fertig"
+                label="Abbrechen"
                 tone="ghost"
                 onPress={() => {
                   void TransferSessionManager.clear().then(() =>

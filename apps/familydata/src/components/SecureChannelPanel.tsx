@@ -1,59 +1,121 @@
+import { useRouter, type Href } from 'expo-router';
 import { Alert, Text, View } from 'react-native';
 
-import { Panel, PrimaryButton, SectionTitle, StatusBadge } from '@/components/ui';
+import { TransferTimeline, type TimelineStep } from '@/components/TransferTimeline';
+import { LoadingBlock, Panel, PrimaryButton, StatusBadge } from '@/components/ui';
 import { DocumentTransferService } from '@/deviceTransfer/migration/DocumentTransferService';
 import { MigrationTransferService } from '@/deviceTransfer/migration/MigrationTransferService';
 import { VaultCutoverService } from '@/deviceTransfer/migration/VaultCutoverService';
 import { TransferSessionManager } from '@/deviceTransfer/TransferSessionManager';
 import { TransportManager } from '@/deviceTransfer/transport/TransportManager';
+import { friendlyTransferError } from '@/deviceTransfer/transferUiCopy';
 import { useDocumentTransfer } from '@/deviceTransfer/useDocumentTransfer';
 import { useMigrationTransfer } from '@/deviceTransfer/useMigrationTransfer';
 import { useTransportSession } from '@/deviceTransfer/useTransportSession';
 import { useVaultCutover } from '@/deviceTransfer/useVaultCutover';
 import { useFamilyStore } from '@/store/familyStore';
 
-function transportTone(status: string): 'ok' | 'warn' | 'danger' | 'neutral' {
-  if (status === 'connected') return 'ok';
-  if (status === 'connecting') return 'warn';
-  if (status === 'error') return 'danger';
-  return 'neutral';
+function alertFriendly(title: string, error: unknown) {
+  Alert.alert(title, friendlyTransferError(error));
 }
 
-function transportLabel(status: string): string {
-  switch (status) {
-    case 'connecting':
-      return 'Verbindet…';
-    case 'connected':
-      return 'Kanal aktiv';
-    case 'error':
-      return 'Fehler';
-    case 'closed':
-      return 'Geschlossen';
-    default:
-      return 'Kanal bereit';
-  }
-}
+function buildTimeline(args: {
+  transportStatus: string;
+  migrationPhase: string;
+  docsPhase: string;
+  cutoverPhase: string;
+  docsProgress?: string;
+  migrationProgress?: string;
+  cutoverProgress?: string;
+}): TimelineStep[] {
+  const connectedDone = args.transportStatus === 'connected';
+  const connectedActive = args.transportStatus === 'connecting';
+  const connectedFailed = args.transportStatus === 'error';
 
-function migrationTone(phase: string): 'ok' | 'warn' | 'danger' | 'neutral' {
-  if (
-    phase === 'committed' ||
-    phase === 'validated' ||
-    phase === 'ready_for_4c' ||
-    phase === 'awaiting_sender_choice'
-  ) {
-    return 'ok';
-  }
-  if (phase === 'sending' || phase === 'receiving' || phase === 'building' || phase === 'prepared') {
-    return 'warn';
-  }
-  if (phase === 'failed') return 'danger';
-  return 'neutral';
+  const familyDone =
+    args.migrationPhase === 'committed' ||
+    args.migrationPhase === 'validated';
+  const familyActive =
+    args.migrationPhase === 'sending' ||
+    args.migrationPhase === 'receiving' ||
+    args.migrationPhase === 'building' ||
+    args.migrationPhase === 'prepared';
+  const familyFailed = args.migrationPhase === 'failed';
+
+  const docsDone = args.docsPhase === 'ready_for_4c';
+  const docsActive = args.docsPhase === 'sending' || args.docsPhase === 'receiving';
+  const docsFailed = args.docsPhase === 'failed';
+
+  const setupDone =
+    args.cutoverPhase === 'committed' || args.cutoverPhase === 'awaiting_sender_choice';
+  const setupActive =
+    args.cutoverPhase === 'building' ||
+    args.cutoverPhase === 'prepared' ||
+    args.cutoverPhase === 'validated';
+  const setupFailed = args.cutoverPhase === 'failed';
+
+  return [
+    {
+      id: 'connected',
+      label: 'Geräte verbunden',
+      status: connectedFailed ? 'failed' : connectedDone ? 'done' : connectedActive ? 'active' : 'pending',
+      detail: connectedActive ? 'Verbindung wird aufgebaut…' : undefined,
+    },
+    {
+      id: 'family',
+      label: 'Familieninformationen',
+      status: !connectedDone
+        ? 'pending'
+        : familyFailed
+          ? 'failed'
+          : familyDone
+            ? 'done'
+            : familyActive
+              ? 'active'
+              : 'pending',
+      detail: familyActive ? args.migrationProgress || 'Übertragung läuft…' : undefined,
+    },
+    {
+      id: 'docs',
+      label: 'Dokumente',
+      status: !familyDone
+        ? 'pending'
+        : docsFailed
+          ? 'failed'
+          : docsDone
+            ? 'done'
+            : docsActive
+              ? 'active'
+              : 'pending',
+      detail: docsActive ? args.docsProgress || 'Übertragung läuft…' : undefined,
+    },
+    {
+      id: 'setup',
+      label: 'Einrichtung abgeschlossen',
+      status: !docsDone
+        ? 'pending'
+        : setupFailed
+          ? 'failed'
+          : setupDone
+            ? 'done'
+            : setupActive
+              ? 'active'
+              : 'pending',
+      detail: setupActive
+        ? args.cutoverProgress || 'Neues Gerät wird eingerichtet…'
+        : args.cutoverPhase === 'awaiting_sender_choice'
+          ? 'Warte auf Entscheidung am alten Gerät…'
+          : undefined,
+    },
+  ];
 }
 
 /**
- * Phase 3 channel + Phase 4A/4B/4C transfer UI.
+ * Productive transfer progress UI after pairing + SAS confirmation.
+ * No debug/test controls. Services unchanged.
  */
 export function SecureChannelPanel({ paired }: { paired: boolean }) {
+  const router = useRouter();
   const transport = useTransportSession();
   const migration = useMigrationTransfer();
   const docs = useDocumentTransfer();
@@ -63,6 +125,12 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
   const transferId = migration.transferId;
 
   if (!paired) return null;
+
+  const connected = transport.status === 'connected';
+  const familyDone = migration.phase === 'committed' || migration.phase === 'validated';
+  const docsDone = docs.phase === 'ready_for_4c';
+  const cutoverDone = cutover.phase === 'committed';
+  const awaitingSenderChoice = cutover.phase === 'awaiting_sender_choice';
 
   const canRunCutover =
     role === 'joiner' &&
@@ -75,270 +143,241 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
     transport.status === 'connected' &&
     Boolean(transferId);
 
+  const timeline = buildTimeline({
+    transportStatus: transport.status,
+    migrationPhase: migration.phase,
+    docsPhase: docs.phase,
+    cutoverPhase: cutover.phase,
+    docsProgress: docs.progress,
+    migrationProgress: migration.progress,
+    cutoverProgress: cutover.progress,
+  });
+
+  const displayError = friendlyTransferError(
+    transport.error || migration.error || docs.error || cutover.error
+  );
+
+  const busy =
+    transport.status === 'connecting' ||
+    migration.phase === 'sending' ||
+    migration.phase === 'receiving' ||
+    docs.phase === 'sending' ||
+    docs.phase === 'receiving' ||
+    cutover.phase === 'building' ||
+    cutover.phase === 'prepared' ||
+    cutover.phase === 'validated';
+
+  if (cutoverDone && role === 'joiner') {
+    return (
+      <View className="mt-4">
+        <Panel className="px-4 py-4">
+          <StatusBadge label="Erfolgreich" tone="ok" />
+          <Text className="mt-3 font-display text-2xl text-ink dark:text-[#e7f2ec]">
+            FamilyData ist bereit
+          </Text>
+          <Text className="mt-2 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
+            Deine Daten sind auf diesem Gerät eingerichtet. Du kannst jetzt fortfahren.
+          </Text>
+          <View className="mt-4">
+            <PrimaryButton
+              label="Zur Familie"
+              icon="people-outline"
+              onPress={() => {
+                void TransferSessionManager.clear().then(() => {
+                  router.replace('/(tabs)' as Href);
+                });
+              }}
+            />
+          </View>
+        </Panel>
+        <View className="mt-4">
+          <TransferTimeline steps={timeline} />
+        </View>
+      </View>
+    );
+  }
+
+  if (awaitingSenderChoice && role === 'host') {
+    return (
+      <View className="mt-4">
+        <Panel className="px-4 py-4">
+          <StatusBadge label="Abgeschlossen" tone="ok" />
+          <Text className="mt-3 font-display text-2xl text-ink dark:text-[#e7f2ec]">Fertig</Text>
+          <Text className="mt-2 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
+            Die Übertragung wurde abgeschlossen.
+          </Text>
+          <Text className="mt-2 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+            Entscheide, was mit den Daten auf diesem Gerät geschehen soll.
+          </Text>
+          <View className="mt-4 gap-2">
+            <PrimaryButton
+              label="Auf diesem Gerät behalten"
+              icon="checkmark-outline"
+              onPress={() => {
+                VaultCutoverService.markSenderKept();
+                Alert.alert('Fertig', 'Die Daten bleiben auf diesem Gerät.', [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      void TransferSessionManager.clear().then(() =>
+                        router.replace('/settings/transfer' as Href)
+                      );
+                    },
+                  },
+                ]);
+              }}
+            />
+            <PrimaryButton
+              label="Sicher löschen"
+              tone="ghost"
+              icon="trash-outline"
+              onPress={() => {
+                Alert.alert(
+                  'Sicher löschen',
+                  'Alle Familien- und Dokumentdaten auf diesem Gerät werden entfernt.',
+                  [
+                    { text: 'Abbrechen', style: 'cancel' },
+                    {
+                      text: 'Löschen',
+                      style: 'destructive',
+                      onPress: () => {
+                        void VaultCutoverService.secureWipeSenderVault()
+                          .then(() => bootstrap())
+                          .then(() => TransferSessionManager.clear())
+                          .then(() => router.replace('/settings/transfer' as Href))
+                          .catch((e) => alertFriendly('Löschen', e));
+                      },
+                    },
+                  ]
+                );
+              }}
+            />
+          </View>
+        </Panel>
+        <View className="mt-4">
+          <TransferTimeline steps={timeline} />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View className="mt-4">
-      <SectionTitle>Sicherer Kanal (Phase 3)</SectionTitle>
-      <Panel className="px-4 py-4">
-        <View className="mb-3 flex-row items-center justify-between">
-          <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Transport</Text>
-          <StatusBadge label={transportLabel(transport.status)} tone={transportTone(transport.status)} />
-        </View>
-        <Text className="mb-3 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-          TCP + AES-256-GCM. HKDF: Transport-, Integrity- und Doc-Wrap-Key. Zuerst Host öffnen.
-        </Text>
+      <TransferTimeline steps={timeline} />
 
-        {transport.error ? (
-          <Text className="mb-3 font-sans text-sm text-danger">{transport.error}</Text>
+      <Panel className="mt-4 px-4 py-4">
+        {displayError ? (
+          <Text className="mb-3 font-sans text-sm text-danger">{displayError}</Text>
         ) : null}
 
-        {transport.lastReceived?.type === 'test' ? (
-          <View className="mb-3 rounded-2xl bg-pine-100 px-3 py-3 dark:bg-[#1a3028]">
-            <Text className="font-sansMedium text-xs uppercase tracking-wide text-mute dark:text-[#9bb0a6]">
-              Empfangen
-            </Text>
-            <Text className="mt-1 font-sansBold text-[16px] text-ink dark:text-[#e7f2ec]">
-              {transport.lastReceived.payload}
-            </Text>
+        {busy ? (
+          <View className="mb-3 py-2">
+            <LoadingBlock
+              label={
+                transport.status === 'connecting'
+                  ? 'Verbindung wird hergestellt…'
+                  : cutover.phase === 'building' ||
+                      cutover.phase === 'prepared' ||
+                      cutover.phase === 'validated'
+                    ? 'Neues Gerät wird eingerichtet…'
+                    : docs.phase === 'sending' || docs.phase === 'receiving'
+                      ? 'Dokumente werden übertragen…'
+                      : 'Familiendaten werden übertragen…'
+              }
+            />
           </View>
         ) : null}
 
         <View className="gap-2">
-          {transport.status !== 'connected' && transport.status !== 'connecting' ? (
+          {!connected && transport.status !== 'connecting' ? (
             <PrimaryButton
-              label="Kanal öffnen"
+              label={role === 'host' ? 'Verbindung herstellen' : 'Auf Verbindung warten'}
               icon="link-outline"
               onPress={() => {
                 const params = TransferSessionManager.getTransportConnectParams();
                 if (!params) {
                   Alert.alert(
-                    'Kanal',
-                    'Zuerst Bestätigungscode vergleichen und „Code stimmt überein“ tippen. Danach Kanal öffnen.'
+                    'Verbindung',
+                    'Bitte vergleiche zuerst den Sicherheitscode auf beiden Geräten.'
                   );
                   return;
                 }
-                void TransportManager.connect(params).catch((e) =>
-                  Alert.alert('Kanal', (e as Error).message)
-                );
+                void TransportManager.connect(params).catch((e) => alertFriendly('Verbindung', e));
               }}
             />
           ) : null}
-          {transport.status === 'connected' ? (
+
+          {connected && role === 'host' && !familyDone ? (
             <PrimaryButton
-              label='Test senden: "FamilyData Transfer Test"'
-              icon="paper-plane-outline"
+              label="Familiendaten senden"
+              icon="cloud-upload-outline"
+              disabled={migration.phase === 'sending'}
               onPress={() => {
-                void TransportManager.sendTestMessage().catch((e) =>
-                  Alert.alert('Senden', (e as Error).message)
+                void MigrationTransferService.sendMetadataTransfer().catch((e) =>
+                  alertFriendly('Übertragung', e)
                 );
               }}
             />
           ) : null}
-          {transport.status === 'connected' || transport.status === 'connecting' || transport.status === 'error' ? (
+
+          {connected && role === 'joiner' && !familyDone ? (
+            <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+              Warte auf Daten
+            </Text>
+          ) : null}
+
+          {connected && role === 'host' && familyDone && !docsDone ? (
             <PrimaryButton
-              label="Kanal schließen"
-              tone="ghost"
-              icon="close-outline"
-              onPress={() => TransportManager.close()}
+              label="Dokumente senden"
+              icon="document-outline"
+              disabled={docs.phase === 'sending'}
+              onPress={() => {
+                void DocumentTransferService.sendAllEncryptedDocuments().catch((e) =>
+                  alertFriendly('Übertragung', e)
+                );
+              }}
             />
           ) : null}
-        </View>
 
-        {transport.log.length ? (
-          <View className="mt-4">
-            <Text className="mb-1 font-sansMedium text-[11px] uppercase tracking-wide text-mute dark:text-[#9bb0a6]">
-              Log
+          {connected && role === 'joiner' && familyDone && !docsDone ? (
+            <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+              Dokumente werden übertragen
             </Text>
-            {transport.log.slice(0, 6).map((line) => (
-              <Text key={line} className="font-sans text-[12px] leading-4 text-mute dark:text-[#9bb0a6]">
-                {line}
-              </Text>
-            ))}
-          </View>
-        ) : null}
-      </Panel>
+          ) : null}
 
-      {transport.status === 'connected' ? (
-        <View className="mt-4">
-          <SectionTitle>Metadaten-Transfer (Phase 4A)</SectionTitle>
-          <Panel className="px-4 py-4">
-            <View className="mb-3 flex-row items-center justify-between">
-              <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Vault-Metadaten</Text>
-              <StatusBadge label={migration.phase} tone={migrationTone(migration.phase)} />
-            </View>
-            <Text className="mb-3 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-              Tabellenstruktur, Einstellungen, Dokument-Metadaten → Staging (keine Dateien, kein Master Key).
-            </Text>
-            {migration.progress ? (
-              <Text className="mb-2 font-sans text-sm text-ink dark:text-[#e7f2ec]">{migration.progress}</Text>
-            ) : null}
-            {migration.error ? (
-              <Text className="mb-3 font-sans text-sm text-danger">{migration.error}</Text>
-            ) : null}
-            {role === 'host' ? (
-              <PrimaryButton
-                label="Metadaten-Test senden"
-                icon="cloud-upload-outline"
-                disabled={migration.phase === 'sending'}
-                onPress={() => {
-                  void MigrationTransferService.sendMetadataTransfer().catch((e) =>
-                    Alert.alert('Metadaten', (e as Error).message)
-                  );
-                }}
-              />
-            ) : (
-              <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-                Empfänger: wartet auf Manifest/Chunks (nur Staging).
-              </Text>
-            )}
-          </Panel>
-        </View>
-      ) : null}
-
-      {transport.status === 'connected' ? (
-        <View className="mt-4">
-          <SectionTitle>Dokumenttransfer (Phase 4B)</SectionTitle>
-          <Panel className="px-4 py-4">
-            <View className="mb-3 flex-row items-center justify-between">
-              <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Doc-Wrap → Staging</Text>
-              <StatusBadge label={docs.phase} tone={migrationTone(docs.phase)} />
-            </View>
-            <Text className="mb-3 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-              Vault-.dat wird mit Doc-Wrap-Key umgeschlüsselt (Klartext nur RAM). Kein Master-Key-Transfer.
-            </Text>
-            {docs.progress ? (
-              <Text className="mb-2 font-sans text-sm text-ink dark:text-[#e7f2ec]">{docs.progress}</Text>
-            ) : null}
-            <Text className="mb-3 font-sans text-[13px] text-mute dark:text-[#9bb0a6]">
-              Gesendet: {docs.sentCount} · Empfangen: {docs.receivedCount}
-            </Text>
-            {docs.error ? (
-              <Text className="mb-3 font-sans text-sm text-danger">{docs.error}</Text>
-            ) : null}
-            {role === 'host' ? (
-              <PrimaryButton
-                label="Dokumente senden (Staging)"
-                icon="document-outline"
-                disabled={docs.phase === 'sending' || migration.phase !== 'committed'}
-                onPress={() => {
-                  void DocumentTransferService.sendAllEncryptedDocuments().catch((e) =>
-                    Alert.alert('Dokumente', (e as Error).message)
-                  );
-                }}
-              />
-            ) : (
-              <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-                Empfänger: speichert Wrap-Ciphertext unter …/documents/ mit Mapping.
-              </Text>
-            )}
-            {migration.phase !== 'committed' && role === 'host' ? (
-              <Text className="mt-2 font-sans text-[12px] text-mute dark:text-[#9bb0a6]">
-                Zuerst Phase 4A (Metadaten) abschließen.
-              </Text>
-            ) : null}
-          </Panel>
-        </View>
-      ) : null}
-
-      {transport.status === 'connected' || cutover.phase === 'awaiting_sender_choice' || cutover.phase === 'committed' ? (
-        <View className="mt-4">
-          <SectionTitle>Vault-Cutover (Phase 4C)</SectionTitle>
-          <Panel className="px-4 py-4">
-            <View className="mb-3 flex-row items-center justify-between">
-              <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Finale Migration</Text>
-              <StatusBadge label={cutover.phase} tone={migrationTone(cutover.phase)} />
-            </View>
-            <Text className="mb-3 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-              Neuer Master Key (Keystore), neue SQLCipher-Vault, Dokument-Rekey, atomarer Commit. Kein
-              Master-Key-Transfer.
-            </Text>
-            {cutover.progress ? (
-              <Text className="mb-2 font-sans text-sm text-ink dark:text-[#e7f2ec]">{cutover.progress}</Text>
-            ) : null}
-            {cutover.phase === 'committed' || cutover.people > 0 ? (
-              <Text className="mb-3 font-sans text-[13px] text-mute dark:text-[#9bb0a6]">
-                Personen: {cutover.people} · Dokumente: {cutover.documents} · Dateien: {cutover.files}
-              </Text>
-            ) : null}
-            {cutover.error ? (
-              <Text className="mb-3 font-sans text-sm text-danger">{cutover.error}</Text>
-            ) : null}
-
-            {role === 'joiner' && transferId ? (
-              <PrimaryButton
-                label="Migration starten (neuer Vault)"
-                icon="shield-checkmark-outline"
-                disabled={!canRunCutover}
-                onPress={() => {
-                  Alert.alert(
-                    'Vault-Cutover',
-                    'Es wird eine neue Vault mit neuem Master Key erzeugt. Bestehende Empfänger-Daten werden ersetzt.',
-                    [
-                      { text: 'Abbrechen', style: 'cancel' },
-                      {
-                        text: 'Starten',
-                        style: 'destructive',
-                        onPress: () => {
-                          void VaultCutoverService.runCutover(transferId)
-                            .then(() => bootstrap())
-                            .catch((e) => Alert.alert('Cutover', (e as Error).message));
-                        },
+          {connected && role === 'joiner' && docsDone && !cutoverDone ? (
+            <PrimaryButton
+              label="Einrichtung starten"
+              icon="shield-checkmark-outline"
+              disabled={!canRunCutover}
+              onPress={() => {
+                if (!transferId) return;
+                Alert.alert(
+                  'Einrichtung',
+                  'FamilyData wird auf diesem Gerät eingerichtet. Bestehende Empfänger-Daten werden ersetzt.',
+                  [
+                    { text: 'Abbrechen', style: 'cancel' },
+                    {
+                      text: 'Starten',
+                      onPress: () => {
+                        void VaultCutoverService.runCutover(transferId)
+                          .then(() => bootstrap())
+                          .catch((e) => alertFriendly('Einrichtung', e));
                       },
-                    ]
-                  );
-                }}
-              />
-            ) : null}
+                    },
+                  ]
+                );
+              }}
+            />
+          ) : null}
 
-            {role === 'host' && cutover.phase === 'awaiting_sender_choice' ? (
-              <View className="gap-2">
-                <Text className="mb-1 font-sansBold text-sm text-ink dark:text-[#e7f2ec]">
-                  Übertragung abgeschlossen.
-                </Text>
-                <Text className="mb-2 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-                  Möchten Sie die Daten auf diesem Gerät behalten oder entfernen?
-                </Text>
-                <PrimaryButton
-                  label="Behalten"
-                  icon="checkmark-outline"
-                  onPress={() => {
-                    VaultCutoverService.markSenderKept();
-                    Alert.alert('Sender', 'Daten bleiben auf diesem Gerät.');
-                  }}
-                />
-                <PrimaryButton
-                  label="Sicher löschen"
-                  tone="ghost"
-                  icon="trash-outline"
-                  onPress={() => {
-                    Alert.alert(
-                      'Sicher löschen',
-                      'Alle Personen, Dokumente und verschlüsselten Dateien auf diesem Gerät werden entfernt. Der gerätegebundene Master Key bleibt erhalten.',
-                      [
-                        { text: 'Abbrechen', style: 'cancel' },
-                        {
-                          text: 'Löschen',
-                          style: 'destructive',
-                          onPress: () => {
-                            void VaultCutoverService.secureWipeSenderVault()
-                              .then(() => bootstrap())
-                              .catch((e) => Alert.alert('Löschen', (e as Error).message));
-                          },
-                        },
-                      ]
-                    );
-                  }}
-                />
-              </View>
-            ) : null}
-
-            {role === 'host' && cutover.phase !== 'awaiting_sender_choice' ? (
-              <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-                Sender: wartet auf Cutover-Bestätigung vom Empfänger. Kein automatisches Löschen.
-              </Text>
-            ) : null}
-          </Panel>
+          {connected && role === 'host' && docsDone && !awaitingSenderChoice && !cutoverDone ? (
+            <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+              Neues Gerät wird eingerichtet
+            </Text>
+          ) : null}
         </View>
-      ) : null}
+      </Panel>
     </View>
   );
 }
