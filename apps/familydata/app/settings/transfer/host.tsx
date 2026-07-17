@@ -6,28 +6,37 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PairingQrDisplay } from '@/components/PairingQrDisplay';
 import { PairingQrScanner } from '@/components/PairingQrScanner';
 import { SecureChannelPanel } from '@/components/SecureChannelPanel';
-import { LoadingBlock, Panel, PrimaryButton, Screen, SectionTitle, StatusBadge } from '@/components/ui';
+import {
+  LoadingBlock,
+  Panel,
+  PrimaryButton,
+  Screen,
+  SectionTitle,
+  StatusBadge,
+} from '@/components/ui';
 import { TransferSessionManager } from '@/deviceTransfer/TransferSessionManager';
+import { formatSecurityCode, friendlyTransferError } from '@/deviceTransfer/transferUiCopy';
 import { useTransferSession } from '@/deviceTransfer/useTransferSession';
 import { requireSecureAccess } from '@/security/access';
 import { beginAutoLockSuppress, endAutoLockSuppress } from '@/security/autoLockSuppress';
 
-function statusLabel(status: string) {
+function hostStatusLabel(status: string, step: string): string {
+  if (step === 'boot') return 'Biometrie erforderlich';
   switch (status) {
     case 'creating':
-      return 'Sitzung wird erstellt…';
+      return 'Wird vorbereitet…';
     case 'showing_offer':
-      return 'QR anzeigen – warte auf Antwort';
+      return 'QR bereit';
     case 'scanning_accept':
-      return 'Antwort wird geprüft…';
+      return 'Antwort prüfen…';
     case 'paired':
-      return 'Sicher gekoppelt';
+      return 'Verbunden';
     case 'expired':
       return 'Abgelaufen';
     case 'error':
       return 'Fehler';
     default:
-      return status;
+      return 'Bereit';
   }
 }
 
@@ -50,22 +59,36 @@ export default function TransferHostScreen() {
       let cancelled = false;
       (async () => {
         const current = TransferSessionManager.getSnapshot();
-        if (current.status === 'paired' || current.status === 'showing_offer' || current.status === 'scanning_accept') {
-          setStep(current.status === 'paired' ? 'offer' : current.status === 'scanning_accept' ? 'scan_accept' : 'offer');
+        if (
+          current.status === 'paired' ||
+          current.status === 'showing_offer' ||
+          current.status === 'scanning_accept'
+        ) {
+          setStep(
+            current.status === 'paired'
+              ? 'offer'
+              : current.status === 'scanning_accept'
+                ? 'scan_accept'
+                : 'offer'
+          );
           return;
         }
         setBusy(true);
         try {
           const access = await requireSecureAccess('Geräteübertragung freigeben', { force: true });
           if (!access.ok) {
-            Alert.alert('Geschützt', access.reason, [{ text: 'OK', onPress: () => router.back() }]);
+            Alert.alert('Geschützt', friendlyTransferError(access.reason), [
+              { text: 'OK', onPress: () => router.back() },
+            ]);
             return;
           }
           if (cancelled) return;
           await TransferSessionManager.startHostOffer();
           if (!cancelled) setStep('offer');
         } catch (e) {
-          Alert.alert('Pairing', (e as Error).message, [{ text: 'OK', onPress: () => router.back() }]);
+          Alert.alert('Übertragung', friendlyTransferError(e), [
+            { text: 'OK', onPress: () => router.back() },
+          ]);
         } finally {
           if (!cancelled) setBusy(false);
         }
@@ -77,11 +100,20 @@ export default function TransferHostScreen() {
   );
 
   const offerQr = TransferSessionManager.getOfferQr();
+  const securityCode = formatSecurityCode(session.confirmationCode);
 
   if (busy && step === 'boot') {
     return (
       <Screen>
-        <LoadingBlock label="Authentifizierung & Sitzung…" />
+        <View className="flex-1 px-5 pt-6">
+          <Text className="mb-2 font-display text-2xl text-ink dark:text-[#e7f2ec]">
+            Gerät vorbereiten
+          </Text>
+          <Text className="mb-6 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
+            Biometrie erforderlich
+          </Text>
+          <LoadingBlock label="Bitte bestätigen…" />
+        </View>
       </Screen>
     );
   }
@@ -90,33 +122,56 @@ export default function TransferHostScreen() {
     <Screen>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 + insets.bottom }}>
         <View className="mb-4 flex-row items-center justify-between">
-          <Text className="font-display text-2xl text-ink dark:text-[#e7f2ec]">Neues Gerät verbinden</Text>
+          <Text className="font-display text-2xl text-ink dark:text-[#e7f2ec]">
+            Neues Gerät verbinden
+          </Text>
           <StatusBadge
-            label={statusLabel(session.status)}
-            tone={session.status === 'paired' ? 'ok' : session.status === 'expired' || session.status === 'error' ? 'danger' : 'neutral'}
+            label={hostStatusLabel(session.status, step)}
+            tone={
+              session.status === 'paired'
+                ? 'ok'
+                : session.status === 'expired' || session.status === 'error'
+                  ? 'danger'
+                  : 'neutral'
+            }
           />
         </View>
 
         {session.error ? (
-          <Text className="mb-3 font-sans text-sm text-danger">{session.error}</Text>
+          <Text className="mb-3 font-sans text-sm text-danger">
+            {friendlyTransferError(session.error)}
+          </Text>
+        ) : null}
+
+        {/* Step 1 indicator when preparing / early */}
+        {session.status !== 'paired' && step !== 'scan_accept' ? (
+          <Panel className="mb-4 px-4 py-3">
+            <Text className="font-sansBold text-[13px] text-ink dark:text-[#e7f2ec]">
+              1. Gerät vorbereiten
+            </Text>
+            <Text className="mt-1 font-sans text-[13px] text-mute dark:text-[#9bb0a6]">
+              ✓ Freigabe erteilt
+            </Text>
+          </Panel>
         ) : null}
 
         {session.status === 'paired' ? (
           <>
-            <Panel className="mb-4 px-4 py-4">
-              <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Geräte sind gekoppelt</Text>
-              <Text className="mt-2 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
-                Short Authentication String – muss auf beiden Geräten identisch sein:
-              </Text>
-              <Text className="mt-3 text-center font-display text-3xl tracking-[4px] text-pine-700 dark:text-pine-400">
-                {session.confirmationCode}
-              </Text>
-              {session.transportHost && session.transportPort ? (
-                <Text className="mt-3 text-center font-sans text-xs text-mute dark:text-[#9bb0a6]">
-                  Endpoint {session.transportHost}:{session.transportPort}
+            {!session.sasConfirmed ? (
+              <Panel className="mb-4 px-4 py-4">
+                <SectionTitle>Sicherheitscode vergleichen</SectionTitle>
+                <Text className="mb-1 font-sansBold text-base text-ink dark:text-[#e7f2ec]">
+                  3. Sicherheitscode vergleichen
                 </Text>
-              ) : null}
-              {!session.sasConfirmed ? (
+                <Text className="mt-2 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
+                  Vergleiche diesen Code auf beiden Geräten.
+                </Text>
+                <Text
+                  className="mt-4 text-center font-display text-3xl tracking-[4px] text-pine-700 dark:text-pine-400"
+                  accessibilityLabel={`Sicherheitscode ${securityCode}`}
+                >
+                  {securityCode}
+                </Text>
                 <View className="mt-4">
                   <PrimaryButton
                     label="Code stimmt überein"
@@ -125,20 +180,28 @@ export default function TransferHostScreen() {
                       try {
                         TransferSessionManager.confirmSas();
                       } catch (e) {
-                        Alert.alert('Bestätigung', (e as Error).message);
+                        Alert.alert('Bestätigung', friendlyTransferError(e));
                       }
                     }}
                   />
-                  <Text className="mt-2 text-center font-sans text-[12px] text-mute dark:text-[#9bb0a6]">
-                    Erst nach Bestätigung kann der sichere Kanal geöffnet werden.
-                  </Text>
                 </View>
-              ) : null}
-            </Panel>
-            <SecureChannelPanel paired={session.sasConfirmed} />
+              </Panel>
+            ) : (
+              <>
+                <Panel className="mb-2 px-4 py-3">
+                  <Text className="font-sansBold text-[13px] text-ink dark:text-[#e7f2ec]">
+                    4. Übertragung
+                  </Text>
+                  <Text className="mt-1 font-sans text-[13px] text-mute dark:text-[#9bb0a6]">
+                    Daten werden sicher an das neue Gerät gesendet.
+                  </Text>
+                </Panel>
+                <SecureChannelPanel paired={session.sasConfirmed} />
+              </>
+            )}
             <View className="mt-4 gap-2">
               <PrimaryButton
-                label="Fertig"
+                label="Abbrechen"
                 tone="ghost"
                 onPress={() => {
                   void TransferSessionManager.clear().then(() =>
@@ -152,50 +215,50 @@ export default function TransferHostScreen() {
 
         {step === 'offer' && offerQr && session.status !== 'paired' ? (
           <>
-            <SectionTitle>1. QR auf dem neuen Gerät scannen</SectionTitle>
-            <PairingQrDisplay value={offerQr} label="Pairing-Angebot" />
-            <Text className="mt-3 mb-5 text-center font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-              Enthält Sitzungs-ID, temporäre Gerätekennung, öffentlichen Schlüssel, Ablaufzeit sowie host/port für
-              den lokalen Kanal.
+            <SectionTitle>Neues Gerät verbinden</SectionTitle>
+            <Text className="mb-3 font-sansBold text-base text-ink dark:text-[#e7f2ec]">
+              2. Neues Gerät verbinden
             </Text>
+            <Text className="mb-4 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
+              Zeige diesen Code dem neuen Gerät. Scanne dort den QR-Code.
+            </Text>
+            <PairingQrDisplay value={offerQr} label="Verbindungscode" />
 
-            {session.expiresAt ? (
-              <Text className="mb-4 text-center font-sans text-xs text-mute dark:text-[#9bb0a6]">
-                Gültig bis {new Date(session.expiresAt).toLocaleTimeString()}
-              </Text>
-            ) : null}
-
-            <SectionTitle>2. Antwort-QR vom neuen Gerät</SectionTitle>
-            {step === 'offer' ? (
-              <View className="mb-3">
-                <PrimaryButton
-                  label="Antwort-QR scannen"
-                  icon="scan-outline"
-                  tone="soft"
-                  onPress={() => setStep('scan_accept')}
-                  disabled={session.status === 'expired'}
-                />
-              </View>
-            ) : null}
+            <View className="mt-5 mb-3">
+              <PrimaryButton
+                label="Antwort vom neuen Gerät scannen"
+                icon="scan-outline"
+                tone="soft"
+                onPress={() => setStep('scan_accept')}
+                disabled={session.status === 'expired'}
+              />
+            </View>
           </>
         ) : null}
 
         {step === 'scan_accept' && session.status !== 'paired' ? (
           <>
             <SectionTitle>Antwort scannen</SectionTitle>
+            <Text className="mb-3 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
+              Scanne den Code, den das neue Gerät anzeigt.
+            </Text>
             <PairingQrScanner
-              hint="Scanne den QR-Code, den das neue Gerät anzeigt."
+              hint="Kamerablick auf den Code des neuen Geräts."
               disabled={session.status === 'expired'}
               onScan={(data) => {
                 try {
                   TransferSessionManager.completeHostFromAcceptQr(data);
                 } catch (e) {
-                  Alert.alert('Antwort ungültig', (e as Error).message);
+                  Alert.alert('Code ungültig', friendlyTransferError(e));
                 }
               }}
             />
             <View className="mt-3">
-              <PrimaryButton label="Zurück zum eigenen QR" tone="ghost" onPress={() => setStep('offer')} />
+              <PrimaryButton
+                label="Zurück zum eigenen Code"
+                tone="ghost"
+                onPress={() => setStep('offer')}
+              />
             </View>
           </>
         ) : null}
@@ -209,15 +272,17 @@ export default function TransferHostScreen() {
                   setStep('boot');
                   setBusy(true);
                   try {
-                    const access = await requireSecureAccess('Geräteübertragung freigeben', { force: true });
+                    const access = await requireSecureAccess('Geräteübertragung freigeben', {
+                      force: true,
+                    });
                     if (!access.ok) {
-                      Alert.alert('Geschützt', access.reason);
+                      Alert.alert('Geschützt', friendlyTransferError(access.reason));
                       return;
                     }
                     await TransferSessionManager.startHostOffer();
                     setStep('offer');
                   } catch (e) {
-                    Alert.alert('Pairing', (e as Error).message);
+                    Alert.alert('Übertragung', friendlyTransferError(e));
                   } finally {
                     setBusy(false);
                   }
