@@ -90,16 +90,51 @@ async function offlinePdfBundled(): Promise<boolean> {
   }
 }
 
-function backupProtectionConfigured(): boolean {
+async function backupProtectionStatus(): Promise<{ ok: boolean; detail: string }> {
   const android = Constants.expoConfig?.android as { allowBackup?: boolean } | undefined;
   if (Platform.OS === 'android') {
-    return android?.allowBackup === false;
+    const ok = android?.allowBackup === false;
+    return {
+      ok,
+      detail: ok ? 'android:allowBackup=false' : 'android:allowBackup nicht deaktiviert',
+    };
   }
-  // iOS: file sharing disabled in infoPlist
+  if (Platform.OS !== 'ios') {
+    return { ok: true, detail: 'Kein mobiles Backup-Ziel' };
+  }
+
   const plist = Constants.expoConfig?.ios?.infoPlist as
     | { UIFileSharingEnabled?: boolean; LSSupportsOpeningDocumentsInPlace?: boolean }
     | undefined;
-  return plist?.UIFileSharingEnabled === false || plist?.LSSupportsOpeningDocumentsInPlace === false;
+  const sharingOff =
+    plist?.UIFileSharingEnabled === false || plist?.LSSupportsOpeningDocumentsInPlace === false;
+
+  try {
+    const { IosBackupExclusionService } = await import('@/security/IosBackupExclusionService');
+    const result = await IosBackupExclusionService.verifyExclusion();
+    if (!result.nativeAvailable) {
+      return {
+        ok: false,
+        detail: sharingOff
+          ? 'File Sharing aus – nativer Backup-Exclude-Modul fehlt (Dev Build nötig)'
+          : 'iOS Backup-Exclude nicht verfügbar',
+      };
+    }
+    const ok = result.allExcluded && sharingOff;
+    return {
+      ok,
+      detail: result.allExcluded
+        ? `NSURLIsExcludedFromBackupKey (${result.excludedCount} Verzeichnisse)`
+        : `Backup-Exclude unvollständig (${result.missingCount + result.errorCount} offen)`,
+    };
+  } catch {
+    return {
+      ok: sharingOff,
+      detail: sharingOff
+        ? 'File Sharing deaktiviert (Exclude-Prüfung fehlgeschlagen)'
+        : 'Backup-Flags prüfen',
+    };
+  }
 }
 
 /**
@@ -113,7 +148,7 @@ export const SecurityAuditService = {
     const plaintextCount = await countPlaintextAttachments();
     const pdfOffline = await offlinePdfBundled();
     const encryptionActive = vault.hasVaultDb && vault.hasMasterKey && vault.sqlCipherSupported;
-    const backupOk = backupProtectionConfigured();
+    const backup = await backupProtectionStatus();
     const screenshotOk = isScreenCaptureProtected() || Platform.OS === 'web';
 
     const checks: SecurityCheckResult[] = [
@@ -185,12 +220,8 @@ export const SecurityAuditService = {
       {
         id: 'backup_protection',
         label: CHECK_LABELS.backup_protection,
-        ok: backupOk,
-        detail: backupOk
-          ? Platform.OS === 'android'
-            ? 'android:allowBackup=false'
-            : 'iOS File Sharing deaktiviert'
-          : 'Backup-Flags prüfen',
+        ok: backup.ok,
+        detail: backup.detail,
       },
       {
         id: 'no_plaintext_documents',
@@ -275,7 +306,11 @@ export const SecurityAuditService = {
           tips.push('App neu starten, damit der Screenshot-Schutz greift.');
           break;
         case 'backup_protection':
-          tips.push('Release-Build mit allowBackup=false und Hardening-Plugin verwenden.');
+          tips.push(
+            Platform.OS === 'ios'
+              ? 'iOS Development/Release Build neu bauen, damit NSURLIsExcludedFromBackupKey gesetzt wird.'
+              : 'Release-Build mit allowBackup=false und Hardening-Plugin verwenden.'
+          );
           break;
         case 'no_plaintext_documents':
           tips.push('Klartext → Vault Migration ausführen bzw. Staging-Dateien entfernen.');

@@ -2,6 +2,11 @@ export { BiometricService } from '@/security/BiometricService';
 export { DocumentEncryptionService } from '@/security/DocumentEncryptionService';
 export { EncryptionService } from '@/security/EncryptionService';
 export { ExportHistory } from '@/security/ExportHistory';
+export {
+  IosBackupExclusionService,
+  IOS_BACKUP_EXCLUDED_RELATIVE_DIRS,
+} from '@/security/IosBackupExclusionService';
+export type { IosBackupExclusionResult } from '@/security/IosBackupExclusionService';
 export { KeyStoreService, wipeBytes } from '@/security/KeyStoreService';
 export { MigrationService } from '@/security/MigrationService';
 export { SecurityAuditService } from '@/security/SecurityAuditService';
