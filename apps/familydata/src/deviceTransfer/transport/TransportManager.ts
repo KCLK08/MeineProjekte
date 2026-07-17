@@ -53,7 +53,8 @@ class TransportManagerImpl {
   private messageHandlers = new Set<MessageHandler>();
   private connection: ConnectionService | null = null;
   private channel: SecureChannel | null = null;
-  private sessionKey: Uint8Array | null = null;
+  private transportKey: Uint8Array | null = null;
+  private integrityKey: Uint8Array | null = null;
 
   constructor() {
     this.cached = this.build();
@@ -79,14 +80,19 @@ class TransportManagerImpl {
   }
 
   /**
-   * Returns a copy of the session key for integrity operations.
+   * Copy of the integrity key for HMAC (manifests / documents).
    * Caller MUST wipe the returned buffer.
    */
-  borrowSessionKey(): Uint8Array {
-    if (!this.sessionKey || this.status !== 'connected') {
-      throw new Error('Kein Session-Key – Kanal nicht verbunden.');
+  borrowIntegrityKey(): Uint8Array {
+    if (!this.integrityKey || this.status !== 'connected') {
+      throw new Error('Kein Integrity-Key – Kanal nicht verbunden.');
     }
-    return new Uint8Array(this.sessionKey);
+    return new Uint8Array(this.integrityKey);
+  }
+
+  /** @deprecated Prefer borrowIntegrityKey – returns integrity key copy. */
+  borrowSessionKey(): Uint8Array {
+    return this.borrowIntegrityKey();
   }
 
   async connect(params: TransportConnectParams): Promise<void> {
@@ -97,21 +103,25 @@ class TransportManagerImpl {
     this.pushLog(params.role === 'host' ? 'Warte auf TCP-Verbindung…' : `Verbinde zu ${params.host}:${params.port}…`);
     this.emit();
 
-    let derived: Uint8Array | null = null;
+    let transportKey: Uint8Array | null = null;
+    let integrityKey: Uint8Array | null = null;
     try {
-      derived = SessionKeyService.deriveSessionKey({
+      const derived = SessionKeyService.deriveSessionKeys({
         localSecretKey: params.keyPair.secretKey,
         remotePublicKeyHex: params.remotePublicKeyHex,
         sessionIdHex: params.sessionId,
       });
-      this.sessionKey = new Uint8Array(derived);
-      this.channel = new SecureChannel(this.sessionKey, params.sessionId);
+      transportKey = derived.transportKey;
+      integrityKey = derived.integrityKey;
+      this.transportKey = new Uint8Array(transportKey);
+      this.integrityKey = new Uint8Array(integrityKey);
+      this.channel = new SecureChannel(this.transportKey, params.sessionId);
       this.connection = new ConnectionService();
 
       const handlers = {
         onConnected: () => {
           this.status = 'connected';
-          this.pushLog('Kanal verbunden (AEAD aktiv).');
+          this.pushLog('Kanal verbunden (AEAD + getrennte Integrity-Keys).');
           this.emit();
         },
         onData: (frame: Uint8Array) => {
@@ -138,7 +148,8 @@ class TransportManagerImpl {
       this.fail((e as Error).message || 'connect() fehlgeschlagen');
       throw e;
     } finally {
-      wipeBytes(derived);
+      wipeBytes(transportKey);
+      wipeBytes(integrityKey);
     }
   }
 
@@ -235,8 +246,10 @@ class TransportManagerImpl {
   private wipeSecrets() {
     this.channel?.dispose();
     this.channel = null;
-    wipeBytes(this.sessionKey);
-    this.sessionKey = null;
+    wipeBytes(this.transportKey);
+    wipeBytes(this.integrityKey);
+    this.transportKey = null;
+    this.integrityKey = null;
   }
 
   private pushLog(line: string) {

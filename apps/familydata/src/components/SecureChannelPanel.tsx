@@ -1,9 +1,11 @@
 import { Alert, Text, View } from 'react-native';
 
 import { Panel, PrimaryButton, SectionTitle, StatusBadge } from '@/components/ui';
+import { DocumentTransferService } from '@/deviceTransfer/migration/DocumentTransferService';
 import { MigrationTransferService } from '@/deviceTransfer/migration/MigrationTransferService';
 import { TransferSessionManager } from '@/deviceTransfer/TransferSessionManager';
 import { TransportManager } from '@/deviceTransfer/transport/TransportManager';
+import { useDocumentTransfer } from '@/deviceTransfer/useDocumentTransfer';
 import { useMigrationTransfer } from '@/deviceTransfer/useMigrationTransfer';
 import { useTransportSession } from '@/deviceTransfer/useTransportSession';
 
@@ -30,18 +32,19 @@ function transportLabel(status: string): string {
 }
 
 function migrationTone(phase: string): 'ok' | 'warn' | 'danger' | 'neutral' {
-  if (phase === 'committed' || phase === 'validated') return 'ok';
+  if (phase === 'committed' || phase === 'validated' || phase === 'ready_for_4c') return 'ok';
   if (phase === 'sending' || phase === 'receiving') return 'warn';
   if (phase === 'failed') return 'danger';
   return 'neutral';
 }
 
 /**
- * Phase 3 channel + Phase 4A metadata transfer test UI.
+ * Phase 3 channel + Phase 4A/4B transfer test UI.
  */
 export function SecureChannelPanel({ paired }: { paired: boolean }) {
   const transport = useTransportSession();
   const migration = useMigrationTransfer();
+  const docs = useDocumentTransfer();
   const role = TransferSessionManager.getSnapshot().role;
 
   if (!paired) return null;
@@ -55,7 +58,7 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
           <StatusBadge label={transportLabel(transport.status)} tone={transportTone(transport.status)} />
         </View>
         <Text className="mb-3 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-          TCP + AES-256-GCM. Zuerst Host „Kanal öffnen“, danach Joiner verbinden.
+          TCP + AES-256-GCM (Transport-Key). Integrity-Key getrennt via HKDF. Zuerst Host öffnen.
         </Text>
 
         {transport.error ? (
@@ -134,16 +137,10 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
               <StatusBadge label={migration.phase} tone={migrationTone(migration.phase)} />
             </View>
             <Text className="mb-3 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-              Überträgt Tabellenstruktur, Einstellungen und Dokument-Metadaten (keine Dateien, kein Master Key).
-              Empfänger speichert nur im Staging und validiert.
+              Tabellenstruktur, Einstellungen, Dokument-Metadaten → Staging (keine Dateien, kein Master Key).
             </Text>
             {migration.progress ? (
               <Text className="mb-2 font-sans text-sm text-ink dark:text-[#e7f2ec]">{migration.progress}</Text>
-            ) : null}
-            {migration.peopleCount != null || migration.documentCount != null ? (
-              <Text className="mb-3 font-sans text-[13px] text-mute dark:text-[#9bb0a6]">
-                Personen: {migration.peopleCount ?? '—'} · Dokumente (Meta): {migration.documentCount ?? '—'}
-              </Text>
             ) : null}
             {migration.error ? (
               <Text className="mb-3 font-sans text-sm text-danger">{migration.error}</Text>
@@ -161,9 +158,54 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
               />
             ) : (
               <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-                Empfänger: wartet automatisch auf Manifest/Chunks und schreibt nur Staging.
+                Empfänger: wartet auf Manifest/Chunks (nur Staging).
               </Text>
             )}
+          </Panel>
+        </View>
+      ) : null}
+
+      {transport.status === 'connected' ? (
+        <View className="mt-4">
+          <SectionTitle>Dokumenttransfer (Phase 4B)</SectionTitle>
+          <Panel className="px-4 py-4">
+            <View className="mb-3 flex-row items-center justify-between">
+              <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">.dat → Staging</Text>
+              <StatusBadge label={docs.phase} tone={migrationTone(docs.phase)} />
+            </View>
+            <Text className="mb-3 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+              Nur verschlüsselte Dateien, Chunk-Hashes, neue UUID.dat-Namen. Kein Vault-Cutover.
+            </Text>
+            {docs.progress ? (
+              <Text className="mb-2 font-sans text-sm text-ink dark:text-[#e7f2ec]">{docs.progress}</Text>
+            ) : null}
+            <Text className="mb-3 font-sans text-[13px] text-mute dark:text-[#9bb0a6]">
+              Gesendet: {docs.sentCount} · Empfangen: {docs.receivedCount}
+            </Text>
+            {docs.error ? (
+              <Text className="mb-3 font-sans text-sm text-danger">{docs.error}</Text>
+            ) : null}
+            {role === 'host' ? (
+              <PrimaryButton
+                label="Dokumente senden (Staging)"
+                icon="document-outline"
+                disabled={docs.phase === 'sending' || migration.phase !== 'committed'}
+                onPress={() => {
+                  void DocumentTransferService.sendAllEncryptedDocuments().catch((e) =>
+                    Alert.alert('Dokumente', (e as Error).message)
+                  );
+                }}
+              />
+            ) : (
+              <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+                Empfänger: speichert unter …/documents/ mit Mapping alter documentId → neue Datei.
+              </Text>
+            )}
+            {migration.phase !== 'committed' && role === 'host' ? (
+              <Text className="mt-2 font-sans text-[12px] text-mute dark:text-[#9bb0a6]">
+                Zuerst Phase 4A (Metadaten) abschließen.
+              </Text>
+            ) : null}
           </Panel>
         </View>
       ) : null}
