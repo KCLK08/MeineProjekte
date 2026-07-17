@@ -1,14 +1,17 @@
 /**
- * Device-to-device transfer pairing (Phase 2).
+ * Device-to-device transfer pairing + transport (Phase 2/3).
  * In-memory only – no vault/DB/document access.
  */
 
-export const PAIRING_PROTOCOL_VERSION = 1 as const;
+export const PAIRING_PROTOCOL_VERSION = 2 as const;
 export const PAIRING_OFFER_TYPE = 'fv-pair-offer' as const;
 export const PAIRING_ACCEPT_TYPE = 'fv-pair-accept' as const;
 
 /** Default session lifetime for QR payloads. */
 export const SESSION_TTL_MS = 5 * 60 * 1000;
+
+/** Default TCP listen port for Phase 3 secure channel. */
+export const TRANSFER_TCP_PORT = 27891;
 
 export type TransferRole = 'host' | 'joiner';
 
@@ -31,6 +34,9 @@ export type PairingOfferPayload = {
   did: string;
   pk: string;
   exp: number;
+  /** Host IPv4 for Phase 3 TCP connect (not a secret). */
+  host: string;
+  port: number;
 };
 
 export type PairingAcceptPayload = {
@@ -61,6 +67,9 @@ export type TransferSessionSnapshot = {
   expiresAt: number | null;
   /** Short confirmation code derived after mutual keys (no secret material). */
   confirmationCode: string | null;
+  /** Advertised TCP endpoint from offer (joiner uses to connect). */
+  transportHost: string | null;
+  transportPort: number | null;
   error: string | null;
   updatedAt: number;
 };

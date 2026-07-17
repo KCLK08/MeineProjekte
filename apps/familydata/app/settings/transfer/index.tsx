@@ -23,8 +23,8 @@ export default function TransferHubScreen() {
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 + insets.bottom }}>
         <Text className="mb-2 font-display text-3xl text-ink dark:text-[#e7f2ec]">Geräteübertragung</Text>
         <Text className="mb-6 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
-          Phase 2: Sicheres Pairing per QR-Code. Es werden noch keine Daten, Dokumente oder der Master Key
-          übertragen.
+          Phase 2+3: QR-Pairing und sicherer Testkanal. Es werden noch keine Vault-Daten, Dokumente oder der
+          Master Key übertragen.
         </Text>
 
         <SectionTitle>Optionen</SectionTitle>

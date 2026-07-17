@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PairingQrDisplay } from '@/components/PairingQrDisplay';
 import { PairingQrScanner } from '@/components/PairingQrScanner';
+import { SecureChannelPanel } from '@/components/SecureChannelPanel';
 import { LoadingBlock, Panel, PrimaryButton, Screen, SectionTitle, StatusBadge } from '@/components/ui';
 import { TransferSessionManager } from '@/deviceTransfer/TransferSessionManager';
 import { useTransferSession } from '@/deviceTransfer/useTransferSession';
@@ -101,27 +102,33 @@ export default function TransferHostScreen() {
         ) : null}
 
         {session.status === 'paired' ? (
-          <Panel className="mb-4 px-4 py-4">
-            <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Geräte sind gekoppelt</Text>
-            <Text className="mt-2 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
-              Bestätigungscode (sollte auf beiden Geräten übereinstimmen):
-            </Text>
-            <Text className="mt-3 text-center font-display text-3xl tracking-[4px] text-pine-700 dark:text-pine-400">
-              {session.confirmationCode}
-            </Text>
-            <Text className="mt-3 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-              Phase 2 abgeschlossen. Datenübertragung folgt in Phase 3.
-            </Text>
+          <>
+            <Panel className="mb-4 px-4 py-4">
+              <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Geräte sind gekoppelt</Text>
+              <Text className="mt-2 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
+                Bestätigungscode (sollte auf beiden Geräten übereinstimmen):
+              </Text>
+              <Text className="mt-3 text-center font-display text-3xl tracking-[4px] text-pine-700 dark:text-pine-400">
+                {session.confirmationCode}
+              </Text>
+              {session.transportHost && session.transportPort ? (
+                <Text className="mt-3 text-center font-sans text-xs text-mute dark:text-[#9bb0a6]">
+                  Endpoint {session.transportHost}:{session.transportPort}
+                </Text>
+              ) : null}
+            </Panel>
+            <SecureChannelPanel paired />
             <View className="mt-4 gap-2">
               <PrimaryButton
                 label="Fertig"
+                tone="ghost"
                 onPress={() => {
                   TransferSessionManager.clear();
                   router.replace('/settings/transfer' as Href);
                 }}
               />
             </View>
-          </Panel>
+          </>
         ) : null}
 
         {step === 'offer' && offerQr && session.status !== 'paired' ? (
@@ -129,7 +136,8 @@ export default function TransferHostScreen() {
             <SectionTitle>1. QR auf dem neuen Gerät scannen</SectionTitle>
             <PairingQrDisplay value={offerQr} label="Pairing-Angebot" />
             <Text className="mt-3 mb-5 text-center font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-              Enthält nur Sitzungs-ID, temporäre Gerätekennung, öffentlichen Schlüssel und Ablaufzeit.
+              Enthält Sitzungs-ID, temporäre Gerätekennung, öffentlichen Schlüssel, Ablaufzeit sowie host/port für
+              den lokalen Kanal.
             </Text>
 
             {session.expiresAt ? (

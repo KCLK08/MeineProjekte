@@ -1,11 +1,13 @@
 import { EphemeralKeyService } from '@/deviceTransfer/EphemeralKeyService';
 import { PairingService } from '@/deviceTransfer/PairingService';
+import { TransportManager } from '@/deviceTransfer/transport/TransportManager';
+import type { TransportConnectParams } from '@/deviceTransfer/transport/TransportManager';
 import type { EphemeralKeyPair, PairingStatus, TransferRole, TransferSessionSnapshot } from '@/deviceTransfer/types';
 
 type Listener = (snapshot: TransferSessionSnapshot) => void;
 
 /**
- * In-memory transfer session lifecycle for Phase 2 pairing.
+ * In-memory transfer session lifecycle for Phase 2 pairing + Phase 3 transport prep.
  * Cleared on vault lock / explicit cancel – never persisted.
  */
 class TransferSessionManagerImpl {
@@ -20,6 +22,8 @@ class TransferSessionManagerImpl {
   private offerQr: string | null = null;
   private acceptQr: string | null = null;
   private confirmationCode: string | null = null;
+  private transportHost: string | null = null;
+  private transportPort: number | null = null;
   private error: string | null = null;
   private updatedAt = Date.now();
   private expiryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -53,6 +57,32 @@ class TransferSessionManagerImpl {
     return this.status === 'expired' ? null : this.acceptQr;
   }
 
+  /**
+   * Credentials for Phase 3 TransportManager.connect().
+   * Only available while paired and keys still in RAM.
+   */
+  getTransportConnectParams(): TransportConnectParams | null {
+    if (
+      this.status !== 'paired' ||
+      !this.role ||
+      !this.sessionId ||
+      !this.keyPair ||
+      !this.remotePublicKeyHex ||
+      !this.transportHost ||
+      this.transportPort == null
+    ) {
+      return null;
+    }
+    return {
+      role: this.role,
+      sessionId: this.sessionId,
+      keyPair: this.keyPair,
+      remotePublicKeyHex: this.remotePublicKeyHex,
+      host: this.transportHost,
+      port: this.transportPort,
+    };
+  }
+
   async startHostOffer(): Promise<TransferSessionSnapshot> {
     this.clearInternal(false);
     this.status = 'creating';
@@ -65,6 +95,8 @@ class TransferSessionManagerImpl {
       this.keyPair = offer.keyPair;
       this.expiresAt = offer.expiresAt;
       this.offerQr = offer.offerQr;
+      this.transportHost = offer.host;
+      this.transportPort = offer.port;
       this.status = 'showing_offer';
       this.error = null;
       this.scheduleExpiry(offer.expiresAt);
@@ -94,6 +126,8 @@ class TransferSessionManagerImpl {
       this.expiresAt = accepted.expiresAt;
       this.acceptQr = accepted.acceptQr;
       this.confirmationCode = accepted.confirmationCode;
+      this.transportHost = accepted.transportHost;
+      this.transportPort = accepted.transportPort;
       this.status = 'showing_accept';
       this.error = null;
       this.scheduleExpiry(accepted.expiresAt);
@@ -162,6 +196,11 @@ class TransferSessionManagerImpl {
 
   private clearInternal(emit: boolean) {
     this.clearExpiryTimer();
+    try {
+      TransportManager.close();
+    } catch {
+      /* ignore */
+    }
     EphemeralKeyService.dispose(this.keyPair);
     this.role = null;
     this.status = 'idle';
@@ -174,6 +213,8 @@ class TransferSessionManagerImpl {
     this.offerQr = null;
     this.acceptQr = null;
     this.confirmationCode = null;
+    this.transportHost = null;
+    this.transportPort = null;
     this.error = null;
     this.rebuildSnapshot();
     if (emit) {
@@ -195,6 +236,11 @@ class TransferSessionManagerImpl {
       this.keyPair = null;
       this.offerQr = null;
       this.acceptQr = null;
+      try {
+        TransportManager.close();
+      } catch {
+        /* ignore */
+      }
       this.emit();
     }, delay);
   }
@@ -220,6 +266,11 @@ class TransferSessionManagerImpl {
       this.keyPair = null;
       this.offerQr = null;
       this.acceptQr = null;
+      try {
+        TransportManager.close();
+      } catch {
+        /* ignore */
+      }
       this.rebuildSnapshot();
     }
   }
@@ -235,6 +286,8 @@ class TransferSessionManagerImpl {
       remotePublicKeyHex: this.remotePublicKeyHex,
       expiresAt: this.expiresAt,
       confirmationCode: this.confirmationCode,
+      transportHost: this.transportHost,
+      transportPort: this.transportPort,
       error: this.error,
       updatedAt: this.updatedAt,
     };
