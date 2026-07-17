@@ -201,6 +201,12 @@ class TransferSessionManagerImpl {
     } catch {
       /* ignore */
     }
+    void import('@/deviceTransfer/migration/StagingStore')
+      .then(({ StagingStore }) => StagingStore.wipeAll())
+      .catch(() => undefined);
+    void import('@/deviceTransfer/migration/MigrationTransferService')
+      .then(({ MigrationTransferService }) => MigrationTransferService.reset())
+      .catch(() => undefined);
     EphemeralKeyService.dispose(this.keyPair);
     this.role = null;
     this.status = 'idle';

@@ -1,8 +1,10 @@
 import { Alert, Text, View } from 'react-native';
 
 import { Panel, PrimaryButton, SectionTitle, StatusBadge } from '@/components/ui';
+import { MigrationTransferService } from '@/deviceTransfer/migration/MigrationTransferService';
 import { TransferSessionManager } from '@/deviceTransfer/TransferSessionManager';
 import { TransportManager } from '@/deviceTransfer/transport/TransportManager';
+import { useMigrationTransfer } from '@/deviceTransfer/useMigrationTransfer';
 import { useTransportSession } from '@/deviceTransfer/useTransportSession';
 
 function transportTone(status: string): 'ok' | 'warn' | 'danger' | 'neutral' {
@@ -27,11 +29,20 @@ function transportLabel(status: string): string {
   }
 }
 
+function migrationTone(phase: string): 'ok' | 'warn' | 'danger' | 'neutral' {
+  if (phase === 'committed' || phase === 'validated') return 'ok';
+  if (phase === 'sending' || phase === 'receiving') return 'warn';
+  if (phase === 'failed') return 'danger';
+  return 'neutral';
+}
+
 /**
- * Phase 3 UI: open AEAD channel and exchange the fixed test string.
+ * Phase 3 channel + Phase 4A metadata transfer test UI.
  */
 export function SecureChannelPanel({ paired }: { paired: boolean }) {
   const transport = useTransportSession();
+  const migration = useMigrationTransfer();
+  const role = TransferSessionManager.getSnapshot().role;
 
   if (!paired) return null;
 
@@ -44,8 +55,7 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
           <StatusBadge label={transportLabel(transport.status)} tone={transportTone(transport.status)} />
         </View>
         <Text className="mb-3 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-          TCP + AES-256-GCM (Session-Key aus X25519→HKDF). Keine Vault-Daten – nur Testnachricht. Zuerst das alte
-          Gerät (Host) öffnen, danach das neue Gerät verbinden.
+          TCP + AES-256-GCM. Zuerst Host „Kanal öffnen“, danach Joiner verbinden.
         </Text>
 
         {transport.error ? (
@@ -106,7 +116,7 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
             <Text className="mb-1 font-sansMedium text-[11px] uppercase tracking-wide text-mute dark:text-[#9bb0a6]">
               Log
             </Text>
-            {transport.log.slice(0, 8).map((line) => (
+            {transport.log.slice(0, 6).map((line) => (
               <Text key={line} className="font-sans text-[12px] leading-4 text-mute dark:text-[#9bb0a6]">
                 {line}
               </Text>
@@ -114,6 +124,49 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
           </View>
         ) : null}
       </Panel>
+
+      {transport.status === 'connected' ? (
+        <View className="mt-4">
+          <SectionTitle>Metadaten-Transfer (Phase 4A)</SectionTitle>
+          <Panel className="px-4 py-4">
+            <View className="mb-3 flex-row items-center justify-between">
+              <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Vault-Metadaten</Text>
+              <StatusBadge label={migration.phase} tone={migrationTone(migration.phase)} />
+            </View>
+            <Text className="mb-3 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+              Überträgt Tabellenstruktur, Einstellungen und Dokument-Metadaten (keine Dateien, kein Master Key).
+              Empfänger speichert nur im Staging und validiert.
+            </Text>
+            {migration.progress ? (
+              <Text className="mb-2 font-sans text-sm text-ink dark:text-[#e7f2ec]">{migration.progress}</Text>
+            ) : null}
+            {migration.peopleCount != null || migration.documentCount != null ? (
+              <Text className="mb-3 font-sans text-[13px] text-mute dark:text-[#9bb0a6]">
+                Personen: {migration.peopleCount ?? '—'} · Dokumente (Meta): {migration.documentCount ?? '—'}
+              </Text>
+            ) : null}
+            {migration.error ? (
+              <Text className="mb-3 font-sans text-sm text-danger">{migration.error}</Text>
+            ) : null}
+            {role === 'host' ? (
+              <PrimaryButton
+                label="Metadaten-Test senden"
+                icon="cloud-upload-outline"
+                disabled={migration.phase === 'sending'}
+                onPress={() => {
+                  void MigrationTransferService.sendMetadataTransfer().catch((e) =>
+                    Alert.alert('Metadaten', (e as Error).message)
+                  );
+                }}
+              />
+            ) : (
+              <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+                Empfänger: wartet automatisch auf Manifest/Chunks und schreibt nur Staging.
+              </Text>
+            )}
+          </Panel>
+        </View>
+      ) : null}
     </View>
   );
 }
