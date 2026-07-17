@@ -13,9 +13,9 @@ Die Geräteübertragung ist als **lokaler, accountfreier Offline-Transfer** konz
 
 Das Audit hat mehrere **High**-Findings in der ursprünglichen Implementierung identifiziert (u. a. fehlende SAS-Bindung an den Transport, bidirektionaler AEAD-Key/Reflection, Klartext-Staging, Fire-and-Forget-Wipe). Diese wurden in derselben Audit-Welle **korrigiert**.
 
-**Security Score: 84 / 100**
+**Security Score: 86 / 100**
 
-Bewertung als professionelle Offline-Tresor-App: **bedingt produktionsreif** für kontrollierte Beta / Early Access; für Broad Production noch Rest-Risiken (iOS Backup-Ausschluss nativ, LAN-DoS, JS-Wipe-Limits). Auto-Lock-Suppress auf Transfer-Screens ist geschlossen (`AUTOLOCK_SECURITY.md`).
+Bewertung als professionelle Offline-Tresor-App: **bedingt produktionsreif** für kontrollierte Beta / Early Access; für Broad Production noch Rest-Risiken (LAN-DoS, nutzerabhängiges SAS, JS-Wipe-Limits). iOS Backup Exclusion und Auto-Lock-Suppress-Verengung sind geschlossen (`IOS_BACKUP_SECURITY.md`, `AUTOLOCK_SECURITY.md`).
 
 ---
 
@@ -77,7 +77,7 @@ Bewertung als professionelle Offline-Tresor-App: **bedingt produktionsreif** fü
 | Export-Pfad-Sanitization | OK |
 | Decrypt-Temps bei Lock | OK |
 
-**Residual:** Attach-Pfad `familydata-files/` Crash-Fenster; Share-Cache-PDFs; iOS Backup-Exclude nicht nativ gesetzt (Staging jetzt ciphertext → Risiko stark gemindert).
+**Residual:** Attach-Pfad `familydata-files/` Crash-Fenster; Share-Cache-PDFs. iOS Backup-Exclude ist nativ gesetzt (`IOS_BACKUP_SECURITY.md`).
 
 ### 2.4 Migration Security
 
@@ -111,7 +111,7 @@ Bewertung als professionelle Offline-Tresor-App: **bedingt produktionsreif** fü
 | Android | Keystore via SecureStore auth-bound | OK |
 | iOS | Keychain device-only + biometrics | OK |
 | iOS | File Sharing off | OK |
-| iOS | NSURLIsExcludedFromBackupKey für Vault-Dirs | **Offen** (Residual Medium) |
+| iOS | NSURLIsExcludedFromBackupKey für Vault-Dirs | **OK** (siehe `IOS_BACKUP_SECURITY.md`) |
 
 ---
 
@@ -138,7 +138,7 @@ Bewertung als professionelle Offline-Tresor-App: **bedingt produktionsreif** fü
 
 | ID | Severity | Risiko | Empfehlung |
 | --- | --- | --- | --- |
-| R-iOS | Medium | iOS Backup könnte Vault-Dateien einschließen | Native `isExcludedFromBackup` für Vault/Encrypted/Staging |
+| R-iOS | ~~Medium~~ **geschlossen** | iOS Backup Exclusion | `NSURLIsExcludedFromBackupKey` via lokales Expo-Modul + Start-Hook (`IOS_BACKUP_SECURITY.md`) |
 | R-AL | ~~Medium~~ **geschlossen** | Dauer-Suppress auf Transfer-Screens | Suppress nur Kamera / Biometrie / kurzer Cutover-Commit (`AUTOLOCK_SECURITY.md`) |
 | R-LAN | Low–Medium | Erster TCP-Client gewinnt | Optional Peer-Device-ID nach Connect verifizieren |
 | R-SAS | Low–Medium | Nutzer übersieht SAS-Mismatch | Längeres Word-SAS / Forced delay |
@@ -152,7 +152,7 @@ Bewertung als professionelle Offline-Tresor-App: **bedingt produktionsreif** fü
 ```
 Impact
   ▲
-  │  [R-iOS Backup]     [User skips SAS compare]
+  │                     [User skips SAS compare]
   │
   │  [LAN MitM without SAS]— mitigated by SAS gate
   │
@@ -160,7 +160,6 @@ Impact
   │
   └──────────────────────────────────────────► Likelihood
 ```
-
 Kein bestätigter Pfad für **Master-Key-Exfiltration** über den Transfer.
 
 ---
@@ -170,10 +169,10 @@ Kein bestätigter Pfad für **Master-Key-Exfiltration** über den Transfer.
 | Stufe | Urteil |
 | --- | --- |
 | Interne Dogfood / Family Beta | **Ja** |
-| Public Production | **Nach** iOS-Backup-Exclude + Testplan 1–11 / AL-Checks grün |
+| Public Production | **Nach** Testplan 1–11 / AL-Checks / R-iOS grün |
 | High-Assurance / Enterprise | Zusätzlich: formal Threat Model Review, fuzz TCP frames, red-team MitM |
 
-**Blocker für Broad Production:** keine Criticals offen; **iOS Backup Exclusion** sollte vor Store-Release geschlossen werden. Auto-Lock-Suppress ist verengt.
+**Blocker für Broad Production:** keine Criticals offen; iOS Backup Exclusion und Auto-Lock-Suppress-Verengung sind geschlossen. Rest: Testplan auf Geräten + SAS-/LAN-Residuals.
 
 ---
 
@@ -186,14 +185,14 @@ Kein bestätigter Pfad für **Master-Key-Exfiltration** über den Transfer.
 | Transfer Protocol | 20% | 84 | 16.8 |
 | File / Staging | 15% | 82 | 12.3 |
 | Migration / Cutover | 15% | 85 | 12.8 |
-| Mobile Platform | 10% | 78 | 7.8 |
-| **Gesamt** | 100% | | **85.3 → 84*** |
+| Mobile Platform | 10% | 90 | 9.0 |
+| **Gesamt** | 100% | | **86.5 → 86*** |
 
-\* Abzug −1 für offenes iOS-Backup und nutzerabhängiges SAS (Auto-Lock-Suppress geschlossen).
+\* Abzug −1 für nutzerabhängiges SAS (iOS Backup Exclusion und Auto-Lock-Suppress geschlossen).
 
-### **Final Score: 84 / 100**
+### **Final Score: 86 / 100**
 
-Einordnung: **Solide professionelle Offline-Vault-Übertragung** mit klarer Trennung von Master- und Session-Material; nicht „bank-grade formal verified“, aber für eine mobile Familien-Tresor-App auf dem richtigen Niveau – nach iOS-Backup und grünem Testplan freigabefähig.
+Einordnung: **Solide professionelle Offline-Vault-Übertragung** mit klarer Trennung von Master- und Session-Material; nicht „bank-grade formal verified“, aber für eine mobile Familien-Tresor-App auf dem richtigen Niveau – nach iOS-Backup, Auto-Lock-Härtung und grünem Testplan freigabefähig.
 
 ---
 
@@ -217,4 +216,4 @@ FamilyData Device Transfer erfüllt die Kernversprechen:
 - **Kein Master-Key-Transfer**
 - **Neuer Empfänger-Vault mit gerätegebundenem Key**
 
-Mit den Audit-Korrekturen und verengtem Auto-Lock-Suppress ist die Implementierung **signifikant gehärtet**. Empfohlener nächster Schritt: Testplan (inkl. AL-1…AL-6) auf Geräten durchspielen, danach iOS-Backup-Exclude nachziehen.
+Mit den Audit-Korrekturen, iOS Backup Exclusion und verengtem Auto-Lock-Suppress ist die Implementierung **signifikant gehärtet**. Empfohlener nächster Schritt: Testplan (inkl. AL-1…AL-6 und R-iOS) auf Geräten durchspielen.
