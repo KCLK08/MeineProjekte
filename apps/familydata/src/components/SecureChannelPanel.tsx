@@ -1,4 +1,5 @@
 import { useRouter, type Href } from 'expo-router';
+import { useEffect, useRef } from 'react';
 import { Alert, Text, View } from 'react-native';
 
 import { TransferActionHint } from '@/components/TransferActionHint';
@@ -18,6 +19,9 @@ import {
   useProductionTransferFlow,
 } from '@/deviceTransfer/useProductionTransferFlow';
 import { useFamilyStore } from '@/store/familyStore';
+
+const HARD_FAIL_CLEAR_MS = 350;
+const HARD_FAIL_NAV_MS = 1400;
 
 function alertFriendly(title: string, error: unknown) {
   Alert.alert(title, friendlyTransferError(error));
@@ -169,10 +173,41 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
   const router = useRouter();
   const bootstrap = useFamilyStore((s) => s.bootstrap);
   const flow = useProductionTransferFlow(paired);
+  const hardFailHandled = useRef(false);
+  const hardFailRecovering = useRef(false);
+
+  const { role, transport, migration, docs, cutover, displayError, hasHardFailure } = flow;
+
+  // E1: hard failures → show error, clear session, return to hub (no half-open session).
+  // User abort / SAS mismatch stay outside this panel and do not use this path.
+  // Once recovery starts, clear()+navigate must not be cancelled by paired→false unmount.
+  useEffect(() => {
+    if (!hasHardFailure || !displayError) {
+      if (!hasHardFailure && !hardFailRecovering.current) {
+        hardFailHandled.current = false;
+      }
+      return;
+    }
+    if (!paired && !hardFailRecovering.current) return;
+    if (hardFailHandled.current) return;
+    hardFailHandled.current = true;
+    hardFailRecovering.current = true;
+
+    void (async () => {
+      await new Promise<void>((r) => setTimeout(r, HARD_FAIL_CLEAR_MS));
+      try {
+        await resetTransferSession();
+      } catch {
+        /* best-effort */
+      }
+      await new Promise<void>((r) => setTimeout(r, HARD_FAIL_NAV_MS));
+      hardFailRecovering.current = false;
+      router.replace('/settings/transfer' as Href);
+    })();
+  }, [paired, hasHardFailure, displayError, router]);
 
   if (!paired) return null;
 
-  const { role, transport, migration, docs, cutover, displayError, hasHardFailure } = flow;
   const transferId = migration.transferId;
 
   const connected = transport.status === 'connected';
@@ -237,12 +272,6 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
     cutover.documents > 0
       ? cutover.documents
       : migration.documentCount ?? docs.receivedCount ?? 0;
-
-  const goHubAfterReset = () => {
-    void resetTransferSession()
-      .then(() => router.replace('/settings/transfer' as Href))
-      .catch((e) => alertFriendly('Neu starten', e));
-  };
 
   if (cutoverDone && role === 'joiner') {
     return (
@@ -373,19 +402,10 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
                 {displayError}
               </Text>
             ) : null}
-            <PrimaryButton
-              label="Neu starten"
-              icon="refresh-outline"
-              accessibilityLabel="Übertragung neu starten"
-              onPress={goHubAfterReset}
-            />
+            <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+              Die Übertragung wird beendet. Du wirst zurückgeleitet…
+            </Text>
           </View>
-        ) : null}
-
-        {!hasHardFailure && displayError ? (
-          <Text className="mb-3 font-sans text-sm text-danger" accessibilityRole="alert">
-            {displayError}
-          </Text>
         ) : null}
 
         {busy && !hasHardFailure ? (
