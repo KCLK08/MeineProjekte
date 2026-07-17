@@ -52,9 +52,14 @@ export function PairingQrScanner({ onScan, disabled, hint }: Props) {
     return (
       <View className="gap-3 py-6">
         <Text className="text-center font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
-          Zum Scannen des Pairing-QR-Codes wird die Kamera benötigt. Es werden keine Fotos gespeichert.
+          Zum Scannen des Verbindungscodes wird die Kamera benötigt. Es werden keine Fotos gespeichert.
         </Text>
-        <PrimaryButton label="Kamera erlauben" icon="camera-outline" onPress={() => void requestPermission()} />
+        <PrimaryButton
+          label="Kamera erlauben"
+          icon="camera-outline"
+          accessibilityLabel="Kamerazugriff erlauben zum Scannen"
+          onPress={() => void requestPermission()}
+        />
       </View>
     );
   }
@@ -64,7 +69,17 @@ export function PairingQrScanner({ onScan, disabled, hint }: Props) {
       {hint ? (
         <Text className="mb-3 text-center font-sans text-sm text-mute dark:text-[#9bb0a6]">{hint}</Text>
       ) : null}
-      <View className="overflow-hidden rounded-3xl border border-line dark:border-[#2a3f35]" style={{ height: 280 }}>
+      <View
+        accessible
+        accessibilityLabel={
+          locked
+            ? 'Code erkannt. Tippe auf Erneut scannen, um erneut zu scannen.'
+            : 'Kamera bereit. Halte den QR-Code des anderen Geräts in den Rahmen.'
+        }
+        accessibilityRole="image"
+        className="overflow-hidden rounded-3xl border border-line dark:border-[#2a3f35]"
+        style={{ height: 280 }}
+      >
         <CameraView
           style={StyleSheet.absoluteFillObject}
           facing="back"
@@ -85,7 +100,12 @@ export function PairingQrScanner({ onScan, disabled, hint }: Props) {
       </View>
       {locked ? (
         <View className="mt-3">
-          <PrimaryButton label="Erneut scannen" tone="soft" onPress={() => setLocked(false)} />
+          <PrimaryButton
+            label="Erneut scannen"
+            tone="soft"
+            accessibilityLabel="Erneut scannen"
+            onPress={() => setLocked(false)}
+          />
         </View>
       ) : null}
     </View>

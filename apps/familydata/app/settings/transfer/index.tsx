@@ -42,7 +42,7 @@ export default function TransferHubScreen() {
         <Panel className="mb-5 px-4 py-4">
           <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Daten übernehmen</Text>
           <Text className="mt-1 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-            Übernimm deine FamilyData-Vault von einem anderen Gerät.
+            Übernimm deine FamilyData-Daten von einem anderen Gerät.
           </Text>
           <View className="mt-4">
             <PrimaryButton
@@ -62,7 +62,7 @@ export default function TransferHubScreen() {
         <SectionTitle>Sicherheit</SectionTitle>
         <Panel className="px-4 py-4">
           <Text className="font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-            Die Übertragung läuft nur zwischen deinen Geräten im gleichen WLAN. Dein Tresor-Schlüssel bleibt immer auf
+            Die Übertragung läuft nur zwischen deinen Geräten im gleichen WLAN. Deine Zugangsdaten bleiben immer auf
             dem jeweiligen Gerät.
           </Text>
         </Panel>

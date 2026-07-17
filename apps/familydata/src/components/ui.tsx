@@ -132,6 +132,7 @@ export function PrimaryButton({
   tone = 'primary',
   icon,
   compact,
+  accessibilityLabel,
 }: {
   label: string;
   onPress: () => void;
@@ -139,6 +140,7 @@ export function PrimaryButton({
   tone?: 'primary' | 'danger' | 'ghost' | 'soft';
   icon?: keyof typeof Ionicons.glyphMap;
   compact?: boolean;
+  accessibilityLabel?: string;
 }) {
   const { colors } = useAppTheme();
 
@@ -158,6 +160,8 @@ export function PrimaryButton({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityState={{ disabled: Boolean(disabled) }}
       disabled={disabled}
       onPress={onPress}
       className={`min-h-[48px] flex-row items-center justify-center gap-2 rounded-2xl px-4 active:opacity-90 ${tones[tone]} ${
@@ -263,7 +267,12 @@ export function StatusBadge({
     danger: 'text-danger dark:text-[#f97066]',
   } as const;
   return (
-    <View className={`self-start rounded-lg px-2 py-1 ${bg[tone]}`}>
+    <View
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={label}
+      className={`self-start rounded-lg px-2 py-1 ${bg[tone]}`}
+    >
       <Text className={`font-sansMedium text-[11px] ${text[tone]}`}>{label}</Text>
     </View>
   );
