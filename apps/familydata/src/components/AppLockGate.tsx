@@ -56,10 +56,25 @@ export function AppLockGate() {
       }}
     >
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text
+          accessibilityRole="header"
+          style={{
+            marginBottom: 20,
+            fontFamily: 'Fraunces_700Bold',
+            fontSize: 34,
+            lineHeight: 40,
+            letterSpacing: -0.8,
+            color: colors.pine,
+            textAlign: 'center',
+          }}
+        >
+          Family Vault
+        </Text>
         <Image
           source={require('../../assets/images/FamilyVault.png')}
           style={{ width: 120, height: 120, borderRadius: 28, marginBottom: 28 }}
           contentFit="cover"
+          accessibilityLabel="Family Vault Logo"
         />
         {error ? (
           <Text
