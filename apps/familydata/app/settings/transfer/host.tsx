@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -18,7 +18,6 @@ import { TransferSessionManager } from '@/deviceTransfer/TransferSessionManager'
 import { formatSecurityCode, friendlyTransferError } from '@/deviceTransfer/transferUiCopy';
 import { useTransferSession } from '@/deviceTransfer/useTransferSession';
 import { requireSecureAccess } from '@/security/access';
-import { beginAutoLockSuppress, endAutoLockSuppress } from '@/security/autoLockSuppress';
 
 function hostStatusLabel(status: string, step: string): string {
   if (step === 'boot') return 'Biometrie erforderlich';
@@ -47,12 +46,8 @@ export default function TransferHostScreen() {
   const [step, setStep] = useState<'boot' | 'offer' | 'scan_accept'>('boot');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    beginAutoLockSuppress();
-    return () => {
-      endAutoLockSuppress();
-    };
-  }, []);
+  // Auto-lock stays active on this screen. Only PairingQrScanner (live camera)
+  // and requireSecureAccess (biometric) suppress briefly.
 
   useFocusEffect(
     useCallback(() => {

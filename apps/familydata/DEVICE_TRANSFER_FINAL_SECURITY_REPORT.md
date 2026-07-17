@@ -13,9 +13,9 @@ Die Geräteübertragung ist als **lokaler, accountfreier Offline-Transfer** konz
 
 Das Audit hat mehrere **High**-Findings in der ursprünglichen Implementierung identifiziert (u. a. fehlende SAS-Bindung an den Transport, bidirektionaler AEAD-Key/Reflection, Klartext-Staging, Fire-and-Forget-Wipe). Diese wurden in derselben Audit-Welle **korrigiert**.
 
-**Security Score: 85 / 100**
+**Security Score: 86 / 100**
 
-Bewertung als professionelle Offline-Tresor-App: **bedingt produktionsreif** für kontrollierte Beta / Early Access; für Broad Production noch Rest-Risiken (Auto-Lock-Suppress auf Transfer-Screens, LAN-DoS, JS-Wipe-Limits). iOS Backup Exclusion ist geschlossen.
+Bewertung als professionelle Offline-Tresor-App: **bedingt produktionsreif** für kontrollierte Beta / Early Access; für Broad Production noch Rest-Risiken (LAN-DoS, nutzerabhängiges SAS, JS-Wipe-Limits). iOS Backup Exclusion und Auto-Lock-Suppress-Verengung sind geschlossen (`IOS_BACKUP_SECURITY.md`, `AUTOLOCK_SECURITY.md`).
 
 ---
 
@@ -64,7 +64,7 @@ Bewertung als professionelle Offline-Tresor-App: **bedingt produktionsreif** fü
 | Role-Filter auf Meta/Doc-Empfang (Host) | OK (korrigiert) |
 | Transport-Log ohne Payload | OK (korrigiert) |
 
-**Residual:** Optisches SAS bleibt nutzerabhängig (~32 bit); LAN first-connect-wins; Auto-Lock auf Transfer-Screens unterdrückt.
+**Residual:** Optisches SAS bleibt nutzerabhängig (~32 bit); LAN first-connect-wins. Auto-Lock während Transfer wieder aktiv (Suppress nur Kamera/Biometrie/kurzer Commit).
 
 ### 2.3 File Security
 
@@ -86,7 +86,7 @@ Bewertung als professionelle Offline-Tresor-App: **bedingt produktionsreif** fü
 | Parallel-Build (`migration.db` + `encrypted-migration/`) | OK |
 | Validate vor Keystore-Commit | OK |
 | Backup/Restore bei Swap-Fehler | OK |
-| Auto-Lock-Suppress während Cutover | OK |
+| Auto-Lock-Suppress nur atomarer Cutover-Commit | OK (`AUTOLOCK_SECURITY.md`) |
 | Doc-Empfang nur bei Staging `committed` | OK (korrigiert) |
 
 **Residual:** Extreme Crash-Fenster zwischen Datei-Swap und Keystore-Commit sind eng; Stromverlust-Tests manuell nötig (siehe Testplan).
@@ -138,8 +138,8 @@ Bewertung als professionelle Offline-Tresor-App: **bedingt produktionsreif** fü
 
 | ID | Severity | Risiko | Empfehlung |
 | --- | --- | --- | --- |
-| R-iOS | ~~Medium~~ **geschlossen** | iOS Backup Exclusion | `NSURLIsExcludedFromBackupKey` via lokales Expo-Modul + Start-Hook |
-| R-AL | Medium | Transfer-Screens unterdrücken Auto-Lock dauerhaft | Suppress nur für Camera/Biometrie-Sheets |
+| R-iOS | ~~Medium~~ **geschlossen** | iOS Backup Exclusion | `NSURLIsExcludedFromBackupKey` via lokales Expo-Modul + Start-Hook (`IOS_BACKUP_SECURITY.md`) |
+| R-AL | ~~Medium~~ **geschlossen** | Dauer-Suppress auf Transfer-Screens | Suppress nur Kamera / Biometrie / kurzer Cutover-Commit (`AUTOLOCK_SECURITY.md`) |
 | R-LAN | Low–Medium | Erster TCP-Client gewinnt | Optional Peer-Device-ID nach Connect verifizieren |
 | R-SAS | Low–Medium | Nutzer übersieht SAS-Mismatch | Längeres Word-SAS / Forced delay |
 | R-JS | Low | Wipe/GC Limits in JS | Akzeptiert; keine Keys loggen |
@@ -152,7 +152,7 @@ Bewertung als professionelle Offline-Tresor-App: **bedingt produktionsreif** fü
 ```
 Impact
   ▲
-  │  [R-iOS Backup]     [User skips SAS compare]
+  │                     [User skips SAS compare]
   │
   │  [LAN MitM without SAS]— mitigated by SAS gate
   │
@@ -160,7 +160,6 @@ Impact
   │
   └──────────────────────────────────────────► Likelihood
 ```
-
 Kein bestätigter Pfad für **Master-Key-Exfiltration** über den Transfer.
 
 ---
@@ -170,10 +169,10 @@ Kein bestätigter Pfad für **Master-Key-Exfiltration** über den Transfer.
 | Stufe | Urteil |
 | --- | --- |
 | Interne Dogfood / Family Beta | **Ja** |
-| Public Production | **Nach** Auto-Lock-Suppress-Verengung + Testplan 1–11 + R-iOS grün |
+| Public Production | **Nach** Testplan 1–11 / AL-Checks / R-iOS grün |
 | High-Assurance / Enterprise | Zusätzlich: formal Threat Model Review, fuzz TCP frames, red-team MitM |
 
-**Blocker für Broad Production:** keine Criticals offen; **Auto-Lock-Suppress**-Verengung sollte vor Store-Release geschlossen werden. iOS Backup Exclusion ist implementiert.
+**Blocker für Broad Production:** keine Criticals offen; iOS Backup Exclusion und Auto-Lock-Suppress-Verengung sind geschlossen. Rest: Testplan auf Geräten + SAS-/LAN-Residuals.
 
 ---
 
@@ -186,14 +185,14 @@ Kein bestätigter Pfad für **Master-Key-Exfiltration** über den Transfer.
 | Transfer Protocol | 20% | 84 | 16.8 |
 | File / Staging | 15% | 82 | 12.3 |
 | Migration / Cutover | 15% | 85 | 12.8 |
-| Mobile Platform | 10% | 86 | 8.6 |
-| **Gesamt** | 100% | | **86.1 → 85*** |
+| Mobile Platform | 10% | 90 | 9.0 |
+| **Gesamt** | 100% | | **86.5 → 86*** |
 
-\* Abzug −1 für Auto-Lock-Suppress-Residual und nutzerabhängiges SAS (iOS Backup Exclusion geschlossen).
+\* Abzug −1 für nutzerabhängiges SAS (iOS Backup Exclusion und Auto-Lock-Suppress geschlossen).
 
-### **Final Score: 85 / 100**
+### **Final Score: 86 / 100**
 
-Einordnung: **Solide professionelle Offline-Vault-Übertragung** mit klarer Trennung von Master- und Session-Material; nicht „bank-grade formal verified“, aber für eine mobile Familien-Tresor-App auf dem richtigen Niveau – nach Auto-Lock-Härtung und grünem Testplan (inkl. R-iOS) freigabefähig.
+Einordnung: **Solide professionelle Offline-Vault-Übertragung** mit klarer Trennung von Master- und Session-Material; nicht „bank-grade formal verified“, aber für eine mobile Familien-Tresor-App auf dem richtigen Niveau – nach iOS-Backup, Auto-Lock-Härtung und grünem Testplan freigabefähig.
 
 ---
 
@@ -217,4 +216,4 @@ FamilyData Device Transfer erfüllt die Kernversprechen:
 - **Kein Master-Key-Transfer**
 - **Neuer Empfänger-Vault mit gerätegebundenem Key**
 
-Mit den Audit-Korrekturen und iOS Backup Exclusion ist die Implementierung **signifikant gehärtet**. Empfohlener nächster Schritt: Testplan (inkl. R-iOS) auf Geräten durchspielen, danach Auto-Lock-Suppress verengen.
+Mit den Audit-Korrekturen, iOS Backup Exclusion und verengtem Auto-Lock-Suppress ist die Implementierung **signifikant gehärtet**. Empfohlener nächster Schritt: Testplan (inkl. AL-1…AL-6 und R-iOS) auf Geräten durchspielen.

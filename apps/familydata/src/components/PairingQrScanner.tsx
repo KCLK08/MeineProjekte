@@ -1,8 +1,9 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { PrimaryButton } from '@/components/ui';
+import { beginAutoLockSuppress, endAutoLockSuppress } from '@/security/autoLockSuppress';
 import { useAppTheme } from '@/theme/useAppTheme';
 
 type Props = {
@@ -11,10 +12,24 @@ type Props = {
   hint?: string;
 };
 
+/**
+ * Live QR camera. Auto-lock is suppressed only while the preview is actively scanning
+ * (permission granted, not disabled, not post-scan locked).
+ */
 export function PairingQrScanner({ onScan, disabled, hint }: Props) {
   const { colors } = useAppTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const [locked, setLocked] = useState(false);
+
+  const cameraLive = Boolean(permission?.granted) && !disabled && !locked;
+
+  useEffect(() => {
+    if (!cameraLive) return;
+    beginAutoLockSuppress();
+    return () => {
+      endAutoLockSuppress();
+    };
+  }, [cameraLive]);
 
   const handleBarcode = useCallback(
     ({ data }: { data: string }) => {

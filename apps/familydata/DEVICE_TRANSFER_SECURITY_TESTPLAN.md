@@ -123,11 +123,13 @@ Nach jedem Fehlertest: Vault lock → Staging muss weg sein; ggf. App neu starte
 
 | Schritt | Aktion | Erwartung |
 | --- | --- | --- |
-| 9.1 | Während Kanal verbunden: Vault lock (wenn Auto-Lock greift) | Session clear, Transport zu, Staging wipe **awaited** |
-| 9.2 | Erneut entsperren | Kein Transfer-Resume; Staging weg |
-| 9.3 | Cutover läuft (`withAutoLockSuppressed`) | Lock unterdrückt bis Ende; danach normal |
+| 9.1 | Während Kanal / 4A / 4B: App in Hintergrund (Auto-Lock sofort) | Session clear, Transport zu, Staging wipe **awaited** |
+| 9.2 | Erneut entsperren | Kein Transfer-Resume; Staging weg; neues Pairing nötig |
+| 9.3 | Live-QR-Kamera aktiv | Kurz Suppress nur während Preview (siehe `AUTOLOCK_SECURITY.md`) |
+| 9.4 | Cutover prepare/build | Auto-Lock **aktiv** (kein Screen-Suppress) |
+| 9.5 | Atomarer `commitSwap` | Kurzer Suppress nur für Commit; danach wieder normal |
 
-**Pass:** Lock räumt Transfer-Secrets und Staging zuverlässig.
+**Pass:** Lock räumt Transfer-Secrets und Staging; Suppress nur Kamera / Biometrie / kurzer Commit.
 
 ---
 
