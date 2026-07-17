@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,17 +11,9 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import Animated, {
-  FadeInDown,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppTheme } from '@/theme/useAppTheme';
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function Screen({
   children,
@@ -150,8 +141,6 @@ export function PrimaryButton({
   compact?: boolean;
 }) {
   const { colors } = useAppTheme();
-  const scale = useSharedValue(1);
-  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   const tones = {
     primary: 'bg-pine-700 dark:bg-pine-500',
@@ -167,24 +156,17 @@ export function PrimaryButton({
     tone === 'ghost' || tone === 'soft' ? colors.iconOnSoft : '#ffffff';
 
   return (
-    <AnimatedPressable
+    <Pressable
       accessibilityRole="button"
       disabled={disabled}
       onPress={onPress}
-      onPressIn={() => {
-        scale.value = withSpring(0.97, { damping: 18, stiffness: 320 });
-      }}
-      onPressOut={() => {
-        scale.value = withSpring(1, { damping: 14, stiffness: 220 });
-      }}
-      style={animatedStyle}
-      className={`min-h-[48px] flex-row items-center justify-center gap-2 rounded-2xl px-4 ${tones[tone]} ${
+      className={`min-h-[48px] flex-row items-center justify-center gap-2 rounded-2xl px-4 active:opacity-90 ${tones[tone]} ${
         compact ? 'min-h-[40px] px-3' : ''
       } ${disabled ? 'opacity-45' : ''}`}
     >
       {icon ? <Ionicons name={icon} size={18} color={iconColor} /> : null}
       <Text className={`font-sansBold text-[15px] ${text}`}>{label}</Text>
-    </AnimatedPressable>
+    </Pressable>
   );
 }
 
@@ -306,27 +288,25 @@ export function ListRow({
 }) {
   const { colors } = useAppTheme();
   return (
-    <Animated.View entering={FadeInDown.delay(Math.min(index * 45, 270)).springify().damping(18)}>
-      <Pressable
-        onPress={onPress}
-        disabled={!onPress}
-        className="mb-2.5 flex-row items-center gap-3 rounded-2xl border border-line/80 bg-paper px-3.5 py-3.5 active:bg-pine-50 dark:border-[#2a3f35] dark:bg-[#15241d] dark:active:bg-[#1a3028]"
-      >
-        {leading}
-        <View className="min-w-0 flex-1">
-          <Text className="font-sansBold text-[16px] text-ink dark:text-[#e7f2ec]" numberOfLines={1}>
-            {title}
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      className="mb-2.5 flex-row items-center gap-3 rounded-2xl border border-line/80 bg-paper px-3.5 py-3.5 active:bg-pine-50 dark:border-[#2a3f35] dark:bg-[#15241d] dark:active:bg-[#1a3028]"
+    >
+      {leading}
+      <View className="min-w-0 flex-1">
+        <Text className="font-sansBold text-[16px] text-ink dark:text-[#e7f2ec]" numberOfLines={1}>
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text className="mt-0.5 font-sans text-sm text-mute dark:text-[#9bb0a6]" numberOfLines={1}>
+            {subtitle}
           </Text>
-          {subtitle ? (
-            <Text className="mt-0.5 font-sans text-sm text-mute dark:text-[#9bb0a6]" numberOfLines={1}>
-              {subtitle}
-            </Text>
-          ) : null}
-          {meta ? <View className="mt-2">{meta}</View> : null}
-        </View>
-        {trailing ?? (onPress ? <Ionicons name="chevron-forward" size={18} color={colors.chevron} /> : null)}
-      </Pressable>
-    </Animated.View>
+        ) : null}
+        {meta ? <View className="mt-2">{meta}</View> : null}
+      </View>
+      {trailing ?? (onPress ? <Ionicons name="chevron-forward" size={18} color={colors.chevron} /> : null)}
+    </Pressable>
   );
 }
 
@@ -433,21 +413,6 @@ export function ThemeOption({
       {active ? <Ionicons name="checkmark-circle" size={22} color={colors.pine} /> : null}
     </Pressable>
   );
-}
-
-export function usePressScale() {
-  const scale = useSharedValue(1);
-  useEffect(() => undefined, []);
-  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  return {
-    style,
-    onPressIn: () => {
-      scale.value = withSpring(0.97, { damping: 18, stiffness: 320 });
-    },
-    onPressOut: () => {
-      scale.value = withSpring(1, { damping: 14, stiffness: 220 });
-    },
-  };
 }
 
 /** Back-compat alias used by older screens */

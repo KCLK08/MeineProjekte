@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import {
   Avatar,
   InfoRow,
@@ -87,7 +86,7 @@ export default function PersonDetailScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-        <Animated.View entering={FadeInDown.springify().damping(16)} className="mb-5 items-center">
+        <View className="mb-5 items-center">
           <Avatar initials={initials(person.vorname, person.nachname)} size={76} />
           <Text
             className="mt-4 font-display text-3xl text-ink dark:text-[#e7f2ec]"
@@ -103,7 +102,7 @@ export default function PersonDetailScreen() {
               <StatusBadge label={roleLabel(person.rolle)} />
             </View>
           ) : null}
-        </Animated.View>
+        </View>
 
         <PrimaryButton
           label="Profil bearbeiten"

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, Switch, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, Modal, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { FilterChip, Panel, PrimaryButton, Screen, SectionTitle, StatusBadge } from '@/components/ui';
+import { Panel, PrimaryButton, Screen, SectionTitle, StatusBadge } from '@/components/ui';
 import { SecurityManager } from '@/security/SecurityManager';
 import { AUTO_LOCK_OPTIONS, type AutoLockOption } from '@/security/types';
 import { useSecurityStore } from '@/store/securityStore';
@@ -31,6 +32,12 @@ export default function SecurityScreen() {
   const setScreenshotsAllowedForSession = useSecurityStore((s) => s.setScreenshotsAllowedForSession);
 
   const [vault, setVault] = useState<VaultStatus | null>(null);
+  const [autoLockOpen, setAutoLockOpen] = useState(false);
+
+  const autoLockLabel = useMemo(
+    () => AUTO_LOCK_OPTIONS.find((o) => o.id === autoLock)?.label ?? '—',
+    [autoLock]
+  );
 
   const reload = useCallback(async () => {
     const status = await SecurityManager.getVaultStatus();
@@ -65,6 +72,15 @@ export default function SecurityScreen() {
     }
   }
 
+  async function onSelectAutoLock(option: AutoLockOption) {
+    setAutoLockOpen(false);
+    try {
+      await setAutoLock(option);
+    } catch (e) {
+      Alert.alert('Automatische Sperre', (e as Error).message);
+    }
+  }
+
   const needsAction = Boolean(
     sqlCipherSupported && vault && (!vault.hasVaultDb || vault.hasLegacyPlainDb || !vault.hasMasterKey)
   );
@@ -89,16 +105,28 @@ export default function SecurityScreen() {
         </Panel>
 
         <SectionTitle>Automatische Sperre</SectionTitle>
-        <View className="mb-5 flex-row flex-wrap">
-          {AUTO_LOCK_OPTIONS.map((option) => (
-            <FilterChip
-              key={option.id}
-              label={option.label}
-              active={autoLock === option.id}
-              onPress={() => void setAutoLock(option.id as AutoLockOption)}
-            />
-          ))}
-        </View>
+        <Panel className="mb-5 px-0 py-0">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Automatische Sperre: ${autoLockLabel}`}
+            onPress={() => setAutoLockOpen(true)}
+            disabled={isLocked || busy}
+            className="flex-row items-center justify-between px-4 py-4 active:opacity-80"
+          >
+            <View className="flex-1 pr-3">
+              <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Zeitraum</Text>
+              <Text className="mt-1 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+                Nach Inaktivität wird der Tresor gesperrt.
+              </Text>
+            </View>
+            <View className="flex-row items-center gap-1.5">
+              <Text className="font-sansMedium text-[15px] text-pine-700 dark:text-pine-400">
+                {autoLockLabel}
+              </Text>
+              <Ionicons name="chevron-down" size={18} color={colors.chevron} />
+            </View>
+          </Pressable>
+        </Panel>
 
         <SectionTitle>Screenshots</SectionTitle>
         <Panel className="mb-5 px-4 py-4">
@@ -108,7 +136,7 @@ export default function SecurityScreen() {
                 Für diese Sitzung erlauben
               </Text>
               <Text className="mt-1 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
-                Gilt, bis du die App verlässt. Danach wieder geschützt.
+                Nur nach Biometrie. Gilt, bis du die App verlässt. Danach wieder geschützt.
               </Text>
             </View>
             <Switch
@@ -150,6 +178,50 @@ export default function SecurityScreen() {
           />
         ) : null}
       </ScrollView>
+
+      <Modal
+        visible={autoLockOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAutoLockOpen(false)}
+      >
+        <Pressable
+          className="flex-1 justify-end bg-black/45"
+          onPress={() => setAutoLockOpen(false)}
+        >
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            className="rounded-t-3xl border border-line bg-paper px-4 pb-6 pt-3 dark:border-[#2a3f35] dark:bg-[#15241d]"
+            style={{ paddingBottom: Math.max(insets.bottom, 16) + 8 }}
+          >
+            <View className="mb-3 items-center">
+              <View className="mb-3 h-1 w-10 rounded-full bg-line dark:bg-[#2a3f35]" />
+              <Text className="font-sansBold text-lg text-ink dark:text-[#e7f2ec]">
+                Automatische Sperre
+              </Text>
+            </View>
+            {AUTO_LOCK_OPTIONS.map((option) => {
+              const active = autoLock === option.id;
+              return (
+                <Pressable
+                  key={option.id}
+                  onPress={() => void onSelectAutoLock(option.id)}
+                  className={`mb-2 flex-row items-center justify-between rounded-2xl border px-4 py-3.5 ${
+                    active
+                      ? 'border-pine-700 bg-pine-100 dark:border-pine-500 dark:bg-[#1a3028]'
+                      : 'border-line bg-paper dark:border-[#2a3f35] dark:bg-[#101c17]'
+                  }`}
+                >
+                  <Text className="font-sansMedium text-[15px] text-ink dark:text-[#e7f2ec]">
+                    {option.label}
+                  </Text>
+                  {active ? <Ionicons name="checkmark-circle" size={22} color={colors.pine} /> : null}
+                </Pressable>
+              );
+            })}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Screen>
   );
 }
