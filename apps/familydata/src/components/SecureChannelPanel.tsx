@@ -1,5 +1,5 @@
 import { useRouter, type Href } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Text, View } from 'react-native';
 
 import { TransferActionHint } from '@/components/TransferActionHint';
@@ -175,8 +175,19 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
   const flow = useProductionTransferFlow(paired);
   const hardFailHandled = useRef(false);
   const hardFailRecovering = useRef(false);
+  const [senderActionBusy, setSenderActionBusy] = useState(false);
+  const [cutoverBusy, setCutoverBusy] = useState(false);
 
-  const { role, transport, migration, docs, cutover, displayError, hasHardFailure } = flow;
+  const {
+    role,
+    transport,
+    migration,
+    docs,
+    cutover,
+    displayError,
+    hasHardFailure,
+    joinWaitingForPeer,
+  } = flow;
 
   // E1: hard failures → show error, clear session, return to hub (no half-open session).
   // User abort / SAS mismatch stay outside this panel and do not use this path.
@@ -255,6 +266,7 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
     migrationPhase: migration.phase,
     docsPhase: docs.phase,
     cutoverPhase: cutover.phase,
+    joinWaitingForPeer,
   });
 
   const busy =
@@ -330,15 +342,18 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
               label="Auf diesem Gerät behalten"
               icon="checkmark-outline"
               accessibilityLabel="Daten auf diesem Gerät behalten"
+              disabled={senderActionBusy}
               onPress={() => {
+                if (senderActionBusy) return;
+                setSenderActionBusy(true);
                 VaultCutoverService.markSenderKept();
                 Alert.alert('Fertig', 'Die Daten bleiben auf diesem Gerät.', [
                   {
                     text: 'OK',
                     onPress: () => {
-                      void TransferSessionManager.clear().then(() =>
-                        router.replace('/settings/transfer' as Href)
-                      );
+                      void TransferSessionManager.clear()
+                        .then(() => router.replace('/settings/transfer' as Href))
+                        .finally(() => setSenderActionBusy(false));
                     },
                   },
                 ]);
@@ -349,7 +364,9 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
               tone="ghost"
               icon="trash-outline"
               accessibilityLabel="Daten auf diesem Gerät sicher löschen"
+              disabled={senderActionBusy}
               onPress={() => {
+                if (senderActionBusy) return;
                 Alert.alert(
                   'Daten auf diesem Gerät löschen?',
                   'Alle gespeicherten Familieninformationen und Dokumente werden von diesem Gerät entfernt. Dies kann nicht rückgängig gemacht werden.',
@@ -359,11 +376,15 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
                       text: 'Sicher löschen',
                       style: 'destructive',
                       onPress: () => {
+                        setSenderActionBusy(true);
                         void VaultCutoverService.secureWipeSenderVault()
                           .then(() => bootstrap())
                           .then(() => TransferSessionManager.clear())
                           .then(() => router.replace('/settings/transfer' as Href))
-                          .catch((e) => alertFriendly('Löschen', e));
+                          .catch((e) => {
+                            setSenderActionBusy(false);
+                            alertFriendly('Löschen', e);
+                          });
                       },
                     },
                   ]
@@ -450,9 +471,9 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
               <PrimaryButton
                 label="Einrichtung starten"
                 icon="shield-checkmark-outline"
-                disabled={!canRunCutover}
+                disabled={!canRunCutover || cutoverBusy}
                 onPress={() => {
-                  if (!transferId) return;
+                  if (!transferId || cutoverBusy || !canRunCutover) return;
                   Alert.alert(
                     'Einrichtung',
                     'FamilyData wird auf diesem Gerät eingerichtet. Bestehende Daten auf diesem Gerät werden ersetzt.',
@@ -461,9 +482,13 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
                       {
                         text: 'Starten',
                         onPress: () => {
+                          setCutoverBusy(true);
                           void VaultCutoverService.runCutover(transferId)
                             .then(() => bootstrap())
-                            .catch((e) => alertFriendly('Einrichtung', e));
+                            .catch((e) => {
+                              setCutoverBusy(false);
+                              alertFriendly('Einrichtung', e);
+                            });
                         },
                       },
                     ]

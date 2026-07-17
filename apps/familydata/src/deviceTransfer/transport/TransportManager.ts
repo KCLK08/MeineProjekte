@@ -12,11 +12,18 @@ export type TransportStatus =
   | 'error'
   | 'closed';
 
+/** Snapshot-safe view of the last frame (no payload). */
+export type TransportLastReceivedMeta = {
+  type: string;
+  length: number;
+  timestamp: number;
+};
+
 export type TransportSnapshot = {
   status: TransportStatus;
   role: TransferRole | null;
   error: string | null;
-  lastReceived: TransferMessage | null;
+  lastReceived: TransportLastReceivedMeta | null;
   lastSentType: string | null;
   log: string[];
   updatedAt: number;
@@ -45,7 +52,9 @@ class TransportManagerImpl {
   private status: TransportStatus = 'idle';
   private role: TransferRole | null = null;
   private error: string | null = null;
-  private lastReceived: TransferMessage | null = null;
+  /** Full message for handlers / receiveMessage — never exposed via getSnapshot(). */
+  private lastReceivedMessage: TransferMessage | null = null;
+  private lastReceivedMeta: TransportLastReceivedMeta | null = null;
   private lastSentType: string | null = null;
   private log: string[] = [];
   private updatedAt = Date.now();
@@ -212,7 +221,7 @@ class TransportManagerImpl {
   }
 
   receiveMessage(): TransferMessage | null {
-    return this.lastReceived;
+    return this.lastReceivedMessage;
   }
 
   close(): void {
@@ -223,7 +232,12 @@ class TransportManagerImpl {
     if (!this.channel) return;
     try {
       const message = this.channel.openFrame(frame);
-      this.lastReceived = message;
+      this.lastReceivedMessage = message;
+      this.lastReceivedMeta = {
+        type: message.type,
+        length: message.payload.length,
+        timestamp: Date.now(),
+      };
       this.pushLog(`Empfangen [${message.type}] (${message.payload.length} Zeichen)`);
       if (message.type === 'ping') {
         void this.sendMessage('pong', 'ok').catch(() => undefined);
@@ -275,12 +289,14 @@ class TransportManagerImpl {
       this.pushLog('Kanal geschlossen – Keys gelöscht.');
       this.emit();
       this.status = 'idle';
-      this.lastReceived = null;
+      this.lastReceivedMessage = null;
+      this.lastReceivedMeta = null;
       this.lastSentType = null;
       this.emit();
     } else {
       this.status = 'idle';
-      this.lastReceived = null;
+      this.lastReceivedMessage = null;
+      this.lastReceivedMeta = null;
       this.lastSentType = null;
       this.rebuild();
     }
@@ -311,7 +327,7 @@ class TransportManagerImpl {
       status: this.status,
       role: this.role,
       error: this.error,
-      lastReceived: this.lastReceived,
+      lastReceived: this.lastReceivedMeta,
       lastSentType: this.lastSentType,
       log: this.log,
       updatedAt: this.updatedAt,
