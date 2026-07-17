@@ -49,6 +49,10 @@ function RootNavigator() {
     void enableScreenshotProtection();
     // Transfer sessions are RAM-only; wipe any orphaned staging from prior crashes.
     void import('@/deviceTransfer/wipeOrphanStaging').then((m) => m.wipeOrphanTransferStaging());
+    // iOS: mark sensitive dirs with NSURLIsExcludedFromBackupKey (no path logging).
+    void import('@/security/IosBackupExclusionService').then((m) =>
+      m.IosBackupExclusionService.ensureExcludedAtStartup()
+    );
   }, []);
 
   useEffect(() => {

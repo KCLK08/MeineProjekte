@@ -171,6 +171,21 @@ Nach jedem Fehlertest: Vault lock → Staging muss weg sein; ggf. App neu starte
 | R6 | Dokument vor 4A-Commit senden | Empfänger lehnt ab |
 | R7 | Android Backup | `allowBackup=false` |
 | R8 | Screenshot-Schutz | FLAG_SECURE / preventScreenCapture aktiv |
+| **R-iOS** | iOS Backup Exclusion | Siehe unten |
+
+### R-iOS – Native Backup Exclusion (`NSURLIsExcludedFromBackupKey`)
+
+| Schritt | Aktion | Erwartung |
+| --- | --- | --- |
+| R-iOS.1 | iOS Dev/Release Build starten | `IosBackupExclusionService` läuft still (keine Pfad-Logs) |
+| R-iOS.2 | Security-Check in der App | `Backup-Schutz aktiv` OK; Detail nennt Exclude-Anzahl |
+| R-iOS.3 | Verzeichnisse | `SQLite`, `familydata-encrypted`, `familydata-transfer-staging`, Migration-/Tmp-/Files-Dirs ausgeschlossen |
+| R-iOS.4 | Android-Build unverändert | Weiterhin nur `allowBackup=false` (kein neues Verhalten) |
+| R-iOS.5 | Dokumentation | `IOS_BACKUP_SECURITY.md` |
+
+**Pass:** Alle sensiblen Documents-Unterordner mit Exclude-Flag; Android unberührt.
+
+Detaillierte Anleitung: `IOS_BACKUP_SECURITY.md`.
 
 ---
 
@@ -181,6 +196,7 @@ Test ID | Ergebnis (Pass/Fail) | Gerät/Build | Notizen
 --------|----------------------|-------------|--------
 1       |                      |             |
 …
+R-iOS   |                      |             |
 ```
 
-**Freigabe-Kriterium:** Alle Tests 1–11 Pass; Regression R1–R8 Pass auf Release-Build.
+**Freigabe-Kriterium:** Alle Tests 1–11 Pass; Regression R1–R8 + **R-iOS** Pass auf Release-Build.
