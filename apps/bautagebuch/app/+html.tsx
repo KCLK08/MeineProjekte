@@ -1,7 +1,7 @@
 import { ScrollViewStyleReset } from 'expo-router/html';
 import type { ReactNode } from 'react';
 
-// Web-only root HTML for static rendering / Cloudflare Pages.
+// Web-only root HTML for static rendering / local preview.
 export default function Root({ children }: { children: ReactNode }) {
   return (
     <html lang="de">

@@ -1,20 +1,19 @@
 # MeineProjekte
 
-Monorepo für **Expo / React Native**-Apps mit gemeinsamer Landingpage, Shared Packages und automatischen APK-Builds.
-
-**Pages:** https://kclk08.workers.dev/  
-(Cloudflare: `kclk08.workers.dev`, Projekt `kclk08`)
+Monorepo für **Expo / React Native**-Apps mit gemeinsamer Landingpage-Quelle, Shared Packages und automatischen APK-Builds.
 
 **APKs:** path-gefilterte Workflows pro App → Artifacts + Release-Tags `*-apk-latest`
+
+Hinweis: Es gibt **kein** öffentliches Web-Hosting (weder Cloudflare Pages noch GitHub Pages) in diesem Repo. `website/` ist nur lokale Landing-Quelle.
 
 ## Übersicht
 
 | App | Ordner | Web | APK (Expo/EAS) |
 |-----|--------|-----|----------------|
-| Bautagebuch | `apps/bautagebuch` | Expo Web | ja |
-| BÜW-Toolbox | `apps/buew-toolbox` | `web/` | ja (WebView-Shell) |
-| DS-Datenbank | `apps/ds-datenbank` | `web/` | ja (WebView-Shell) |
-| ELIFBA | `apps/elifba` | `web/` | ja (WebView-Shell) |
+| Bautagebuch | `apps/bautagebuch` | Expo Web (lokal) | ja |
+| BÜW-Toolbox | `apps/buew-toolbox` | `web/` (lokal) | ja (WebView-Shell) |
+| DS-Datenbank | `apps/ds-datenbank` | `web/` (lokal) | ja (WebView-Shell) |
+| ELIFBA | `apps/elifba` | `web/` (lokal) | ja (WebView-Shell) |
 
 ## Repositorystruktur
 
@@ -33,10 +32,10 @@ packages/
 ├── hooks/
 └── catalog/              # App-Katalog für Docs/CI
 
-website/                  # Cloudflare Pages Landing
+website/                  # Lokale Landing-Quelle (kein Deploy)
 .github/
 ├── actions/              # Composite Actions (setup-expo, build-apk)
-└── workflows/            # build-*.yml + deploy-cloudflare.yml + reusable-build-apk.yml
+└── workflows/            # build-*.yml (APKs → GitHub Releases)
 ```
 
 ## Lokale Entwicklung
@@ -60,6 +59,8 @@ npm run dev:web --prefix apps/buew-toolbox   # SiteReport
 npm run dev:web --prefix apps/ds-datenbank
 # Elifba: Dateien unter apps/elifba/web/ lokal hosten
 ```
+
+Landing lokal prüfen: Dateien unter `website/` im Browser öffnen bzw. mit einem lokalen Static-Server bedienen.
 
 ## Expo / EAS
 
@@ -91,7 +92,6 @@ Ohne Token fällt CI auf **lokales** `expo prebuild` + Gradle zurück.
 | `build-ds-datenbank.yml` | nur Expo-Shell (ohne `web/`) | APK |
 | `build-elifba.yml` | nur Expo-Shell (ohne `web/`) | APK |
 | `build-familydata.yml` | nur `apps/familydata/**` | APK |
-| `deploy-cloudflare.yml` | `website/**`, `apps/**/web/**`, … | Landing + Web-Apps → Cloudflare |
 
 APK-Builds laufen **pro App** und nur bei Änderungen an genau dieser App (manuell jederzeit per *Run workflow*).
 
@@ -101,20 +101,7 @@ Nach erfolgreichem Build:
 
 1. Artifact `*-apk`
 2. GitHub Release-Tag `{slug}-apk-latest`
-3. Update `website/releases.json` (Landing-Fallback)
-
-## Cloudflare
-
-Landing unter `website/`, Deploy über `deploy-cloudflare.yml` (Worker `kclk08`):
-
-- **Web öffnen** → `./apps/{slug}/`
-- **APK herunterladen** → R2 über `/apks/<Datei>.apk` (Repo kann privat bleiben)
-- Metadaten in `website/releases.json`
-
-Einmalig: R2-Bucket `kclk08-apks` anlegen, dann Workflow **Sync APKs to Cloudflare R2**.  
-Details: `website/CLOUDFLARE.md`.
-
-GitHub Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
+3. Update `website/releases.json` (Landing-Fallback mit GitHub-Release-Download-URLs)
 
 ## Designsystem
 
@@ -132,5 +119,5 @@ npm run format
 
 1. Ordner `apps/<slug>/` mit Expo (`app.json`, `eas.json`, `package.json`)
 2. Eintrag in `packages/catalog` + `website/app.js`
-3. Workflow `build-<slug>.yml` (Path-Filter + reusable workflow)
-4. Optional `web/` + Eintrag in `deploy-cloudflare.yml`
+3. Workflow `build-<slug>.yml` (Path-Filter)
+4. Optional `web/` für lokale Web-Vorschau

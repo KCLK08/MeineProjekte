@@ -1,6 +1,7 @@
 import { WebShell } from '@meineprojekte/ui';
 
-const WEB_URL = 'https://kclk08.workers.dev/apps/elifba/';
+// Kein öffentliches Web-Hosting in diesem Repo — Web lokal öffnen (apps/elifba/web/).
+const WEB_URL = '';
 
 export default function App() {
   return <WebShell title="ELIFBA" uri={WEB_URL} />;

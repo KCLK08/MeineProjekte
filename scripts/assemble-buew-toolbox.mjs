@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const app = join(root, 'apps/buew-toolbox/web');
 const dist = join(root, 'apps/buew-toolbox/web/dist');
-/** Cloudflare Pages (and local static host) base path */
+/** Local static host base path */
 const BASE = '/apps/buew-toolbox';
 
 rmSync(dist, { recursive: true, force: true });
