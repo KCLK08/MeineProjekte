@@ -13,6 +13,8 @@ const IDLE: TransferSessionSnapshot = {
   remotePublicKeyHex: null,
   expiresAt: null,
   confirmationCode: null,
+  transportHost: null,
+  transportPort: null,
   error: null,
   updatedAt: 0,
 };

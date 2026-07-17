@@ -20,6 +20,7 @@
         "NSFaceIDUsageDescription": "Family Vault nutzt biometrische Freigabe nur auf diesem Gerät, um den Zugriff zu schützen.",
         "NSCameraUsageDescription": "Kamera für lokale Dokumentfotos und zum Scannen von Pairing-QR-Codes bei der Geräteübertragung.",
         "NSPhotoLibraryUsageDescription": "Galerie nur zum Anhängen eigener Dokumentfotos (lokal).",
+        "NSLocalNetworkUsageDescription": "Lokales Netzwerk nur für die verschlüsselte Geräte-zu-Gerät-Übertragung im gleichen WLAN.",
         "UIFileSharingEnabled": false,
         "LSSupportsOpeningDocumentsInPlace": false,
         "CFBundleDisplayName": "Family Vault"
@@ -32,7 +33,15 @@
         "foregroundImage": "./assets/images/FamilyVault.png",
         "backgroundColor": "#fafafb"
       },
-      "permissions": ["CAMERA", "READ_MEDIA_IMAGES", "USE_BIOMETRIC", "USE_FINGERPRINT"]
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "ACCESS_WIFI_STATE"
+      ]
     },
     "plugins": [
       "expo-router",

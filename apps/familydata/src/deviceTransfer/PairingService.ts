@@ -1,3 +1,5 @@
+import * as Network from 'expo-network';
+
 import { DeviceIdentityService } from '@/deviceTransfer/DeviceIdentityService';
 import { EphemeralKeyService } from '@/deviceTransfer/EphemeralKeyService';
 import { QRCodeService } from '@/deviceTransfer/QRCodeService';
@@ -6,6 +8,7 @@ import {
   PAIRING_OFFER_TYPE,
   PAIRING_PROTOCOL_VERSION,
   SESSION_TTL_MS,
+  TRANSFER_TCP_PORT,
   type EphemeralKeyPair,
   type PairingAcceptPayload,
   type PairingOfferPayload,
@@ -18,6 +21,8 @@ export type HostOfferResult = {
   localDeviceId: string;
   keyPair: EphemeralKeyPair;
   expiresAt: number;
+  host: string;
+  port: number;
   offerPayload: PairingOfferPayload;
   offerQr: string;
 };
@@ -30,6 +35,8 @@ export type JoinerAcceptResult = {
   remoteDeviceId: string;
   remotePublicKeyHex: string;
   expiresAt: number;
+  transportHost: string;
+  transportPort: number;
   acceptPayload: PairingAcceptPayload;
   acceptQr: string;
   confirmationCode: string;
@@ -42,16 +49,30 @@ export type HostCompleteResult = {
   expiresAt: number;
 };
 
+async function resolveLocalIpv4(): Promise<string> {
+  const ip = await Network.getIpAddressAsync();
+  if (!ip || ip === '0.0.0.0' || ip.startsWith('127.')) {
+    throw new Error(
+      'Keine lokale IPv4-Adresse gefunden. Beide Geräte müssen im gleichen WLAN sein (oder Hotspot).'
+    );
+  }
+  return ip;
+}
+
 /**
  * Pairing preparation: ephemeral keys + QR offer/accept.
- * No transport, no data encryption, no vault access.
+ * Phase 3: offer also advertises TCP host/port (not secrets).
  */
 export const PairingService = {
-  async createHostOffer(ttlMs: number = SESSION_TTL_MS): Promise<HostOfferResult> {
-    const [sessionId, localDeviceId, keyPair] = await Promise.all([
+  async createHostOffer(
+    ttlMs: number = SESSION_TTL_MS,
+    port: number = TRANSFER_TCP_PORT
+  ): Promise<HostOfferResult> {
+    const [sessionId, localDeviceId, keyPair, host] = await Promise.all([
       DeviceIdentityService.createSessionId(),
       DeviceIdentityService.createTemporaryDeviceId(),
       EphemeralKeyService.generateKeyPair(),
+      resolveLocalIpv4(),
     ]);
     const expiresAt = Date.now() + ttlMs;
     const offerPayload: PairingOfferPayload = {
@@ -61,6 +82,8 @@ export const PairingService = {
       did: localDeviceId,
       pk: keyPair.publicKeyHex,
       exp: expiresAt,
+      host,
+      port,
     };
     return {
       role: 'host',
@@ -68,6 +91,8 @@ export const PairingService = {
       localDeviceId,
       keyPair,
       expiresAt,
+      host,
+      port,
       offerPayload,
       offerQr: QRCodeService.encodeOffer(offerPayload),
     };
@@ -105,6 +130,8 @@ export const PairingService = {
       remoteDeviceId: payload.did,
       remotePublicKeyHex: payload.pk,
       expiresAt,
+      transportHost: payload.host,
+      transportPort: payload.port,
       acceptPayload,
       acceptQr: QRCodeService.encodeAccept(acceptPayload),
       confirmationCode,

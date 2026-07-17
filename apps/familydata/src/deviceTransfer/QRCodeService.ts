@@ -11,6 +11,7 @@ import {
 
 const hexId = z.string().regex(/^[0-9a-f]{32}$/);
 const hexPk = z.string().regex(/^[0-9a-f]{64}$/);
+const ipv4 = z.string().regex(/^(?:\d{1,3}\.){3}\d{1,3}$/);
 
 const offerSchema = z.object({
   v: z.literal(PAIRING_PROTOCOL_VERSION),
@@ -19,6 +20,8 @@ const offerSchema = z.object({
   did: hexId,
   pk: hexPk,
   exp: z.number().int().positive(),
+  host: ipv4,
+  port: z.number().int().min(1024).max(65535),
 });
 
 const acceptSchema = z.object({
@@ -32,7 +35,7 @@ const acceptSchema = z.object({
 
 /**
  * Encode / decode pairing QR payloads.
- * Only session id, temp device id, public key, expiry – never secrets or PII.
+ * Only session id, temp device id, public key, expiry, and host/port – never secrets or PII.
  */
 export const QRCodeService = {
   encodeOffer(payload: PairingOfferPayload): string {
@@ -58,7 +61,7 @@ export const QRCodeService = {
     const type = (parsed as { t?: string }).t;
     if (type === PAIRING_OFFER_TYPE) {
       const result = offerSchema.safeParse(parsed);
-      if (!result.success) throw new Error('Angebots-QR ungültig oder unvollständig.');
+      if (!result.success) throw new Error('Angebots-QR ungültig oder unvollständig (v2 inkl. host/port).');
       return result.data;
     }
     if (type === PAIRING_ACCEPT_TYPE) {

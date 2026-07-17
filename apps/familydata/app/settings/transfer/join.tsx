@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PairingQrDisplay } from '@/components/PairingQrDisplay';
 import { PairingQrScanner } from '@/components/PairingQrScanner';
+import { SecureChannelPanel } from '@/components/SecureChannelPanel';
 import { Panel, PrimaryButton, Screen, SectionTitle, StatusBadge } from '@/components/ui';
 import { TransferSessionManager } from '@/deviceTransfer/TransferSessionManager';
 import { useTransferSession } from '@/deviceTransfer/useTransferSession';
@@ -109,21 +110,30 @@ export default function TransferJoinScreen() {
         ) : null}
 
         {session.status === 'paired' ? (
-          <Panel className="mt-4 px-4 py-4">
-            <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Geräte sind gekoppelt</Text>
-            <Text className="mt-2 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
-              Sicheres Pairing abgeschlossen. Die eigentliche Datenmigration folgt in Phase 3.
-            </Text>
+          <>
+            <Panel className="mt-4 px-4 py-4">
+              <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Geräte sind gekoppelt</Text>
+              <Text className="mt-2 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
+                Pairing abgeschlossen. Zuerst auf dem alten Gerät „Kanal öffnen“, danach hier verbinden.
+              </Text>
+              {session.transportHost && session.transportPort ? (
+                <Text className="mt-2 font-sans text-xs text-mute dark:text-[#9bb0a6]">
+                  Ziel {session.transportHost}:{session.transportPort}
+                </Text>
+              ) : null}
+            </Panel>
+            <SecureChannelPanel paired />
             <View className="mt-4">
               <PrimaryButton
                 label="Fertig"
+                tone="ghost"
                 onPress={() => {
                   TransferSessionManager.clear();
                   router.replace('/settings/transfer' as Href);
                 }}
               />
             </View>
-          </Panel>
+          </>
         ) : null}
 
         {session.status === 'expired' || session.status === 'error' ? (
