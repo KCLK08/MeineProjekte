@@ -10,11 +10,13 @@ const RULES: Array<{ test: RegExp; message: string }> = [
   },
   {
     test: /Entschlüsselung fehlgeschlagen|falscher Key|Manipulation|AEAD|Replay|Sequenz/i,
-    message: 'Die sichere Verbindung konnte nicht hergestellt werden.',
+    message:
+      'Die Geräte konnten nicht verbunden werden. Prüfe, ob beide Geräte im gleichen WLAN sind.',
   },
   {
     test: /Kanal nicht verbunden|nicht verbunden|Verbindung verloren|Verbindungsfehler|connect\(\)/i,
-    message: 'Die Verbindung zum anderen Gerät ist unterbrochen. Bitte versuche es erneut.',
+    message:
+      'Die Geräte konnten nicht verbunden werden. Prüfe, ob beide Geräte im gleichen WLAN sind.',
   },
   {
     test: /Bestätigungscode|SAS|confirmSas|Pairing unvollständig|Session-Material/i,
@@ -25,8 +27,9 @@ const RULES: Array<{ test: RegExp; message: string }> = [
     message: 'Der Code konnte nicht gelesen werden. Bitte erneut scannen.',
   },
   {
-    test: /Speicherplatz|Nicht genug Speicher/i,
-    message: 'Auf diesem Gerät ist nicht genug Speicherplatz frei.',
+    test: /Speicherplatz|Nicht genug Speicher|Speicher voll|ENOSPC|disk (full|space)/i,
+    message:
+      'Nicht genügend Speicher verfügbar. Bitte gib Speicher frei und versuche es erneut.',
   },
   {
     test: /Tresor|gesperrt|Authentifizierung|Biometrie|Master-Key nicht freigegeben/i,
@@ -38,7 +41,10 @@ const RULES: Array<{ test: RegExp; message: string }> = [
   },
 ];
 
-export function friendlyTransferError(raw: unknown, fallback = 'Etwas ist schiefgelaufen. Bitte versuche es erneut.'): string {
+export function friendlyTransferError(
+  raw: unknown,
+  fallback = 'Etwas ist schiefgelaufen. Bitte versuche es erneut.'
+): string {
   const text = typeof raw === 'string' ? raw : (raw as Error)?.message || '';
   if (!text.trim()) return fallback;
   for (const rule of RULES) {

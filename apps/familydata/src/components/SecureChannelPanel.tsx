@@ -1,6 +1,7 @@
 import { useRouter, type Href } from 'expo-router';
 import { Alert, Text, View } from 'react-native';
 
+import { TransferActionHint } from '@/components/TransferActionHint';
 import { TransferTimeline, type TimelineStep } from '@/components/TransferTimeline';
 import { LoadingBlock, Panel, PrimaryButton, StatusBadge } from '@/components/ui';
 import { DocumentTransferService } from '@/deviceTransfer/migration/DocumentTransferService';
@@ -8,6 +9,7 @@ import { MigrationTransferService } from '@/deviceTransfer/migration/MigrationTr
 import { VaultCutoverService } from '@/deviceTransfer/migration/VaultCutoverService';
 import { TransferSessionManager } from '@/deviceTransfer/TransferSessionManager';
 import { TransportManager } from '@/deviceTransfer/transport/TransportManager';
+import { resolveTransferActionHint } from '@/deviceTransfer/transferUiActions';
 import { friendlyTransferError } from '@/deviceTransfer/transferUiCopy';
 import { useDocumentTransfer } from '@/deviceTransfer/useDocumentTransfer';
 import { useMigrationTransfer } from '@/deviceTransfer/useMigrationTransfer';
@@ -33,8 +35,7 @@ function buildTimeline(args: {
   const connectedFailed = args.transportStatus === 'error';
 
   const familyDone =
-    args.migrationPhase === 'committed' ||
-    args.migrationPhase === 'validated';
+    args.migrationPhase === 'committed' || args.migrationPhase === 'validated';
   const familyActive =
     args.migrationPhase === 'sending' ||
     args.migrationPhase === 'receiving' ||
@@ -58,7 +59,13 @@ function buildTimeline(args: {
     {
       id: 'connected',
       label: 'Geräte verbunden',
-      status: connectedFailed ? 'failed' : connectedDone ? 'done' : connectedActive ? 'active' : 'pending',
+      status: connectedFailed
+        ? 'failed'
+        : connectedDone
+          ? 'done'
+          : connectedActive
+            ? 'active'
+            : 'pending',
       detail: connectedActive ? 'Verbindung wird aufgebaut…' : undefined,
     },
     {
@@ -91,7 +98,7 @@ function buildTimeline(args: {
     },
     {
       id: 'setup',
-      label: 'Einrichtung abgeschlossen',
+      label: 'Einrichtung',
       status: !docsDone
         ? 'pending'
         : setupFailed
@@ -151,6 +158,14 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
     docsProgress: docs.progress,
     migrationProgress: migration.progress,
     cutoverProgress: cutover.progress,
+  });
+
+  const actionHint = resolveTransferActionHint({
+    role,
+    transportStatus: transport.status,
+    migrationPhase: migration.phase,
+    docsPhase: docs.phase,
+    cutoverPhase: cutover.phase,
   });
 
   const displayError = friendlyTransferError(
@@ -233,12 +248,12 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
               icon="trash-outline"
               onPress={() => {
                 Alert.alert(
-                  'Sicher löschen',
-                  'Alle Familien- und Dokumentdaten auf diesem Gerät werden entfernt.',
+                  'Daten auf diesem Gerät löschen?',
+                  'Alle gespeicherten Familieninformationen und Dokumente werden von diesem Gerät entfernt. Dies kann nicht rückgängig gemacht werden.',
                   [
-                    { text: 'Abbrechen', style: 'cancel' },
+                    { text: 'Behalten', style: 'cancel' },
                     {
-                      text: 'Löschen',
+                      text: 'Sicher löschen',
                       style: 'destructive',
                       onPress: () => {
                         void VaultCutoverService.secureWipeSenderVault()
@@ -264,6 +279,7 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
   return (
     <View className="mt-4">
       <TransferTimeline steps={timeline} />
+      <TransferActionHint hint={actionHint} />
 
       <Panel className="mt-4 px-4 py-4">
         {displayError ? (
@@ -291,7 +307,7 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
         <View className="gap-2">
           {!connected && transport.status !== 'connecting' ? (
             <PrimaryButton
-              label={role === 'host' ? 'Verbindung herstellen' : 'Auf Verbindung warten'}
+              label={role === 'host' ? 'Verbindung herstellen' : 'Mit altem Gerät verbinden'}
               icon="link-outline"
               onPress={() => {
                 const params = TransferSessionManager.getTransportConnectParams();
