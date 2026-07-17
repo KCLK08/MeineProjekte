@@ -18,7 +18,7 @@
       "bundleIdentifier": "de.meineprojekte.familydata",
       "infoPlist": {
         "NSFaceIDUsageDescription": "Family Vault nutzt biometrische Freigabe nur auf diesem Gerät, um den Zugriff zu schützen.",
-        "NSCameraUsageDescription": "Kamera nur zum Erfassen eigener Dokumentfotos (lokal).",
+        "NSCameraUsageDescription": "Kamera für lokale Dokumentfotos und zum Scannen von Pairing-QR-Codes bei der Geräteübertragung.",
         "NSPhotoLibraryUsageDescription": "Galerie nur zum Anhängen eigener Dokumentfotos (lokal).",
         "UIFileSharingEnabled": false,
         "LSSupportsOpeningDocumentsInPlace": false,
@@ -64,6 +64,14 @@
         {
           "photosPermission": "Galeriezugriff nur für lokale Dokumentfotos.",
           "cameraPermission": "Kamerazugriff nur für lokale Dokumentfotos."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Kamera zum Scannen von Pairing-QR-Codes bei der Geräteübertragung.",
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": true
         }
       ]
     ],

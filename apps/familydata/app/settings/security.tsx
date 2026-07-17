@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, Switch, Text, View } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Panel, PrimaryButton, Screen, SectionTitle, StatusBadge } from '@/components/ui';
@@ -152,12 +152,21 @@ export default function SecurityScreen() {
           </View>
         </Panel>
 
-        <SectionTitle>Gerätewechsel</SectionTitle>
+        <SectionTitle>Geräteübertragung</SectionTitle>
         <Panel className="mb-5 px-4 py-4">
           <Text className="font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
-            Daten sind an dieses Gerät gebunden. Bei Verlust oder Wechsel auf ein neues Gerät ist keine
-            Wiederherstellung möglich.
+            Sicherer Wechsel auf ein neues Gerät per QR-Pairing. Der Master Key verlässt dieses Gerät nicht.
+            Ohne beide Geräte ist keine Wiederherstellung möglich.
           </Text>
+          <View className="mt-4">
+            <PrimaryButton
+              label="Geräteübertragung"
+              tone="soft"
+              icon="swap-horizontal-outline"
+              disabled={isLocked || busy}
+              onPress={() => router.push('/settings/transfer' as Href)}
+            />
+          </View>
         </Panel>
 
         {needsAction ? (
