@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PairingQrDisplay } from '@/components/PairingQrDisplay';
 import { PairingQrScanner } from '@/components/PairingQrScanner';
 import { SecureChannelPanel } from '@/components/SecureChannelPanel';
+import { TransferActionHint } from '@/components/TransferActionHint';
 import {
   LoadingBlock,
   Panel,
@@ -15,6 +16,7 @@ import {
   StatusBadge,
 } from '@/components/ui';
 import { TransferSessionManager } from '@/deviceTransfer/TransferSessionManager';
+import { requestAbortTransfer } from '@/deviceTransfer/transferUiActions';
 import { formatSecurityCode, friendlyTransferError } from '@/deviceTransfer/transferUiCopy';
 import { useTransferSession } from '@/deviceTransfer/useTransferSession';
 import { requireSecureAccess } from '@/security/access';
@@ -37,6 +39,10 @@ function hostStatusLabel(status: string, step: string): string {
     default:
       return 'Bereit';
   }
+}
+
+function leaveToHub(router: ReturnType<typeof useRouter>) {
+  void TransferSessionManager.clear().then(() => router.replace('/settings/transfer' as Href));
 }
 
 export default function TransferHostScreen() {
@@ -97,6 +103,21 @@ export default function TransferHostScreen() {
   const offerQr = TransferSessionManager.getOfferQr();
   const securityCode = formatSecurityCode(session.confirmationCode);
 
+  const onSasMismatch = () => {
+    Alert.alert(
+      'Sicherheitscodes',
+      'Die Sicherheitscodes stimmen nicht überein.\n\nBreche die Übertragung ab und starte sie erneut.',
+      [
+        { text: 'Zurück', style: 'cancel' },
+        {
+          text: 'Übertragung beenden',
+          style: 'destructive',
+          onPress: () => leaveToHub(router),
+        },
+      ]
+    );
+  };
+
   if (busy && step === 'boot') {
     return (
       <Screen>
@@ -138,7 +159,6 @@ export default function TransferHostScreen() {
           </Text>
         ) : null}
 
-        {/* Step 1 indicator when preparing / early */}
         {session.status !== 'paired' && step !== 'scan_accept' ? (
           <Panel className="mb-4 px-4 py-3">
             <Text className="font-sansBold text-[13px] text-ink dark:text-[#e7f2ec]">
@@ -167,7 +187,7 @@ export default function TransferHostScreen() {
                 >
                   {securityCode}
                 </Text>
-                <View className="mt-4">
+                <View className="mt-4 gap-2">
                   <PrimaryButton
                     label="Code stimmt überein"
                     icon="shield-checkmark-outline"
@@ -178,6 +198,11 @@ export default function TransferHostScreen() {
                         Alert.alert('Bestätigung', friendlyTransferError(e));
                       }
                     }}
+                  />
+                  <PrimaryButton
+                    label="Codes stimmen nicht überein"
+                    tone="ghost"
+                    onPress={onSasMismatch}
                   />
                 </View>
               </Panel>
@@ -198,11 +223,7 @@ export default function TransferHostScreen() {
               <PrimaryButton
                 label="Abbrechen"
                 tone="ghost"
-                onPress={() => {
-                  void TransferSessionManager.clear().then(() =>
-                    router.replace('/settings/transfer' as Href)
-                  );
-                }}
+                onPress={() => requestAbortTransfer(() => leaveToHub(router))}
               />
             </View>
           </>
@@ -215,9 +236,13 @@ export default function TransferHostScreen() {
               2. Neues Gerät verbinden
             </Text>
             <Text className="mb-4 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
-              Zeige diesen Code dem neuen Gerät. Scanne dort den QR-Code.
+              Zeige diesen Code dem neuen Gerät.
             </Text>
             <PairingQrDisplay value={offerQr} label="Verbindungscode" />
+            <Text className="mt-3 text-center font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
+              Neues Gerät scannt diesen Code.
+            </Text>
+            <TransferActionHint hint="Warte: Das neue Gerät scannt diesen Code." />
 
             <View className="mt-5 mb-3">
               <PrimaryButton
@@ -235,19 +260,22 @@ export default function TransferHostScreen() {
           <>
             <SectionTitle>Antwort scannen</SectionTitle>
             <Text className="mb-3 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
-              Scanne den Code, den das neue Gerät anzeigt.
+              Jetzt den Antwortcode vom neuen Gerät scannen.
             </Text>
-            <PairingQrScanner
-              hint="Kamerablick auf den Code des neuen Geräts."
-              disabled={session.status === 'expired'}
-              onScan={(data) => {
-                try {
-                  TransferSessionManager.completeHostFromAcceptQr(data);
-                } catch (e) {
-                  Alert.alert('Code ungültig', friendlyTransferError(e));
-                }
-              }}
-            />
+            <TransferActionHint hint="Als Nächstes: Antwortcode vom neuen Gerät scannen." />
+            <View className="mt-3">
+              <PairingQrScanner
+                hint="Kamerablick auf den Code des neuen Geräts."
+                disabled={session.status === 'expired'}
+                onScan={(data) => {
+                  try {
+                    TransferSessionManager.completeHostFromAcceptQr(data);
+                  } catch (e) {
+                    Alert.alert('Code ungültig', friendlyTransferError(e));
+                  }
+                }}
+              />
+            </View>
             <View className="mt-3">
               <PrimaryButton
                 label="Zurück zum eigenen Code"
@@ -285,7 +313,7 @@ export default function TransferHostScreen() {
               }}
             />
             <PrimaryButton
-              label="Abbrechen"
+              label="Zurück"
               tone="ghost"
               onPress={() => {
                 void TransferSessionManager.clear().then(() => router.back());
