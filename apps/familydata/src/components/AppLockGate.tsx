@@ -11,7 +11,7 @@ import { useAppTheme } from '@/theme/useAppTheme';
 export function AppLockGate() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { colors } = useAppTheme();
+  const { colors, scheme } = useAppTheme();
   const hydrated = useSecurityStore((s) => s.hydrated);
   const securityEnabled = useSecurityStore((s) => s.securityEnabled);
   const isLocked = useSecurityStore((s) => s.isLocked);
@@ -64,7 +64,8 @@ export function AppLockGate() {
             fontSize: 34,
             lineHeight: 40,
             letterSpacing: -0.8,
-            color: colors.pine,
+            // Light: deep pine on mint canvas; dark: near-white ink on dark canvas.
+            color: scheme === 'dark' ? colors.ink : colors.pine,
             textAlign: 'center',
           }}
         >
