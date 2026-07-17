@@ -1,9 +1,29 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
+import { wipeBytes } from '@/deviceTransfer/bytes';
 import type { DocumentMappingEntry, DocumentMappingFile } from '@/deviceTransfer/migration/documentTypes';
 import type { MigrationManifest, StagingRecord, StagedTransferStatus } from '@/deviceTransfer/migration/types';
+import { EncryptionService } from '@/security/EncryptionService';
 
 const ROOT = 'familydata-transfer-staging';
+const PAYLOAD_ENC = 'payload.enc';
+const PAYLOAD_LEGACY = 'payload.json';
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
 
 function rootDir(): string {
   const base = FileSystem.documentDirectory;
@@ -71,14 +91,53 @@ export const StagingStore = {
     await this.writeRecord(record);
   },
 
-  async writePayload(transferId: string, payloadJson: string) {
+  /**
+   * Persists vault metadata encrypted at rest with the transfer staging key.
+   * Never writes plaintext PII to payload.json.
+   */
+  async writePayload(transferId: string, payloadJson: string, stagingKey: Uint8Array) {
+    if (stagingKey.byteLength !== 32) throw new Error('Staging-Key muss 32 Byte sein.');
     const dir = transferDir(transferId);
     await ensureDir(dir);
-    await FileSystem.writeAsStringAsync(`${dir}payload.json`, payloadJson);
+    const plain = new TextEncoder().encode(payloadJson);
+    let packed: Uint8Array | null = null;
+    try {
+      packed = await EncryptionService.encryptBytes(plain, stagingKey);
+      await FileSystem.writeAsStringAsync(`${dir}${PAYLOAD_ENC}`, bytesToBase64(packed), {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      // Remove any legacy plaintext leftover.
+      await FileSystem.deleteAsync(`${dir}${PAYLOAD_LEGACY}`, { idempotent: true }).catch(() => undefined);
+    } finally {
+      wipeBytes(plain);
+      wipeBytes(packed);
+    }
   },
 
-  async readPayload(transferId: string): Promise<string> {
-    return FileSystem.readAsStringAsync(`${transferDir(transferId)}payload.json`);
+  async readPayload(transferId: string, stagingKey: Uint8Array): Promise<string> {
+    if (stagingKey.byteLength !== 32) throw new Error('Staging-Key muss 32 Byte sein.');
+    const encPath = `${transferDir(transferId)}${PAYLOAD_ENC}`;
+    const legacyPath = `${transferDir(transferId)}${PAYLOAD_LEGACY}`;
+    const encInfo = await FileSystem.getInfoAsync(encPath);
+    if (!encInfo.exists) {
+      const legacy = await FileSystem.getInfoAsync(legacyPath);
+      if (legacy.exists) {
+        throw new Error('Unverschlüsseltes Staging erkannt – Transfer abbrechen und neu starten.');
+      }
+      throw new Error('Staging-Payload fehlt.');
+    }
+    const b64 = await FileSystem.readAsStringAsync(encPath, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    const packed = base64ToBytes(b64);
+    let plain: Uint8Array | null = null;
+    try {
+      plain = EncryptionService.decryptBytes(packed, stagingKey);
+      return new TextDecoder().decode(plain);
+    } finally {
+      wipeBytes(packed);
+      wipeBytes(plain);
+    }
   },
 
   async readManifest(transferId: string): Promise<MigrationManifest | null> {

@@ -3,11 +3,12 @@ import { PairingService } from '@/deviceTransfer/PairingService';
 import { TransportManager } from '@/deviceTransfer/transport/TransportManager';
 import type { TransportConnectParams } from '@/deviceTransfer/transport/TransportManager';
 import type { EphemeralKeyPair, PairingStatus, TransferRole, TransferSessionSnapshot } from '@/deviceTransfer/types';
+import { TRANSFER_SESSION_TTL_MS } from '@/deviceTransfer/types';
 
 type Listener = (snapshot: TransferSessionSnapshot) => void;
 
 /**
- * In-memory transfer session lifecycle for Phase 2 pairing + Phase 3 transport prep.
+ * In-memory transfer session lifecycle.
  * Cleared on vault lock / explicit cancel – never persisted.
  */
 class TransferSessionManagerImpl {
@@ -22,6 +23,7 @@ class TransferSessionManagerImpl {
   private offerQr: string | null = null;
   private acceptQr: string | null = null;
   private confirmationCode: string | null = null;
+  private sasConfirmed = false;
   private transportHost: string | null = null;
   private transportPort: number | null = null;
   private error: string | null = null;
@@ -29,9 +31,13 @@ class TransferSessionManagerImpl {
   private expiryTimer: ReturnType<typeof setTimeout> | null = null;
   private listeners = new Set<Listener>();
   private cachedSnapshot: TransferSessionSnapshot;
+  private clearing: Promise<void> | null = null;
 
   constructor() {
     this.cachedSnapshot = this.buildSnapshot();
+    TransportManager.addConnectedHook(() => {
+      this.onChannelConnected();
+    });
   }
 
   subscribe(listener: Listener): () => void {
@@ -58,12 +64,14 @@ class TransferSessionManagerImpl {
   }
 
   /**
-   * Credentials for Phase 3 TransportManager.connect().
-   * Only available while paired and keys still in RAM.
+   * Credentials for TransportManager.connect().
+   * Requires local SAS confirmation and live ephemeral secret (one connect).
    */
   getTransportConnectParams(): TransportConnectParams | null {
+    this.refreshExpiryStatus();
     if (
       this.status !== 'paired' ||
+      !this.sasConfirmed ||
       !this.role ||
       !this.sessionId ||
       !this.keyPair ||
@@ -71,6 +79,10 @@ class TransferSessionManagerImpl {
       !this.transportHost ||
       this.transportPort == null
     ) {
+      return null;
+    }
+    // Secret already consumed after first successful connect.
+    if (this.keyPair.secretKey.every((b) => b === 0)) {
       return null;
     }
     return {
@@ -83,8 +95,28 @@ class TransferSessionManagerImpl {
     };
   }
 
+  /**
+   * Explicit local SAS confirmation (MitM check). Required before channel open.
+   */
+  confirmSas(): TransferSessionSnapshot {
+    this.refreshExpiryStatus();
+    if (this.status !== 'paired') {
+      throw new Error('Zuerst Pairing abschließen.');
+    }
+    if (!this.confirmationCode) {
+      throw new Error('Kein Bestätigungscode vorhanden.');
+    }
+    this.sasConfirmed = true;
+    this.error = null;
+    // Absolute transfer window – paired material must not live forever.
+    this.expiresAt = Date.now() + TRANSFER_SESSION_TTL_MS;
+    this.scheduleTransferExpiry(this.expiresAt);
+    this.emit();
+    return this.getSnapshot();
+  }
+
   async startHostOffer(): Promise<TransferSessionSnapshot> {
-    this.clearInternal(false);
+    await this.clearInternal(false);
     this.status = 'creating';
     this.emit();
     try {
@@ -103,7 +135,7 @@ class TransferSessionManagerImpl {
       this.emit();
       return this.getSnapshot();
     } catch (e) {
-      this.clearInternal(false);
+      await this.clearInternal(false);
       this.status = 'error';
       this.error = (e as Error).message || 'Sitzung konnte nicht erstellt werden.';
       this.emit();
@@ -112,7 +144,7 @@ class TransferSessionManagerImpl {
   }
 
   async acceptOfferFromQr(rawQr: string): Promise<TransferSessionSnapshot> {
-    this.clearInternal(false);
+    await this.clearInternal(false);
     this.status = 'scanning_offer';
     this.emit();
     try {
@@ -134,7 +166,7 @@ class TransferSessionManagerImpl {
       this.emit();
       return this.getSnapshot();
     } catch (e) {
-      this.clearInternal(false);
+      await this.clearInternal(false);
       this.status = 'error';
       this.error = (e as Error).message || 'QR konnte nicht verarbeitet werden.';
       this.emit();
@@ -163,6 +195,7 @@ class TransferSessionManagerImpl {
       this.confirmationCode = done.confirmationCode;
       this.expiresAt = done.expiresAt;
       this.status = 'paired';
+      this.sasConfirmed = false;
       this.error = null;
       this.clearExpiryTimer();
       this.emit();
@@ -175,7 +208,7 @@ class TransferSessionManagerImpl {
     }
   }
 
-  /** Joiner marks paired after host has scanned (UI confirmation). */
+  /** Joiner marks paired after host has scanned accept QR. SAS still required separately. */
   markJoinerPaired(): TransferSessionSnapshot {
     this.refreshExpiryStatus();
     if (this.role !== 'joiner' || this.status === 'expired') {
@@ -185,52 +218,101 @@ class TransferSessionManagerImpl {
       throw new Error('Pairing unvollständig.');
     }
     this.status = 'paired';
+    this.sasConfirmed = false;
     this.error = null;
+    this.clearExpiryTimer();
     this.emit();
     return this.getSnapshot();
   }
 
-  clear(): void {
-    this.clearInternal(true);
+  /** Awaits staging wipe – use from lock / cancel paths. */
+  async clear(): Promise<void> {
+    await this.clearInternal(true);
   }
 
-  private clearInternal(emit: boolean) {
-    this.clearExpiryTimer();
-    try {
-      TransportManager.close();
-    } catch {
-      /* ignore */
+  private onChannelConnected() {
+    // One-shot: wipe ephemeral ECDH secret so reconnect cannot re-derive the same keys with seq=0.
+    if (this.keyPair) {
+      EphemeralKeyService.dispose(this.keyPair);
+      // Keep publicKeyHex for UI; secret is zeroed.
+      this.keyPair = {
+        publicKeyHex: this.keyPair.publicKeyHex,
+        secretKey: new Uint8Array(32),
+      };
     }
-    void import('@/deviceTransfer/migration/StagingStore')
-      .then(({ StagingStore }) => StagingStore.wipeAll())
-      .catch(() => undefined);
-    void import('@/deviceTransfer/migration/MigrationTransferService')
-      .then(({ MigrationTransferService }) => MigrationTransferService.reset())
-      .catch(() => undefined);
-    void import('@/deviceTransfer/migration/DocumentTransferService')
-      .then(({ DocumentTransferService }) => DocumentTransferService.reset())
-      .catch(() => undefined);
-    EphemeralKeyService.dispose(this.keyPair);
-    this.role = null;
-    this.status = 'idle';
-    this.sessionId = null;
-    this.localDeviceId = null;
-    this.keyPair = null;
-    this.remoteDeviceId = null;
-    this.remotePublicKeyHex = null;
-    this.expiresAt = null;
-    this.offerQr = null;
-    this.acceptQr = null;
-    this.confirmationCode = null;
-    this.transportHost = null;
-    this.transportPort = null;
-    this.error = null;
-    this.rebuildSnapshot();
-    if (emit) {
-      const snap = this.cachedSnapshot;
-      for (const listener of this.listeners) {
-        listener(snap);
+    this.emit();
+  }
+
+  private async clearInternal(emit: boolean) {
+    if (this.clearing) {
+      await this.clearing;
+      return;
+    }
+    this.clearing = (async () => {
+      this.clearExpiryTimer();
+      try {
+        TransportManager.close();
+      } catch {
+        /* ignore */
       }
+      try {
+        const { StagingStore } = await import('@/deviceTransfer/migration/StagingStore');
+        await StagingStore.wipeAll();
+      } catch {
+        /* ignore */
+      }
+      try {
+        const { MigrationTransferService } = await import(
+          '@/deviceTransfer/migration/MigrationTransferService'
+        );
+        MigrationTransferService.reset();
+      } catch {
+        /* ignore */
+      }
+      try {
+        const { DocumentTransferService } = await import(
+          '@/deviceTransfer/migration/DocumentTransferService'
+        );
+        DocumentTransferService.reset();
+      } catch {
+        /* ignore */
+      }
+      try {
+        const { VaultCutoverService } = await import(
+          '@/deviceTransfer/migration/VaultCutoverService'
+        );
+        VaultCutoverService.reset();
+      } catch {
+        /* ignore */
+      }
+      EphemeralKeyService.dispose(this.keyPair);
+      this.role = null;
+      this.status = 'idle';
+      this.sessionId = null;
+      this.localDeviceId = null;
+      this.keyPair = null;
+      this.remoteDeviceId = null;
+      this.remotePublicKeyHex = null;
+      this.expiresAt = null;
+      this.offerQr = null;
+      this.acceptQr = null;
+      this.confirmationCode = null;
+      this.sasConfirmed = false;
+      this.transportHost = null;
+      this.transportPort = null;
+      this.error = null;
+      this.rebuildSnapshot();
+      if (emit) {
+        const snap = this.cachedSnapshot;
+        for (const listener of this.listeners) {
+          listener(snap);
+        }
+      }
+    })();
+    try {
+      await this.clearing;
+    } finally {
+      this.clearing = null;
     }
   }
 
@@ -238,19 +320,30 @@ class TransferSessionManagerImpl {
     this.clearExpiryTimer();
     const delay = Math.max(0, expiresAt - Date.now());
     this.expiryTimer = setTimeout(() => {
-      if (this.status === 'paired') return;
+      if (this.status === 'paired' && this.sasConfirmed) return;
       this.status = 'expired';
       this.error = 'Pairing-Sitzung abgelaufen.';
       EphemeralKeyService.dispose(this.keyPair);
       this.keyPair = null;
       this.offerQr = null;
       this.acceptQr = null;
+      this.sasConfirmed = false;
       try {
         TransportManager.close();
       } catch {
         /* ignore */
       }
       this.emit();
+    }, delay);
+  }
+
+  private scheduleTransferExpiry(expiresAt: number) {
+    this.clearExpiryTimer();
+    const delay = Math.max(0, expiresAt - Date.now());
+    this.expiryTimer = setTimeout(() => {
+      this.status = 'expired';
+      this.error = 'Transfer-Fenster abgelaufen. Bitte neu koppeln.';
+      void this.clearInternal(true);
     }, delay);
   }
 
@@ -265,22 +358,35 @@ class TransferSessionManagerImpl {
     if (
       this.expiresAt != null &&
       Date.now() >= this.expiresAt &&
-      this.status !== 'paired' &&
       this.status !== 'idle' &&
       this.status !== 'expired'
     ) {
-      this.status = 'expired';
-      this.error = 'Pairing-Sitzung abgelaufen.';
-      EphemeralKeyService.dispose(this.keyPair);
-      this.keyPair = null;
-      this.offerQr = null;
-      this.acceptQr = null;
-      try {
-        TransportManager.close();
-      } catch {
-        /* ignore */
+      // Paired+SAS uses transfer TTL; unpaired uses QR TTL.
+      if (this.status === 'paired' && this.sasConfirmed) {
+        this.status = 'expired';
+        this.error = 'Transfer-Fenster abgelaufen. Bitte neu koppeln.';
+        void this.clearInternal(false).then(() => {
+          this.status = 'expired';
+          this.error = 'Transfer-Fenster abgelaufen. Bitte neu koppeln.';
+          this.emit();
+        });
+        return;
       }
-      this.rebuildSnapshot();
+      if (this.status !== 'paired') {
+        this.status = 'expired';
+        this.error = 'Pairing-Sitzung abgelaufen.';
+        EphemeralKeyService.dispose(this.keyPair);
+        this.keyPair = null;
+        this.offerQr = null;
+        this.acceptQr = null;
+        this.sasConfirmed = false;
+        try {
+          TransportManager.close();
+        } catch {
+          /* ignore */
+        }
+        this.rebuildSnapshot();
+      }
     }
   }
 
@@ -295,6 +401,7 @@ class TransferSessionManagerImpl {
       remotePublicKeyHex: this.remotePublicKeyHex,
       expiresAt: this.expiresAt,
       confirmationCode: this.confirmationCode,
+      sasConfirmed: this.sasConfirmed,
       transportHost: this.transportHost,
       transportPort: this.transportPort,
       error: this.error,

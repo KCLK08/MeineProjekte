@@ -1,4 +1,5 @@
 import { x25519 } from '@noble/curves/ed25519.js';
+import { sha256 } from '@noble/hashes/sha2.js';
 import * as Crypto from 'expo-crypto';
 
 import { bytesToHex, hexToBytes, wipeBytes } from '@/deviceTransfer/bytes';
@@ -23,23 +24,21 @@ export const EphemeralKeyService = {
   },
 
   /**
-   * Derives a shared secret then immediately reduces it to a short
-   * confirmation code and wipes the shared secret. Phase 2 does not
-   * retain material for data encryption.
+   * Derives a short authentication string from the ECDH shared secret via SHA-256.
+   * Shared secret is wiped immediately. Not a password – visual MitM check only.
    */
   deriveConfirmationCode(localSecret: Uint8Array, remotePublicKeyHex: string): string {
     const remotePk = hexToBytes(remotePublicKeyHex);
     let shared: Uint8Array | null = null;
+    let digest: Uint8Array | null = null;
     try {
       shared = x25519.getSharedSecret(localSecret, remotePk);
-      // Fold to 6 hex chars for visual compare – not a password.
-      let h = 0;
-      for (let i = 0; i < shared.length; i += 1) {
-        h = (h * 33 + shared[i]!) >>> 0;
-      }
-      return (h >>> 0).toString(16).padStart(8, '0').slice(0, 6).toUpperCase();
+      digest = sha256(shared);
+      // 8 hex chars ≈ 32 bit visual compare (stronger than prior non-crypto fold).
+      return bytesToHex(digest).slice(0, 8).toUpperCase();
     } finally {
       wipeBytes(shared);
+      wipeBytes(digest);
       wipeBytes(remotePk);
     }
   },

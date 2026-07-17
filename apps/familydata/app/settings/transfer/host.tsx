@@ -106,7 +106,7 @@ export default function TransferHostScreen() {
             <Panel className="mb-4 px-4 py-4">
               <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Geräte sind gekoppelt</Text>
               <Text className="mt-2 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
-                Bestätigungscode (sollte auf beiden Geräten übereinstimmen):
+                Short Authentication String – muss auf beiden Geräten identisch sein:
               </Text>
               <Text className="mt-3 text-center font-display text-3xl tracking-[4px] text-pine-700 dark:text-pine-400">
                 {session.confirmationCode}
@@ -116,15 +116,34 @@ export default function TransferHostScreen() {
                   Endpoint {session.transportHost}:{session.transportPort}
                 </Text>
               ) : null}
+              {!session.sasConfirmed ? (
+                <View className="mt-4">
+                  <PrimaryButton
+                    label="Code stimmt überein"
+                    icon="shield-checkmark-outline"
+                    onPress={() => {
+                      try {
+                        TransferSessionManager.confirmSas();
+                      } catch (e) {
+                        Alert.alert('Bestätigung', (e as Error).message);
+                      }
+                    }}
+                  />
+                  <Text className="mt-2 text-center font-sans text-[12px] text-mute dark:text-[#9bb0a6]">
+                    Erst nach Bestätigung kann der sichere Kanal geöffnet werden.
+                  </Text>
+                </View>
+              ) : null}
             </Panel>
-            <SecureChannelPanel paired />
+            <SecureChannelPanel paired={session.sasConfirmed} />
             <View className="mt-4 gap-2">
               <PrimaryButton
                 label="Fertig"
                 tone="ghost"
                 onPress={() => {
-                  TransferSessionManager.clear();
-                  router.replace('/settings/transfer' as Href);
+                  void TransferSessionManager.clear().then(() =>
+                    router.replace('/settings/transfer' as Href)
+                  );
                 }}
               />
             </View>
@@ -209,8 +228,7 @@ export default function TransferHostScreen() {
               label="Abbrechen"
               tone="ghost"
               onPress={() => {
-                TransferSessionManager.clear();
-                router.back();
+                void TransferSessionManager.clear().then(() => router.back());
               }}
             />
           </View>

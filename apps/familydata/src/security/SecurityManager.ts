@@ -115,6 +115,7 @@ class SecurityManagerImpl {
 
       // Keep session open so the caller does not need a second biometric prompt.
       await this.establishSession(key);
+      wipeBytes(key);
       key = null;
       return { migratedDocuments, created: true, sessionReady: true };
     } finally {
@@ -168,6 +169,7 @@ class SecurityManagerImpl {
     try {
       key = await KeyStoreService.getMasterKey('Family Vault Tresor öffnen');
       await this.establishSession(key);
+      wipeBytes(key);
       key = null;
       await SecurityEventLog.flushPendingToVault();
       await SecurityEventLog.record('vault_unlocked');

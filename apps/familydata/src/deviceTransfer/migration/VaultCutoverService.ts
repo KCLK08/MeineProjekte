@@ -174,7 +174,13 @@ class VaultCutoverServiceImpl {
       if (staging.status !== 'committed') {
         throw new Error('Metadaten-Staging muss committed sein (Phase 4A).');
       }
-      const payloadJson = await StagingStore.readPayload(transferId);
+      const stagingKey = TransportManager.borrowStagingKey();
+      let payloadJson: string;
+      try {
+        payloadJson = await StagingStore.readPayload(transferId, stagingKey);
+      } finally {
+        wipeBytes(stagingKey);
+      }
       const payload = JSON.parse(payloadJson) as VaultMetadataPayload;
       MigrationManifestService.parsePayload(payload);
 

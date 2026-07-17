@@ -33,12 +33,13 @@ export type TransportConnectParams = {
 
 type Listener = (snapshot: TransportSnapshot) => void;
 type MessageHandler = (message: TransferMessage) => void;
+type ConnectedHook = () => void;
 
 const TEST_PAYLOAD = 'FamilyData Transfer Test';
 
 /**
  * Orchestrates TCP connection + SecureChannel.
- * Phase 3: test messages. Phase 4A: metadata message types via handlers.
+ * Holds directional transport keys + integrity/docWrap/staging in RAM only.
  */
 class TransportManagerImpl {
   private status: TransportStatus = 'idle';
@@ -51,11 +52,14 @@ class TransportManagerImpl {
   private cached: TransportSnapshot;
   private listeners = new Set<Listener>();
   private messageHandlers = new Set<MessageHandler>();
+  private connectedHooks = new Set<ConnectedHook>();
   private connection: ConnectionService | null = null;
   private channel: SecureChannel | null = null;
-  private transportKey: Uint8Array | null = null;
+  private sendKey: Uint8Array | null = null;
+  private recvKey: Uint8Array | null = null;
   private integrityKey: Uint8Array | null = null;
   private docWrapKey: Uint8Array | null = null;
+  private stagingKey: Uint8Array | null = null;
 
   constructor() {
     this.cached = this.build();
@@ -72,6 +76,12 @@ class TransportManagerImpl {
     return () => this.messageHandlers.delete(handler);
   }
 
+  /** Called once after the TCP+AEAD channel reaches connected (e.g. consume ephemeral secrets). */
+  addConnectedHook(hook: ConnectedHook): () => void {
+    this.connectedHooks.add(hook);
+    return () => this.connectedHooks.delete(hook);
+  }
+
   getSnapshot(): TransportSnapshot {
     return this.cached;
   }
@@ -80,10 +90,6 @@ class TransportManagerImpl {
     return TEST_PAYLOAD;
   }
 
-  /**
-   * Copy of the integrity key for HMAC (manifests / documents).
-   * Caller MUST wipe the returned buffer.
-   */
   borrowIntegrityKey(): Uint8Array {
     if (!this.integrityKey || this.status !== 'connected') {
       throw new Error('Kein Integrity-Key – Kanal nicht verbunden.');
@@ -91,10 +97,6 @@ class TransportManagerImpl {
     return new Uint8Array(this.integrityKey);
   }
 
-  /**
-   * Copy of the document wrap key (Phase 4B/4C rekey).
-   * Caller MUST wipe the returned buffer. Never equals the vault master key.
-   */
   borrowDocWrapKey(): Uint8Array {
     if (!this.docWrapKey || this.status !== 'connected') {
       throw new Error('Kein Doc-Wrap-Key – Kanal nicht verbunden.');
@@ -102,7 +104,14 @@ class TransportManagerImpl {
     return new Uint8Array(this.docWrapKey);
   }
 
-  /** @deprecated Prefer borrowIntegrityKey – returns integrity key copy. */
+  borrowStagingKey(): Uint8Array {
+    if (!this.stagingKey || this.status !== 'connected') {
+      throw new Error('Kein Staging-Key – Kanal nicht verbunden.');
+    }
+    return new Uint8Array(this.stagingKey);
+  }
+
+  /** @deprecated Prefer borrowIntegrityKey */
   borrowSessionKey(): Uint8Array {
     return this.borrowIntegrityKey();
   }
@@ -112,31 +121,47 @@ class TransportManagerImpl {
     this.role = params.role;
     this.status = 'connecting';
     this.error = null;
-    this.pushLog(params.role === 'host' ? 'Warte auf TCP-Verbindung…' : `Verbinde zu ${params.host}:${params.port}…`);
+    this.pushLog(
+      params.role === 'host' ? 'Warte auf TCP-Verbindung…' : `Verbinde zu ${params.host}:${params.port}…`
+    );
     this.emit();
 
-    let transportKey: Uint8Array | null = null;
+    let sendKey: Uint8Array | null = null;
+    let recvKey: Uint8Array | null = null;
     let integrityKey: Uint8Array | null = null;
     let docWrapKey: Uint8Array | null = null;
+    let stagingKey: Uint8Array | null = null;
     try {
       const derived = SessionKeyService.deriveSessionKeys({
         localSecretKey: params.keyPair.secretKey,
         remotePublicKeyHex: params.remotePublicKeyHex,
         sessionIdHex: params.sessionId,
+        role: params.role,
       });
-      transportKey = derived.transportKey;
+      sendKey = derived.sendKey;
+      recvKey = derived.recvKey;
       integrityKey = derived.integrityKey;
       docWrapKey = derived.docWrapKey;
-      this.transportKey = new Uint8Array(transportKey);
+      stagingKey = derived.stagingKey;
+      this.sendKey = new Uint8Array(sendKey);
+      this.recvKey = new Uint8Array(recvKey);
       this.integrityKey = new Uint8Array(integrityKey);
       this.docWrapKey = new Uint8Array(docWrapKey);
-      this.channel = new SecureChannel(this.transportKey, params.sessionId);
+      this.stagingKey = new Uint8Array(stagingKey);
+      this.channel = new SecureChannel(this.sendKey, this.recvKey, params.sessionId, params.role);
       this.connection = new ConnectionService();
 
       const handlers = {
         onConnected: () => {
           this.status = 'connected';
-          this.pushLog('Kanal verbunden (AEAD + Integrity + Doc-Wrap Keys).');
+          this.pushLog('Kanal verbunden (directional AEAD + Integrity/DocWrap/Staging).');
+          for (const hook of this.connectedHooks) {
+            try {
+              hook();
+            } catch {
+              /* ignore */
+            }
+          }
           this.emit();
         },
         onData: (frame: Uint8Array) => {
@@ -163,9 +188,11 @@ class TransportManagerImpl {
       this.fail((e as Error).message || 'connect() fehlgeschlagen');
       throw e;
     } finally {
-      wipeBytes(transportKey);
+      wipeBytes(sendKey);
+      wipeBytes(recvKey);
       wipeBytes(integrityKey);
       wipeBytes(docWrapKey);
+      wipeBytes(stagingKey);
     }
   }
 
@@ -176,7 +203,7 @@ class TransportManagerImpl {
     const frame = await this.channel.sealFrame(type, payload);
     this.connection.send(frame);
     this.lastSentType = type;
-    this.pushLog(`Gesendet [${type}]: ${payload.slice(0, 80)}`);
+    this.pushLog(`Gesendet [${type}] (${payload.length} Zeichen)`);
     this.emit();
   }
 
@@ -197,7 +224,7 @@ class TransportManagerImpl {
     try {
       const message = this.channel.openFrame(frame);
       this.lastReceived = message;
-      this.pushLog(`Empfangen [${message.type}]: ${message.payload.slice(0, 80)}`);
+      this.pushLog(`Empfangen [${message.type}] (${message.payload.length} Zeichen)`);
       if (message.type === 'ping') {
         void this.sendMessage('pong', 'ok').catch(() => undefined);
       }
@@ -262,12 +289,16 @@ class TransportManagerImpl {
   private wipeSecrets() {
     this.channel?.dispose();
     this.channel = null;
-    wipeBytes(this.transportKey);
+    wipeBytes(this.sendKey);
+    wipeBytes(this.recvKey);
     wipeBytes(this.integrityKey);
     wipeBytes(this.docWrapKey);
-    this.transportKey = null;
+    wipeBytes(this.stagingKey);
+    this.sendKey = null;
+    this.recvKey = null;
     this.integrityKey = null;
     this.docWrapKey = null;
+    this.stagingKey = null;
   }
 
   private pushLog(line: string) {
@@ -301,7 +332,6 @@ class TransportManagerImpl {
 
 export const TransportManager = new TransportManagerImpl();
 
-/** Convenience aliases matching the Phase 3 API names. */
 export const connect = (params: TransportConnectParams) => TransportManager.connect(params);
 export const sendMessage = (type: TransferMessage['type'], payload: string) =>
   TransportManager.sendMessage(type, payload);

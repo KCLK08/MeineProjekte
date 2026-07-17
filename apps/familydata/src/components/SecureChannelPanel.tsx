@@ -110,7 +110,10 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
               onPress={() => {
                 const params = TransferSessionManager.getTransportConnectParams();
                 if (!params) {
-                  Alert.alert('Kanal', 'Pairing unvollständig – kein Session-Material.');
+                  Alert.alert(
+                    'Kanal',
+                    'Zuerst Bestätigungscode vergleichen und „Code stimmt überein“ tippen. Danach Kanal öffnen.'
+                  );
                   return;
                 }
                 void TransportManager.connect(params).catch((e) =>

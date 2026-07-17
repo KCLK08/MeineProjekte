@@ -219,6 +219,13 @@ class DocumentTransferServiceImpl {
 
   private async onMessage(type: string, payload: string) {
     try {
+      const role = TransportManager.getSnapshot().role;
+      if (
+        role === 'host' &&
+        (type === 'document_start' || type === 'document_chunk' || type === 'document_end')
+      ) {
+        return;
+      }
       if (type === 'document_start') {
         await this.onDocumentStart(JSON.parse(payload) as DocumentStartPayload);
         return;
@@ -282,11 +289,15 @@ class DocumentTransferServiceImpl {
     }
     await DocumentFileTransferIO.ensureFreeSpace(start.totalBytes);
 
-    // Ensure staging root exists (metadata phase should have created it).
+    // Documents require Phase 4A committed staging for this transferId.
+    let record;
     try {
-      await StagingStore.readRecord(start.transferId);
+      record = await StagingStore.readRecord(start.transferId);
     } catch {
-      await StagingStore.create(start.transferId);
+      throw new Error('Kein Staging für transferId – zuerst Metadaten (Phase 4A) abschließen.');
+    }
+    if (record.status !== 'committed') {
+      throw new Error('Dokumentempfang nur nach committed Metadaten-Staging.');
     }
     await StagingStore.ensureDocumentsDir(start.transferId);
 

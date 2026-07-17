@@ -3,26 +3,32 @@ import { hkdf } from '@noble/hashes/hkdf.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 
 import { hexToBytes, wipeBytes } from '@/deviceTransfer/bytes';
+import type { TransferRole } from '@/deviceTransfer/types';
 
-const INFO = new TextEncoder().encode('familydata-transfer-session-v1');
+/** Bumped when key schedule / directionality changes (incompatible with older peers). */
+const INFO = new TextEncoder().encode('familydata-transfer-session-v2');
 const KEY_LEN = 32;
-const OKM_LEN = 96;
+/** host→joiner | joiner→host | integrity | docWrap | staging */
+const OKM_LEN = KEY_LEN * 5;
 
 export type DerivedSessionKeys = {
-  /** AES-GCM key for SecureChannel frames. */
-  transportKey: Uint8Array;
+  /** AES-GCM key for frames this role sends. */
+  sendKey: Uint8Array;
+  /** AES-GCM key for frames this role receives. */
+  recvKey: Uint8Array;
   /** HMAC key for manifests / document integrity. */
   integrityKey: Uint8Array;
   /**
    * Ephemeral wrap key for document ciphertext during transfer.
-   * Sender: master-decrypt → wrap-encrypt. Receiver 4C: wrap-decrypt → new-master-encrypt.
    * Never equals the vault master key.
    */
   docWrapKey: Uint8Array;
+  /** AES-GCM key for staging payload at rest (RAM + encrypted files). */
+  stagingKey: Uint8Array;
 };
 
 /**
- * Derives transport + integrity + doc-wrap keys from the X25519 shared secret via HKDF-SHA256.
+ * Derives directional transport keys + integrity/docWrap/staging from X25519 via HKDF-SHA256.
  * Shared secret is wiped immediately; returned keys must be wiped by the caller.
  */
 export const SessionKeyService = {
@@ -30,6 +36,7 @@ export const SessionKeyService = {
     localSecretKey: Uint8Array;
     remotePublicKeyHex: string;
     sessionIdHex: string;
+    role: TransferRole;
   }): DerivedSessionKeys {
     const remotePk = hexToBytes(params.remotePublicKeyHex);
     const salt = hexToBytes(params.sessionIdHex);
@@ -38,10 +45,19 @@ export const SessionKeyService = {
     try {
       shared = x25519.getSharedSecret(params.localSecretKey, remotePk);
       okm = hkdf(sha256, shared, salt, INFO, OKM_LEN);
+      const hostToJoiner = okm.slice(0, KEY_LEN);
+      const joinerToHost = okm.slice(KEY_LEN, KEY_LEN * 2);
+      const integrityKey = okm.slice(KEY_LEN * 2, KEY_LEN * 3);
+      const docWrapKey = okm.slice(KEY_LEN * 3, KEY_LEN * 4);
+      const stagingKey = okm.slice(KEY_LEN * 4, KEY_LEN * 5);
+      const sendKey = params.role === 'host' ? hostToJoiner : joinerToHost;
+      const recvKey = params.role === 'host' ? joinerToHost : hostToJoiner;
       return {
-        transportKey: okm.slice(0, KEY_LEN),
-        integrityKey: okm.slice(KEY_LEN, KEY_LEN * 2),
-        docWrapKey: okm.slice(KEY_LEN * 2, KEY_LEN * 3),
+        sendKey: new Uint8Array(sendKey),
+        recvKey: new Uint8Array(recvKey),
+        integrityKey: new Uint8Array(integrityKey),
+        docWrapKey: new Uint8Array(docWrapKey),
+        stagingKey: new Uint8Array(stagingKey),
       };
     } finally {
       wipeBytes(shared);
@@ -49,17 +65,5 @@ export const SessionKeyService = {
       wipeBytes(remotePk);
       wipeBytes(salt);
     }
-  },
-
-  /** @deprecated Use deriveSessionKeys */
-  deriveSessionKey(params: {
-    localSecretKey: Uint8Array;
-    remotePublicKeyHex: string;
-    sessionIdHex: string;
-  }): Uint8Array {
-    const keys = this.deriveSessionKeys(params);
-    wipeBytes(keys.integrityKey);
-    wipeBytes(keys.docWrapKey);
-    return keys.transportKey;
   },
 };

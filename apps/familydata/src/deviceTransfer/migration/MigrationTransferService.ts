@@ -140,6 +140,14 @@ class MigrationTransferServiceImpl {
 
   private async onMessage(type: string, payload: string) {
     try {
+      const role = TransportManager.getSnapshot().role;
+      // Host must never ingest metadata into staging (anti-reflection / role confusion).
+      if (
+        role === 'host' &&
+        (type === 'meta_manifest' || type === 'meta_chunk' || type === 'meta_done')
+      ) {
+        return;
+      }
       if (type === 'meta_manifest') {
         const parsed = JSON.parse(payload) as { transferId: string; manifest: MigrationManifest };
         const manifest = MigrationManifestService.parseManifest(parsed.manifest);

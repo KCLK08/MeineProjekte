@@ -114,22 +114,48 @@ export default function TransferJoinScreen() {
             <Panel className="mt-4 px-4 py-4">
               <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]">Geräte sind gekoppelt</Text>
               <Text className="mt-2 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
-                Pairing abgeschlossen. Zuerst auf dem alten Gerät „Kanal öffnen“, danach hier verbinden.
+                Short Authentication String – muss mit dem alten Gerät übereinstimmen:
               </Text>
+              <Text className="mt-3 mb-3 text-center font-display text-3xl tracking-[4px] text-pine-700 dark:text-pine-400">
+                {session.confirmationCode}
+              </Text>
+              {!session.sasConfirmed ? (
+                <>
+                  <PrimaryButton
+                    label="Code stimmt überein"
+                    icon="shield-checkmark-outline"
+                    onPress={() => {
+                      try {
+                        TransferSessionManager.confirmSas();
+                      } catch (e) {
+                        Alert.alert('Bestätigung', (e as Error).message);
+                      }
+                    }}
+                  />
+                  <Text className="mt-2 text-center font-sans text-[12px] text-mute dark:text-[#9bb0a6]">
+                    Erst danach Kanal öffnen (zuerst auf dem alten Gerät).
+                  </Text>
+                </>
+              ) : (
+                <Text className="font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
+                  SAS bestätigt. Zuerst auf dem alten Gerät „Kanal öffnen“, danach hier verbinden.
+                </Text>
+              )}
               {session.transportHost && session.transportPort ? (
                 <Text className="mt-2 font-sans text-xs text-mute dark:text-[#9bb0a6]">
                   Ziel {session.transportHost}:{session.transportPort}
                 </Text>
               ) : null}
             </Panel>
-            <SecureChannelPanel paired />
+            <SecureChannelPanel paired={session.sasConfirmed} />
             <View className="mt-4">
               <PrimaryButton
                 label="Fertig"
                 tone="ghost"
                 onPress={() => {
-                  TransferSessionManager.clear();
-                  router.replace('/settings/transfer' as Href);
+                  void TransferSessionManager.clear().then(() =>
+                    router.replace('/settings/transfer' as Href)
+                  );
                 }}
               />
             </View>
@@ -142,8 +168,7 @@ export default function TransferJoinScreen() {
               label="Abbrechen"
               tone="ghost"
               onPress={() => {
-                TransferSessionManager.clear();
-                router.back();
+                void TransferSessionManager.clear().then(() => router.back());
               }}
             />
           </View>

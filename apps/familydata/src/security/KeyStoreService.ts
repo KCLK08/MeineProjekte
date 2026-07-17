@@ -95,22 +95,29 @@ export const KeyStoreService = {
   async getMasterKey(prompt = 'Family Vault Tresor öffnen'): Promise<Uint8Array> {
     const meta = await SecureStore.getItemAsync(MASTER_KEY_META, deviceBound);
 
-    if (meta === META_AUTH_BOUND || !meta) {
+    // Auth-bound keys: fail closed – never fall through to an unbound read.
+    if (meta === META_AUTH_BOUND) {
+      try {
+        const hex = await SecureStore.getItemAsync(MASTER_KEY_ITEM, authBoundOptions(prompt));
+        if (!hex) throw new Error('Kein Master-Key vorhanden.');
+        return hexToBytes(hex);
+      } catch (authErr) {
+        throw new Error(
+          `Master-Key nicht freigegeben. ${(authErr as Error).message || 'Authentifizierung erforderlich.'}`
+        );
+      }
+    }
+
+    // Meta missing: try auth-bound first; only then legacy unbound migration.
+    if (!meta) {
       try {
         const hex = await SecureStore.getItemAsync(MASTER_KEY_ITEM, authBoundOptions(prompt));
         if (hex) {
-          if (meta !== META_AUTH_BOUND) {
-            await SecureStore.setItemAsync(MASTER_KEY_META, META_AUTH_BOUND, deviceBound);
-          }
+          await SecureStore.setItemAsync(MASTER_KEY_META, META_AUTH_BOUND, deviceBound);
           return hexToBytes(hex);
         }
-      } catch (authErr) {
-        if (meta === META_AUTH_BOUND) {
-          throw new Error(
-            `Master-Key nicht freigegeben. ${(authErr as Error).message || 'Authentifizierung erforderlich.'}`
-          );
-        }
-        // fall through to legacy read when meta missing/legacy
+      } catch {
+        // Fall through to legacy unbound read only when meta was never set.
       }
     }
 
