@@ -4,6 +4,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 import { subscribePreviewWipe } from '@/security/previewSession';
+import { useAppTheme } from '@/theme/useAppTheme';
 import { guessFileKind, readFileBase64 } from '@/utils/files';
 import { buildOfflinePdfPreviewHtml, loadLocalPdfJs } from '@/utils/pdfPreview';
 
@@ -14,6 +15,7 @@ type Props = {
 };
 
 export function FilePreview({ uri, wipeToken = 0 }: Props) {
+  const { colors, scheme } = useAppTheme();
   const kind = guessFileKind(uri);
   const [pdfHtml, setPdfHtml] = useState('');
   const [error, setError] = useState('');
@@ -44,7 +46,9 @@ export function FilePreview({ uri, wipeToken = 0 }: Props) {
         setLoading(true);
         setError('');
         const [{ pdfJs, workerJs }, base64] = await Promise.all([loadLocalPdfJs(), readFileBase64(uri)]);
-        if (!cancelled) setPdfHtml(buildOfflinePdfPreviewHtml(base64, pdfJs, workerJs));
+        if (!cancelled) {
+          setPdfHtml(buildOfflinePdfPreviewHtml(base64, pdfJs, workerJs, { dark: scheme === 'dark' }));
+        }
       } catch (e) {
         if (!cancelled) setError((e as Error).message || 'PDF konnte nicht geladen werden.');
       } finally {
@@ -55,11 +59,11 @@ export function FilePreview({ uri, wipeToken = 0 }: Props) {
       cancelled = true;
       setPdfHtml('');
     };
-  }, [uri, kind, wipeToken]);
+  }, [uri, kind, wipeToken, scheme]);
 
   if (kind === 'image') {
     return (
-      <View style={styles.fill}>
+      <View style={[styles.fill, { backgroundColor: colors.canvas }]}>
         <Image source={{ uri }} style={styles.image} contentFit="contain" recyclingKey={`${uri}-${wipeToken}`} />
       </View>
     );
@@ -68,25 +72,25 @@ export function FilePreview({ uri, wipeToken = 0 }: Props) {
   if (kind === 'pdf') {
     if (error) {
       return (
-        <View style={styles.centered}>
-          <Text style={styles.error}>{error}</Text>
+        <View style={[styles.centered, { backgroundColor: colors.canvas }]}>
+          <Text style={[styles.error, { color: colors.danger }]}>{error}</Text>
         </View>
       );
     }
     if (loading || !pdfHtml) {
       return (
-        <View style={styles.centered}>
-          <ActivityIndicator color="#0c3b2e" />
-          <Text style={styles.hint}>PDF wird geladen…</Text>
+        <View style={[styles.centered, { backgroundColor: colors.canvas }]}>
+          <ActivityIndicator color={colors.pine} />
+          <Text style={[styles.hint, { color: colors.mute }]}>PDF wird geladen…</Text>
         </View>
       );
     }
     return (
       <WebView
-        key={`pdf-${webKey}-${wipeToken}`}
+        key={`pdf-${webKey}-${wipeToken}-${scheme}`}
         originWhitelist={['about:blank']}
         source={{ html: pdfHtml, baseUrl: 'about:blank' }}
-        style={styles.fill}
+        style={[styles.fill, { backgroundColor: colors.canvas }]}
         allowFileAccess={false}
         allowUniversalAccessFromFileURLs={false}
         mixedContentMode="never"
@@ -100,18 +104,20 @@ export function FilePreview({ uri, wipeToken = 0 }: Props) {
   }
 
   return (
-    <View style={styles.centered}>
-      <Text style={styles.hint}>Dieser Dateityp kann hier nicht angezeigt werden.</Text>
-      <Text style={styles.sub}>Du kannst die Datei trotzdem als PDF speichern.</Text>
+    <View style={[styles.centered, { backgroundColor: colors.canvas }]}>
+      <Text style={[styles.hint, { color: colors.mute }]}>Dieser Dateityp kann hier nicht angezeigt werden.</Text>
+      <Text style={[styles.sub, { color: colors.placeholder }]}>
+        Du kannst die Datei trotzdem als PDF speichern.
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: '#e8f0ec' },
+  fill: { flex: 1 },
   image: { flex: 1, width: '100%' },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#e8f0ec' },
-  error: { color: '#b42318', textAlign: 'center', fontFamily: 'DMSans_400Regular' },
-  hint: { marginTop: 10, color: '#5a7368', textAlign: 'center', fontFamily: 'DMSans_400Regular' },
-  sub: { marginTop: 6, color: '#7a9086', textAlign: 'center', fontFamily: 'DMSans_400Regular', fontSize: 13 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  error: { textAlign: 'center', fontFamily: 'DMSans_400Regular' },
+  hint: { marginTop: 10, textAlign: 'center', fontFamily: 'DMSans_400Regular' },
+  sub: { marginTop: 6, textAlign: 'center', fontFamily: 'DMSans_400Regular', fontSize: 13 },
 });

@@ -215,6 +215,13 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
       throw new Error('Tresor ist gesperrt.');
     }
     if (allowed) {
+      const { requireSecureAccess } = await import('@/security/access');
+      const access = await requireSecureAccess('Screenshots für diese Sitzung erlauben', {
+        force: true,
+      });
+      if (!access.ok) {
+        throw new Error(access.reason || 'Biometrie abgebrochen.');
+      }
       await allowScreenshotsForSession();
       set({ screenshotsAllowedThisSession: true });
     } else {

@@ -165,7 +165,7 @@ export default function DocumentPreviewScreen() {
 
   return (
     <Screen safeBottom={false}>
-      <View className="border-b border-line bg-paper px-4 py-3 dark:border-[#2a3f35]">
+      <View className="border-b border-line bg-paper px-4 py-3 dark:border-[#2a3f35] dark:bg-[#15241d]">
         <Text className="font-sansBold text-base text-ink dark:text-[#e7f2ec]" numberOfLines={1}>
           {title}
         </Text>
@@ -193,7 +193,7 @@ export default function DocumentPreviewScreen() {
       </View>
 
       <View
-        className="gap-2 border-t border-line bg-paper px-4 pt-3 dark:border-[#2a3f35]"
+        className="gap-2 border-t border-line bg-paper px-4 pt-3 dark:border-[#2a3f35] dark:bg-[#15241d]"
         style={{ paddingBottom: Math.max(insets.bottom, 12) + 4 }}
       >
         {hasFile ? (

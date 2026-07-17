@@ -33,10 +33,20 @@ function escapeClosingScript(value: string): string {
   return value.replace(/<\/script/gi, '<\\/script');
 }
 
-export function buildOfflinePdfPreviewHtml(base64: string, pdfJs: string, workerJs: string): string {
+export function buildOfflinePdfPreviewHtml(
+  base64: string,
+  pdfJs: string,
+  workerJs: string,
+  options?: { dark?: boolean }
+): string {
   const safeBase64 = escapeForHtmlScript(base64);
   const safePdfJs = escapeClosingScript(pdfJs);
   const safeWorker = escapeClosingScript(workerJs);
+  const dark = Boolean(options?.dark);
+  const pageBg = dark ? '#0d1612' : '#e8f0ec';
+  const statusBg = dark ? '#1a3028' : '#0c3b2e';
+  const statusFg = dark ? '#e7f2ec' : '#fff';
+  const errorFg = dark ? '#f97066' : '#b42318';
 
   return `<!DOCTYPE html>
 <html>
@@ -45,10 +55,10 @@ export function buildOfflinePdfPreviewHtml(base64: string, pdfJs: string, worker
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=4.0, user-scalable=yes" />
     <style>
       * { box-sizing: border-box; }
-      html, body { margin: 0; height: 100%; background: #e8f0ec; }
+      html, body { margin: 0; height: 100%; background: ${pageBg}; }
       #status {
-        background: #0c3b2e;
-        color: #fff;
+        background: ${statusBg};
+        color: ${statusFg};
         font-size: 13px;
         font-weight: 600;
         padding: 10px 12px;
@@ -56,7 +66,7 @@ export function buildOfflinePdfPreviewHtml(base64: string, pdfJs: string, worker
       }
       #pages { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
       canvas { background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.12); display: block; width: 100%; height: auto; }
-      .error { color: #b42318; padding: 20px; text-align: center; line-height: 1.5; }
+      .error { color: ${errorFg}; padding: 20px; text-align: center; line-height: 1.5; }
     </style>
   </head>
   <body>
