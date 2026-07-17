@@ -174,6 +174,9 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
     clearLockTimer();
     await SecurityManager.lockApp();
     wipeSensitiveUiState();
+    // Ephemeral device-transfer pairing material must not survive a vault lock.
+    const { TransferSessionManager } = await import('@/deviceTransfer/TransferSessionManager');
+    TransferSessionManager.clear();
     // Leaving the app / locking ends the screenshot session.
     await enableScreenshotProtection();
     set((state) => ({

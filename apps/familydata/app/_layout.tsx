@@ -126,6 +126,18 @@ function RootNavigator() {
           name="settings/appearance"
           options={{ headerShown: true, title: 'Darstellung', presentation: 'card' }}
         />
+        <Stack.Screen
+          name="settings/transfer/index"
+          options={{ headerShown: true, title: 'Geräteübertragung', presentation: 'card' }}
+        />
+        <Stack.Screen
+          name="settings/transfer/host"
+          options={{ headerShown: true, title: 'Neues Gerät verbinden', presentation: 'card' }}
+        />
+        <Stack.Screen
+          name="settings/transfer/join"
+          options={{ headerShown: true, title: 'Daten übernehmen', presentation: 'card' }}
+        />
       </Stack>
       <AppLockGate />
     </>
