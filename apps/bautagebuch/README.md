@@ -2,11 +2,9 @@
 
 Expo-App für das elektronische Bautagebuch (eBTB) – derselbe Stand wie im Original-Repo [KCLK08/Bautagebuch](https://github.com/KCLK08/Bautagebuch).
 
-## Web (Cloudflare Pages)
+## Web (lokal)
 
-Live: https://kclk08.workers.dev/apps/bautagebuch/
-
-Statischer Expo-Web-Export (`expo export --platform web`) mit Base-Pfad.
+Kein öffentliches Web-Hosting in diesem Repo. Statischer Expo-Web-Export (`expo export --platform web`) mit Base-Pfad für lokale Vorschau:
 
 ```bash
 EXPO_WEB_BASE=/apps/bautagebuch npm run build:web --workspace=@meineprojekte/bautagebuch

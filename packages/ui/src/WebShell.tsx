@@ -5,28 +5,40 @@ import { colors, spacing } from '@meineprojekte/theme';
 
 type Props = {
   title: string;
-  /** Production URL on Cloudflare Pages */
+  /** Remote web URL when hosted; empty = kein öffentliches Hosting */
   uri: string;
 };
 
 export function WebShell({ title, uri }: Props) {
+  const hasUri = Boolean(uri?.trim());
+
   return (
     <View style={styles.root}>
       <StatusBar style="dark" />
       <View style={styles.bar}>
         <Text style={styles.title}>{title}</Text>
       </View>
-      <WebView
-        source={{ uri }}
-        style={styles.webview}
-        startInLoadingState
-        renderLoading={() => (
-          <View style={styles.loading}>
-            <ActivityIndicator color={colors.primary} size="large" />
-          </View>
-        )}
-        allowsBackForwardNavigationGestures
-      />
+      {hasUri ? (
+        <WebView
+          source={{ uri }}
+          style={styles.webview}
+          startInLoadingState
+          renderLoading={() => (
+            <View style={styles.loading}>
+              <ActivityIndicator color={colors.primary} size="large" />
+            </View>
+          )}
+          allowsBackForwardNavigationGestures
+        />
+      ) : (
+        <View style={styles.placeholder}>
+          <Text style={styles.placeholderTitle}>Kein Web-Hosting</Text>
+          <Text style={styles.placeholderBody}>
+            In diesem Repo gibt es kein öffentliches Web-Hosting. Die Web-App lokal starten bzw.
+            unter dem jeweiligen apps/*/web/-Ordner öffnen.
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -49,4 +61,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.background,
   },
+  placeholder: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    gap: spacing.sm,
+  },
+  placeholderTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
+  placeholderBody: { fontSize: 14, lineHeight: 20, color: colors.textMuted },
 });

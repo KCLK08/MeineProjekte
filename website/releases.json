@@ -2,26 +2,26 @@
   "bautagebuch": {
     "version": "1.0.1",
     "buildDate": "2026-07-15T20:31:10.015Z",
-    "apkUrl": "/apks/Bautagebuch.apk"
+    "apkUrl": "https://github.com/KCLK08/MeineProjekte/releases/download/bautagebuch-apk-latest/Bautagebuch.apk"
   },
   "buew-toolbox": {
     "version": "1.0.0",
     "buildDate": "2026-07-16T22:28:16.296Z",
-    "apkUrl": "/apks/BuewToolbox.apk"
+    "apkUrl": "https://github.com/KCLK08/MeineProjekte/releases/download/buew-toolbox-apk-latest/BuewToolbox.apk"
   },
   "ds-datenbank": {
     "version": "1.0.0",
     "buildDate": null,
-    "apkUrl": "/apks/DSDatenbank.apk"
+    "apkUrl": "https://github.com/KCLK08/MeineProjekte/releases/download/ds-datenbank-apk-latest/DSDatenbank.apk"
   },
   "elifba": {
     "version": "1.0.0",
     "buildDate": "2026-07-15T19:25:14.093Z",
-    "apkUrl": "/apks/Elifba.apk"
+    "apkUrl": "https://github.com/KCLK08/MeineProjekte/releases/download/elifba-apk-latest/Elifba.apk"
   },
   "familydata": {
     "version": "1.0.0",
     "buildDate": "2026-07-16T21:39:22.739Z",
-    "apkUrl": "/apks/FamilyVault.apk"
+    "apkUrl": "https://github.com/KCLK08/MeineProjekte/releases/download/familydata-apk-latest/FamilyVault.apk"
   }
 }

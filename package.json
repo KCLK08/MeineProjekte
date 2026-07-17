@@ -21,8 +21,6 @@
     "web:buew-toolbox": "npm run build:web -w @meineprojekte/buew-toolbox",
     "web:ds-datenbank": "npm run build:web -w @meineprojekte/ds-datenbank",
     "web:elifba": "npm run build:web -w @meineprojekte/elifba",
-    "build:pages": "bash scripts/build-cloudflare-site.sh",
-    "deploy:cloudflare": "npx wrangler deploy",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
