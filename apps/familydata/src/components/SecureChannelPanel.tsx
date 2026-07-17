@@ -10,7 +10,12 @@ import { VaultCutoverService } from '@/deviceTransfer/migration/VaultCutoverServ
 import { TransferSessionManager } from '@/deviceTransfer/TransferSessionManager';
 import { TransportManager } from '@/deviceTransfer/transport/TransportManager';
 import { resolveTransferActionHint } from '@/deviceTransfer/transferUiActions';
-import { friendlyTransferError } from '@/deviceTransfer/transferUiCopy';
+import {
+  formatDocumentTransferDetail,
+  friendlyProgressLine,
+  friendlyTransferError,
+  KEEP_APP_OPEN_HINT,
+} from '@/deviceTransfer/transferUiCopy';
 import { useDocumentTransfer } from '@/deviceTransfer/useDocumentTransfer';
 import { useMigrationTransfer } from '@/deviceTransfer/useMigrationTransfer';
 import { useTransportSession } from '@/deviceTransfer/useTransportSession';
@@ -21,14 +26,58 @@ function alertFriendly(title: string, error: unknown) {
   Alert.alert(title, friendlyTransferError(error));
 }
 
+function TransferSummaryPanel({
+  people,
+  documents,
+}: {
+  people: number;
+  documents: number;
+}) {
+  return (
+    <Panel className="mb-4 px-4 py-4">
+      <Text
+        className="font-sansBold text-base text-ink dark:text-[#e7f2ec]"
+        accessibilityRole="header"
+      >
+        Übertragung abgeschlossen
+      </Text>
+      <View className="mt-3 gap-2">
+        <Text className="font-sans text-[14px] leading-5 text-ink dark:text-[#e7f2ec]">
+          ✓ Familieninformationen
+        </Text>
+        <Text className="font-sans text-[14px] leading-5 text-ink dark:text-[#e7f2ec]">
+          ✓ Dokumente
+        </Text>
+        <Text className="font-sans text-[14px] leading-5 text-ink dark:text-[#e7f2ec]">
+          ✓ Einstellungen
+        </Text>
+      </View>
+      {documents > 0 ? (
+        <Text className="mt-3 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
+          {documents === 1
+            ? '1 Dokument erfolgreich übernommen'
+            : `${documents} Dokumente erfolgreich übernommen`}
+        </Text>
+      ) : null}
+      {people > 0 ? (
+        <Text className="mt-1 font-sans text-[14px] leading-5 text-mute dark:text-[#9bb0a6]">
+          {people === 1
+            ? '1 Person übernommen'
+            : `${people} Personen übernommen`}
+        </Text>
+      ) : null}
+    </Panel>
+  );
+}
+
 function buildTimeline(args: {
   transportStatus: string;
   migrationPhase: string;
   docsPhase: string;
   cutoverPhase: string;
-  docsProgress?: string;
-  migrationProgress?: string;
-  cutoverProgress?: string;
+  docsDetail?: string;
+  familyDetail?: string;
+  cutoverDetail?: string;
 }): TimelineStep[] {
   const connectedDone = args.transportStatus === 'connected';
   const connectedActive = args.transportStatus === 'connecting';
@@ -80,7 +129,7 @@ function buildTimeline(args: {
             : familyActive
               ? 'active'
               : 'pending',
-      detail: familyActive ? args.migrationProgress || 'Übertragung läuft…' : undefined,
+      detail: familyActive ? args.familyDetail : undefined,
     },
     {
       id: 'docs',
@@ -94,7 +143,7 @@ function buildTimeline(args: {
             : docsActive
               ? 'active'
               : 'pending',
-      detail: docsActive ? args.docsProgress || 'Übertragung läuft…' : undefined,
+      detail: docsActive ? args.docsDetail : undefined,
     },
     {
       id: 'setup',
@@ -109,7 +158,7 @@ function buildTimeline(args: {
               ? 'active'
               : 'pending',
       detail: setupActive
-        ? args.cutoverProgress || 'Neues Gerät wird eingerichtet…'
+        ? args.cutoverDetail
         : args.cutoverPhase === 'awaiting_sender_choice'
           ? 'Warte auf Entscheidung am alten Gerät…'
           : undefined,
@@ -136,6 +185,7 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
   const connected = transport.status === 'connected';
   const familyDone = migration.phase === 'committed' || migration.phase === 'validated';
   const docsDone = docs.phase === 'ready_for_4c';
+  const docsActive = docs.phase === 'sending' || docs.phase === 'receiving';
   const cutoverDone = cutover.phase === 'committed';
   const awaitingSenderChoice = cutover.phase === 'awaiting_sender_choice';
 
@@ -150,14 +200,28 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
     transport.status === 'connected' &&
     Boolean(transferId);
 
+  const docsDetail = formatDocumentTransferDetail({
+    phase: docs.phase,
+    progress: docs.progress,
+    sentCount: docs.sentCount,
+    receivedCount: docs.receivedCount,
+    expectedTotal: migration.documentCount,
+  });
+
   const timeline = buildTimeline({
     transportStatus: transport.status,
     migrationPhase: migration.phase,
     docsPhase: docs.phase,
     cutoverPhase: cutover.phase,
-    docsProgress: docs.progress,
-    migrationProgress: migration.progress,
-    cutoverProgress: cutover.progress,
+    docsDetail,
+    familyDetail: friendlyProgressLine(
+      migration.progress,
+      'Familieninformationen werden übertragen…'
+    ),
+    cutoverDetail: friendlyProgressLine(
+      cutover.progress,
+      'Neues Gerät wird eingerichtet…'
+    ),
   });
 
   const actionHint = resolveTransferActionHint({
@@ -182,21 +246,31 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
     cutover.phase === 'prepared' ||
     cutover.phase === 'validated';
 
+  const summaryPeople =
+    cutover.people > 0 ? cutover.people : migration.peopleCount ?? 0;
+  const summaryDocuments =
+    cutover.documents > 0 ? cutover.documents : migration.documentCount ?? docs.receivedCount ?? 0;
+
   if (cutoverDone && role === 'joiner') {
     return (
       <View className="mt-4">
+        <TransferSummaryPanel people={summaryPeople} documents={summaryDocuments} />
         <Panel className="px-4 py-4">
           <StatusBadge label="Erfolgreich" tone="ok" />
-          <Text className="mt-3 font-display text-2xl text-ink dark:text-[#e7f2ec]">
-            FamilyData ist bereit
+          <Text
+            className="mt-3 font-display text-2xl text-ink dark:text-[#e7f2ec]"
+            accessibilityRole="header"
+          >
+            Deine Daten sind bereit
           </Text>
           <Text className="mt-2 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
-            Deine Daten sind auf diesem Gerät eingerichtet. Du kannst jetzt fortfahren.
+            Die Übertragung wurde erfolgreich abgeschlossen.
           </Text>
           <View className="mt-4">
             <PrimaryButton
-              label="Zur Familie"
+              label="Zu FamilyData"
               icon="people-outline"
+              accessibilityLabel="Zu FamilyData wechseln"
               onPress={() => {
                 void TransferSessionManager.clear().then(() => {
                   router.replace('/(tabs)' as Href);
@@ -216,10 +290,15 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
     return (
       <View className="mt-4">
         <Panel className="px-4 py-4">
-          <StatusBadge label="Abgeschlossen" tone="ok" />
-          <Text className="mt-3 font-display text-2xl text-ink dark:text-[#e7f2ec]">Fertig</Text>
+          <StatusBadge label="Erfolgreich" tone="ok" />
+          <Text
+            className="mt-3 font-display text-2xl text-ink dark:text-[#e7f2ec]"
+            accessibilityRole="header"
+          >
+            Übertragung erfolgreich
+          </Text>
           <Text className="mt-2 font-sans text-[15px] leading-5 text-mute dark:text-[#9bb0a6]">
-            Die Übertragung wurde abgeschlossen.
+            Das neue Gerät wurde eingerichtet.
           </Text>
           <Text className="mt-2 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]">
             Entscheide, was mit den Daten auf diesem Gerät geschehen soll.
@@ -228,6 +307,7 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
             <PrimaryButton
               label="Auf diesem Gerät behalten"
               icon="checkmark-outline"
+              accessibilityLabel="Daten auf diesem Gerät behalten"
               onPress={() => {
                 VaultCutoverService.markSenderKept();
                 Alert.alert('Fertig', 'Die Daten bleiben auf diesem Gerät.', [
@@ -246,6 +326,7 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
               label="Sicher löschen"
               tone="ghost"
               icon="trash-outline"
+              accessibilityLabel="Daten auf diesem Gerät sicher löschen"
               onPress={() => {
                 Alert.alert(
                   'Daten auf diesem Gerät löschen?',
@@ -281,13 +362,27 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
       <TransferTimeline steps={timeline} />
       <TransferActionHint hint={actionHint} />
 
+      {docsActive ? (
+        <Text
+          className="mt-3 font-sans text-[13px] leading-5 text-mute dark:text-[#9bb0a6]"
+          accessibilityRole="text"
+        >
+          {KEEP_APP_OPEN_HINT}
+        </Text>
+      ) : null}
+
       <Panel className="mt-4 px-4 py-4">
         {displayError ? (
-          <Text className="mb-3 font-sans text-sm text-danger">{displayError}</Text>
+          <Text
+            className="mb-3 font-sans text-sm text-danger"
+            accessibilityRole="alert"
+          >
+            {displayError}
+          </Text>
         ) : null}
 
         {busy ? (
-          <View className="mb-3 py-2">
+          <View className="mb-3 py-2" accessibilityLabel="Übertragung läuft">
             <LoadingBlock
               label={
                 transport.status === 'connecting'
@@ -296,7 +391,7 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
                       cutover.phase === 'prepared' ||
                       cutover.phase === 'validated'
                     ? 'Neues Gerät wird eingerichtet…'
-                    : docs.phase === 'sending' || docs.phase === 'receiving'
+                    : docsActive
                       ? 'Dokumente werden übertragen…'
                       : 'Familiendaten werden übertragen…'
               }
@@ -370,7 +465,7 @@ export function SecureChannelPanel({ paired }: { paired: boolean }) {
                 if (!transferId) return;
                 Alert.alert(
                   'Einrichtung',
-                  'FamilyData wird auf diesem Gerät eingerichtet. Bestehende Empfänger-Daten werden ersetzt.',
+                  'FamilyData wird auf diesem Gerät eingerichtet. Bestehende Daten auf diesem Gerät werden ersetzt.',
                   [
                     { text: 'Abbrechen', style: 'cancel' },
                     {
