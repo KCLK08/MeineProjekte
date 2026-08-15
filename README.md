@@ -10,8 +10,9 @@ Hinweis: Es gibt **kein** öffentliches Web-Hosting (weder Cloudflare Pages noch
 
 Family Vault wurde aus diesem Monorepo entfernt und als eigenständiges Repo vorbereitet.
 
-- Bundle: `scripts/FamilyVault.bundle`
-- Publish: `scripts/publish-familyvault-repo.sh` (benötigt Personal Access Token mit `repo`-Scope)
+- **Zip zum Kopieren:** `exports/FamilyVault.zip` (kompletter App-Stand inkl. Docs)
+- Bundle (Git-Historie): `scripts/FamilyVault.bundle`
+- Publish: `scripts/publish-familyvault-repo.sh` (PAT mit `repo`-Scope)
 - Ziel-Repo: `https://github.com/KCLK08/FamilyVault` (privat)
 
 ## Übersicht
