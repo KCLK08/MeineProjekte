@@ -2,13 +2,12 @@
   "name": "meineprojekte",
   "private": true,
   "version": "1.0.0",
-  "description": "Monorepo für Expo/React-Native Apps und Shared Packages",
+  "description": "Monorepo f\u00fcr Expo/React-Native Apps und Shared Packages",
   "workspaces": [
     "apps/bautagebuch",
     "apps/buew-toolbox",
     "apps/ds-datenbank",
     "apps/elifba",
-    "apps/familydata",
     "packages/*",
     "website"
   ],
@@ -17,7 +16,6 @@
     "start:buew-toolbox": "npm run start -w @meineprojekte/buew-toolbox",
     "start:ds-datenbank": "npm run start -w @meineprojekte/ds-datenbank",
     "start:elifba": "npm run start -w @meineprojekte/elifba",
-    "start:familydata": "npm run start -w @meineprojekte/familydata",
     "web:buew-toolbox": "npm run build:web -w @meineprojekte/buew-toolbox",
     "web:ds-datenbank": "npm run build:web -w @meineprojekte/ds-datenbank",
     "web:elifba": "npm run build:web -w @meineprojekte/elifba",

@@ -6,6 +6,15 @@ Monorepo für **Expo / React Native**-Apps mit gemeinsamer Landingpage-Quelle, S
 
 Hinweis: Es gibt **kein** öffentliches Web-Hosting (weder Cloudflare Pages noch GitHub Pages) in diesem Repo. `website/` ist nur lokale Landing-Quelle.
 
+## Family Vault
+
+Family Vault wurde aus diesem Monorepo entfernt und als eigenständiges Repo vorbereitet.
+
+- **Zip zum Kopieren:** `exports/FamilyVault.zip` (kompletter App-Stand inkl. Docs)
+- Bundle (Git-Historie): `scripts/FamilyVault.bundle`
+- Publish: `scripts/publish-familyvault-repo.sh` (PAT mit `repo`-Scope)
+- Ziel-Repo: `https://github.com/KCLK08/FamilyVault` (privat)
+
 ## Übersicht
 
 | App | Ordner | Web | APK (Expo/EAS) |
