@@ -40,18 +40,7 @@ const CATALOG = [
     accent: '#b44d2a',
     apkFile: 'Elifba.apk',
     versionFallback: '1.0.0',
-  },
-  {
-    slug: 'familydata',
-    name: 'Family Vault',
-    description: 'Family Vault – privater Familienordner, offline, nur mobil (kein Web).',
-    hasWeb: false,
-    hasApk: true,
-    accent: '#1b4332',
-    apkFile: 'FamilyVault.apk',
-    versionFallback: '1.0.0',
-    icon: './assets/family-vault-icon.png',
-  },
+  }
 ];
 
 const OWNER = 'KCLK08';
