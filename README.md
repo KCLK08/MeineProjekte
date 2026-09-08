@@ -23,9 +23,9 @@ Family Vault wurde aus diesem Monorepo entfernt und als eigenständiges Repo vor
 | BÜW-Toolbox | `apps/buew-toolbox` | `web/` (lokal) | ja (WebView-Shell) |
 | DS-Datenbank | `apps/ds-datenbank` | `web/` (lokal) | ja (WebView-Shell) |
 | ELIFBA | `apps/elifba` | `web/` (lokal) | ja (WebView-Shell) |
-| Qard-Hasan-Simulator | `apps/qard-hasan-simulator` | Vite (lokal) | nein |
+| Solidarfonds-Planer | `apps/qard-hasan-simulator` | Vite (lokal) | nein |
 
-Der **Qard-Hasan Fonds-Simulator** ist ein webbasiertes Simulations- und Planungswerkzeug (keine Banksoftware, keine schariarechtliche Beratung). Start: `npm run dev:qard-hasan`. Details: `apps/qard-hasan-simulator/README.md`.
+Der **Solidarfonds-Planer** ist ein webbasiertes Planungstool für zinsfreie Gemeinschaftskredite (keine Banksoftware, keine rechtliche Beratung). Start: `npm run dev:qard-hasan`. Details: `apps/qard-hasan-simulator/README.md`.
 
 ## Repositorystruktur
 
@@ -35,7 +35,7 @@ apps/
 ├── ds-datenbank/         # Expo Shell + web/ (Vite)
 ├── buew-toolbox/         # Expo Shell + web/ (SvelteKit/Hub)
 ├── elifba/               # Expo Shell + web/ (statisch)
-└── qard-hasan-simulator/ # Vite: Qard-Hasan Fonds-Simulator (nur Simulation)
+└── qard-hasan-simulator/ # Vite: Solidarfonds-Planer (nur Simulation)
 
 packages/
 ├── theme/                # Design-Tokens (Farben, Spacing, Typo)

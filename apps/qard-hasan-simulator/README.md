@@ -1,6 +1,6 @@
-# Qard-Hasan Fonds-Simulator
+# Solidarfonds-Planer
 
-Simulations- und Planungswerkzeug für ein **gemeinschaftliches, zinsfreies Finanzierungsmodell** (mögliche Qard-Hasan-Struktur).
+Planungstool für einen **Solidarfonds mit zinsfreien Krediten** (mögliche Qard-Hasan-Struktur).
 
 > **Keine Banksoftware, kein reales Finanzprodukt, keine rechtliche oder schariarechtliche Beratung.**  
 > Alle Ergebnisse sind Modellannahmen. Die tatsächliche Scharia-Konformität muss durch qualifizierte Fachleute geprüft werden.

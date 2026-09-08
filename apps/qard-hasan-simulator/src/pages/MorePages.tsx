@@ -685,7 +685,7 @@ export function GoalSeekPage() {
         ) : null}
       </Card>
       <Card className="space-y-3">
-        <p className="text-sm">Reverse: 10.000 Mitglieder und 1 Mio. € monatliche Qard-Hasan-Vergabe (Modellziel).</p>
+        <p className="text-sm">Reverse: 10.000 Mitglieder und 1 Mio. € monatliche Kreditvergabe (Modellziel).</p>
         <Button onClick={() => setReverse(runReverseSimulation(10000, eurosToCents(1_000_000), parameters))}>Reverse rechnen</Button>
         {reverse ? (
           <div className="text-sm">
