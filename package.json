@@ -8,6 +8,7 @@
     "apps/buew-toolbox",
     "apps/ds-datenbank",
     "apps/elifba",
+    "apps/qard-hasan-simulator",
     "packages/*",
     "website"
   ],
@@ -16,6 +17,9 @@
     "start:buew-toolbox": "npm run start -w @meineprojekte/buew-toolbox",
     "start:ds-datenbank": "npm run start -w @meineprojekte/ds-datenbank",
     "start:elifba": "npm run start -w @meineprojekte/elifba",
+    "dev:qard-hasan": "npm run dev -w @meineprojekte/qard-hasan-simulator",
+    "test:qard-hasan": "npm run test -w @meineprojekte/qard-hasan-simulator",
+    "build:qard-hasan": "npm run build -w @meineprojekte/qard-hasan-simulator",
     "web:buew-toolbox": "npm run build:web -w @meineprojekte/buew-toolbox",
     "web:ds-datenbank": "npm run build:web -w @meineprojekte/ds-datenbank",
     "web:elifba": "npm run build:web -w @meineprojekte/elifba",

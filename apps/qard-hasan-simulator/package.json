@@ -1,0 +1,38 @@
+{
+  "name": "@meineprojekte/qard-hasan-simulator",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Simulations- und Planungswerkzeug für ein gemeinschaftliches, zinsfreies Qard-Hasan-Fondsmodell",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.app.json --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.511.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^6.30.0",
+    "recharts": "^2.15.3",
+    "tailwind-merge": "^2.6.0",
+    "zod": "^3.24.4",
+    "zustand": "^5.0.5"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "~5.9.2",
+    "vite": "^5.4.14",
+    "vitest": "^3.0.8"
+  }
+}
