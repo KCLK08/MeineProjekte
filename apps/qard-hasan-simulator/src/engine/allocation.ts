@@ -102,7 +102,22 @@ export function applicationFromApplicant(
     existingDebtCents: a.existingDebtCents,
     hasDefaultHistory: a.hasDefaultHistory,
     collateral: a.collateral,
+    personalPaidOutCents: 0,
   };
+}
+
+export function aggregatedPersonalCents(app: LoanApplication): Cents {
+  return Math.round(app.personalBalanceCents * Math.max(1, app.scale));
+}
+
+/** Fonds-Kredit = max(0, beantragter Betrag − persönliches Guthaben), falls die Guthabenauszahlung aktiv ist. */
+export function solidarityLoanNeedCents(
+  params: SimulationParameters,
+  requestedCents: Cents,
+  personalAggregateCents: Cents,
+): Cents {
+  if (!params.loans.payoutPersonalBalanceOnDisbursement) return Math.max(0, requestedCents);
+  return Math.max(0, requestedCents - Math.max(0, personalAggregateCents));
 }
 
 export function reviewApplication(params: SimulationParameters, app: LoanApplication): LoanApplication {
@@ -111,7 +126,7 @@ export function reviewApplication(params: SimulationParameters, app: LoanApplica
     seq: 0,
     classId: app.creditClass,
     purpose: app.purpose,
-    requestedCents: app.remainingAmountCents > 0 ? app.remainingAmountCents : app.requestedAmountCents,
+    requestedCents: app.requestedAmountCents,
     tenureMonths: app.tenureMonths,
     personalBalanceCents: app.personalBalanceCents,
     solidarityPaidCents: app.solidarityPaidCents,
@@ -139,11 +154,12 @@ export function reviewApplication(params: SimulationParameters, app: LoanApplica
   if (approved <= 0) {
     return { ...app, status: "REJECTED", rejectionReason: decision.reason, approvedAmountCents: 0 };
   }
+  const fundNeed = solidarityLoanNeedCents(params, approved, aggregatedPersonalCents(app));
   return {
     ...app,
     status: "ELIGIBLE",
-    approvedAmountCents: approved,
-    remainingAmountCents: Math.max(0, approved - app.fundedAmountCents),
+    approvedAmountCents: fundNeed,
+    remainingAmountCents: Math.max(0, fundNeed - app.fundedAmountCents),
     rejectionReason: "",
   };
 }
@@ -320,6 +336,10 @@ export function allocateLoans(
       return { funded: [], waitlisted: queue.map((a) => ({ ...a, status: "WAITLISTED" as const })), disbursedCents: 0, remainingCapacityCents: remaining };
     }
     for (const app of queue) {
+      if (app.remainingAmountCents <= 0) {
+        funded.push({ ...app, status: "FUNDED" });
+        continue;
+      }
       const share = Math.floor(app.remainingAmountCents * ratio);
       if (share < minAmt && share < app.remainingAmountCents) {
         waitlisted.push({ ...app, status: "WAITLISTED" });
@@ -336,6 +356,10 @@ export function allocateLoans(
   }
 
   for (const app of queue) {
+    if (app.remainingAmountCents <= 0) {
+      funded.push({ ...app, status: "FUNDED" });
+      continue;
+    }
     if (remaining <= 0) {
       waitlisted.push({ ...app, status: "WAITLISTED", waitlistDate: app.waitlistDate ?? app.applicationDate });
       continue;

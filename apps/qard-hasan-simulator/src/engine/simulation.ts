@@ -23,6 +23,7 @@ import {
   resetApplicationSeq,
   reviewApplication,
   waitlistStats,
+  aggregatedPersonalCents,
   type ExposureMaps,
 } from "./allocation";
 import {
@@ -210,6 +211,18 @@ function takeFromCohort(c: Cohort, take: number): Cents {
   return w;
 }
 
+function takePersonalAmount(cohorts: Cohort[], amount: Cents): Cents {
+  let remaining = amount;
+  for (const c of cohorts) {
+    if (remaining <= 0) break;
+    if (c.personalBalanceCents <= 0) continue;
+    const take = Math.min(c.personalBalanceCents, remaining);
+    c.personalBalanceCents -= take;
+    remaining -= take;
+  }
+  return amount - remaining;
+}
+
 function allocateExits(
   cohorts: Cohort[],
   exitCount: number,
@@ -315,6 +328,7 @@ export function simulateScenario(parameters: SimulationParameters): SimulationRe
   let waitlist: LoanApplication[] = [];
   const sampleApplications: LoanApplication[] = [];
   const pendingDisbursements: { monthDue: number; amountCents: Cents; app: LoanApplication }[] = [];
+  const personalPaidAppIds = new Set<string>();
   const exposure: ExposureMaps = { byMember: new Map(), byClass: new Map(), byPurpose: new Map() };
   const fundAssetHistory: Cents[] = [];
 
@@ -614,6 +628,7 @@ export function simulateScenario(parameters: SimulationParameters): SimulationRe
 
     let personalWithdrawals = 0;
     let shortfallPersonal = 0;
+    let loanLinkedPersonalPayouts = 0;
     for (const p of payables) {
       if (p.monthDue !== month || p.amountCents <= 0) continue;
       const pay = Math.min(p.amountCents, personalCash);
@@ -692,9 +707,47 @@ export function simulateScenario(parameters: SimulationParameters): SimulationRe
       }
     };
 
+    const payoutPersonalOnLoan = (app: LoanApplication) => {
+      if (!params.loans.payoutPersonalBalanceOnDisbursement) return;
+      if (personalPaidAppIds.has(app.id)) return;
+      const due = aggregatedPersonalCents(app);
+      personalPaidAppIds.add(app.id);
+      if (due <= 0) return;
+      const taken = takePersonalAmount(cohorts, due);
+      const pay = Math.min(taken, personalCash);
+      const miss = taken - pay;
+      personalCash -= pay;
+      personalWithdrawals += pay;
+      loanLinkedPersonalPayouts += pay;
+      shortfallPersonal += miss;
+      if (pay > 0) {
+        pushLedger(
+          ledger,
+          month,
+          date,
+          "PERSONAL_WITHDRAWAL",
+          "CASH_PERSONAL",
+          0,
+          pay,
+          "Guthabenauszahlung bei Kreditvergabe",
+        );
+        pushLedger(
+          ledger,
+          month,
+          date,
+          "PERSONAL_WITHDRAWAL",
+          "PERSONAL_LIABILITY",
+          pay,
+          0,
+          "Auflösung persönliches Guthaben bei Kredit",
+        );
+      }
+    };
+
     for (const pending of pendingDisbursements) {
       if (pending.monthDue !== month || pending.amountCents <= 0) continue;
       const amt = pending.amountCents;
+      payoutPersonalOnLoan(pending.app);
       originate(pending.app, amt);
       pending.amountCents = 0;
       pushLedger(ledger, month, date, "LOAN_COMMITMENT_RELEASE", "LOAN_COMMITMENT", 0, amt, "Auszahlung zugesagter Kredit");
@@ -791,6 +844,7 @@ export function simulateScenario(parameters: SimulationParameters): SimulationRe
       for (const app of newlyFunded) {
         const prev = prevFunded.get(app.id) ?? 0;
         const take = app.fundedAmountCents - prev;
+        payoutPersonalOnLoan(app);
         if (take <= 0) continue;
         if (lag <= 0) originate(app, take);
         else {
@@ -887,7 +941,8 @@ export function simulateScenario(parameters: SimulationParameters): SimulationRe
     ];
     const personalBreakdown: FormulaLine[] = [
       { label: "Persönliche Einzahlungen", cents: personalIn, sign: "+" },
-      { label: "Guthabenauszahlungen", cents: personalWithdrawals, sign: "-" },
+      { label: "Guthabenauszahlungen (Austritt)", cents: Math.max(0, personalWithdrawals - loanLinkedPersonalPayouts), sign: "-" },
+      { label: "Guthabenauszahlung bei Kredit", cents: loanLinkedPersonalPayouts, sign: "-" },
       { label: "Endbestand persönliche Verbindlichkeiten", cents: stats.personal, sign: "=" },
     ];
     const adminBreakdown: FormulaLine[] = [
@@ -920,6 +975,7 @@ export function simulateScenario(parameters: SimulationParameters): SimulationRe
       recoveryCents: recoveryAmt,
       netLossCents: netLoss,
       loanDisbursementsCents: disbursed,
+      loanLinkedPersonalPayoutsCents: loanLinkedPersonalPayouts,
       personalWithdrawalsCents: personalWithdrawals,
       adminCostCents: adminCost,
       solidarityCashCents: solidarityCash,

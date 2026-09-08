@@ -125,7 +125,8 @@ export function DashboardPage() {
           <KpiCard label="Nachfragevolumen" cents={month?.creditDemandCents ?? 0} hint="Summe beantragter Beträge." />
           <KpiCard label="Zulässige Nachfrage" cents={month?.eligibleDemandCents ?? 0} hint="Nur Anträge, die die Kreditkriterien erfüllen, inkl. Warteliste." />
           <KpiCard label="Bewilligt" cents={month?.approvedCents ?? 0} hint="Zulässig. Kann trotzdem auf der Warteliste stehen." />
-          <KpiCard label="Ausgezahlt" cents={month?.loanDisbursementsCents ?? 0} hint="Nur tatsächlich finanzierte Kredite erhöhen die Restschuld." />
+          <KpiCard label="Ausgezahlt (Fonds)" cents={month?.loanDisbursementsCents ?? 0} hint="Nur der Solidaritätskredit. Persönliches Guthaben wird separat ausgezahlt." />
+        <KpiCard label="Guthaben bei Kredit" cents={month?.loanLinkedPersonalPayoutsCents ?? 0} hint="Persönliches Guthaben, das bei der Kreditvergabe mit ausgezahlt wurde. Kein Fonds-Kredit." />
           <KpiCard label="Warteliste" cents={month?.waitlistedAmountCents ?? 0} hint={`${month?.waitlistedCount ?? 0} Anträge.`} />
           <KpiCard label="Abgelehnt" cents={month?.rejectedCents ?? 0} hint="Kreditregeln, nicht fehlendes Geld." />
           <KpiCard label="Nicht erfüllte Nachfrage" cents={month?.unmetDemandCents ?? 0} hint="Zulässig minus ausgezahlt. Ungleich abgelehnt." />
@@ -223,7 +224,8 @@ export function DashboardPage() {
             <Item k="Zulässige Nachfrage" v={formatEuro(month.eligibleDemandCents)} />
             <Item k="Genehmigte Kredite" v={formatEuro(month.approvedCents)} />
             <Item k="Abgelehnte Kredite" v={formatEuro(month.rejectedCents)} />
-            <Item k="Ausgezahlte Kredite" v={formatEuro(month.loanDisbursementsCents)} />
+            <Item k="Ausgezahlte Fonds-Kredite" v={formatEuro(month.loanDisbursementsCents)} />
+            <Item k="Guthabenauszahlung bei Kredit" v={formatEuro(month.loanLinkedPersonalPayoutsCents)} />
             <Item k="Offene Kredite" v={formatEuro(month.outstandingLoansCents)} />
             <Item k="Zugesagte Kredite" v={formatEuro(month.committedLoansCents)} />
             <Item k="Verfügbare Kapazität" v={formatEuro(month.availableLoanCapacityCents)} />
