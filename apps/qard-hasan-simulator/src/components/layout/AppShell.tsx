@@ -91,8 +91,8 @@ export function AppShell() {
         <div className="flex items-center justify-between gap-2 px-3 py-4">
           {sidebarOpen ? (
             <div>
-              <p className="text-sm font-semibold">Qard-Hasan Simulator</p>
-              <p className="text-[11px] text-ink-500">Simulationswerkzeug</p>
+              <p className="text-sm font-semibold">Solidarfonds-Planer</p>
+              <p className="text-[11px] text-ink-500">zinsfreie Kredite planen</p>
             </div>
           ) : null}
           <button

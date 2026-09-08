@@ -80,7 +80,7 @@ export function DashboardPage() {
         <KpiCard label="Mitglieder" value={formatNumber(k.members)} hint="Aktueller Mitgliederbestand am Simulationsende." demo={parameters.meta.isDemo} />
         <KpiCard label="Persönliches Guthaben" cents={k.personalLiabilitiesCents} hint="Summe der Verpflichtungen gegenüber Mitgliedern. Kein Fondsvermögen." onClick={() => setSelectedKpi("personal")} />
         <KpiCard label="Solidaritätsfonds" cents={k.solidarityCashCents} hint="Liquides Solidaritätscash. Offene Kredite sind separat ausgewiesen." onClick={() => setSelectedKpi("fund")} />
-        <KpiCard label="Offene Kredite" cents={k.outstandingLoansCents} hint="Restschuld zinsfreier Qard-Hasan-Darlehen (Forderungen)." />
+        <KpiCard label="Offene Kredite" cents={k.outstandingLoansCents} hint="Restschuld der zinsfreien Kredite (Forderungen)." />
         <KpiCard label="Liquiditätsreserve" cents={month?.solidarityCashCents ?? 0} hint="Liquide Mittel des Solidaritätsfonds nach der 70/30-Modellannahme." onClick={() => setSelectedKpi("liquidity")} />
         <KpiCard label="Kreditnachfrage" cents={month?.creditDemandCents ?? 0} hint="Simulierte Nachfrage im ausgewählten Monat." />
         <KpiCard label="Nicht bediente Nachfrage" cents={month?.unmetDemandCents ?? 0} hint="Nachfrage minus ausgezahlte Kredite im Monat." />

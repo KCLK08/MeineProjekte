@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Simulations- und Planungswerkzeug für ein gemeinschaftliches, zinsfreies Qard-Hasan-Fondsmodell",
+  "description": "Solidarfonds-Planer: Planung zinsfreier Gemeinschaftskredite",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.app.json --noEmit && vite build",
