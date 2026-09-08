@@ -336,6 +336,7 @@ export type SimulationParameters = {
     alternativeRepaymentEnabled: boolean;
     amountCapPolicy: AmountCapPolicy;
     maxActiveLoansPerMember: number;
+    payoutPersonalBalanceOnDisbursement: boolean;
   };
   creditDemand: {
     model: DemandModel;
@@ -505,6 +506,7 @@ export type LoanApplication = {
   existingDebtCents: Cents;
   hasDefaultHistory: boolean;
   collateral: boolean;
+  personalPaidOutCents: Cents;
 };
 
 export type AllocationPolicy = {
@@ -631,6 +633,7 @@ export type MonthlySnapshot = {
   recoveryCents: Cents;
   netLossCents: Cents;
   loanDisbursementsCents: Cents;
+  loanLinkedPersonalPayoutsCents: Cents;
   personalWithdrawalsCents: Cents;
   adminCostCents: Cents;
   solidarityCashCents: Cents;

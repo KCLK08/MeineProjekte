@@ -223,6 +223,7 @@ export function createDefaultParameters(): SimulationParameters {
       alternativeRepaymentEnabled: false,
       amountCapPolicy: "capToLimit",
       maxActiveLoansPerMember: 1,
+      payoutPersonalBalanceOnDisbursement: true,
     },
     creditDemand: {
       model: "perMember",

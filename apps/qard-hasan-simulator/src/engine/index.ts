@@ -29,4 +29,6 @@ export {
   calculateWaitlist,
   generateStochasticApplications,
   reviewApplication,
+  solidarityLoanNeedCents,
+  aggregatedPersonalCents,
 } from "./allocation";

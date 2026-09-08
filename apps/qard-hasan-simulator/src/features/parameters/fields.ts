@@ -378,6 +378,12 @@ export const PARAM_GROUPS: ParamGroup[] = [
         type: "boolean",
       },
       {
+        path: "loans.payoutPersonalBalanceOnDisbursement",
+        label: "Guthaben bei Kredit auszahlen",
+        help: "Wer einen Kredit erhält, bekommt gleichzeitig das persönliche Guthaben ausgezahlt. Der Fonds-Kredit ist nur die Differenz: max(0, Antrag − Guthaben). Persönliches Geld bleibt vom Solidaritätsfonds getrennt.",
+        type: "boolean",
+      },
+      {
         path: "loans.graceMonths",
         label: "Tilgungsfreie Monate",
         help: "Nur wirksam, wenn alternative Rückzahlung aktiv ist.",

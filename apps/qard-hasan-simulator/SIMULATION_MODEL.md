@@ -37,6 +37,21 @@ WithdrawalsAccrued_t
 
 Auszahlungen verringern den persönlichen Cash-Topf, nicht den Solidaritätsfonds.
 
+## Kredit = Antrag minus persönliches Guthaben
+
+Wer einen Kredit erhält, bekommt **gleichzeitig das persönliche Guthaben ausgezahlt** (Standard, abschaltbar).
+
+```text
+Solidaritätskredit = max(0, beantragter Betrag − persönliches Guthaben)
+Persönliche Auszahlung bei Kredit = persönliches Guthaben
+Auszahlung an das Mitglied = persönliches Guthaben + Solidaritätskredit
+Offene Forderung des Fonds = nur der Solidaritätskredit
+```
+
+Beispiel: Antrag 10.000 €, Guthaben 3.000 € → 3.000 € aus dem persönlichen Topf, 7.000 € zinsfreier Fonds-Kredit. Die Kreditkapazität des Solidaritätsfonds gilt nur für die 7.000 €.
+
+Persönliches Guthaben wird **nicht** dem Fonds zugeschlagen.
+
 ## Solidaritätsfonds (Cash)
 
 ```text

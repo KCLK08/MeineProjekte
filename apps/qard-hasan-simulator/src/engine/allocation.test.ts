@@ -4,7 +4,7 @@ import { createDefaultParameters } from "../domain/defaults";
 import type { SimulationParameters } from "../domain/types";
 import { simulateScenario } from "./simulation";
 import { calculateAvailableLoanCapacity } from "./capacity";
-import { allocateLoans } from "./allocation";
+import { allocateLoans, solidarityLoanNeedCents } from "./allocation";
 
 function lendingBase(overrides: (p: SimulationParameters) => void = () => undefined): SimulationParameters {
   const p = createDefaultParameters();
@@ -100,6 +100,15 @@ describe("calculateAvailableLoanCapacity", () => {
     });
     expect(cap.maxOutstandingLoansCents).toBe(eurosToCents(700_000));
     expect(cap.availableLoanCapacityCents).toBe(eurosToCents(150_000));
+  });
+
+  it("Fonds-Kredit = max(0, Antrag − Guthaben)", () => {
+    const p = lendingBase();
+    p.loans.payoutPersonalBalanceOnDisbursement = true;
+    expect(solidarityLoanNeedCents(p, eurosToCents(10_000), eurosToCents(3_000))).toBe(eurosToCents(7_000));
+    expect(solidarityLoanNeedCents(p, eurosToCents(2_000), eurosToCents(5_000))).toBe(0);
+    p.loans.payoutPersonalBalanceOnDisbursement = false;
+    expect(solidarityLoanNeedCents(p, eurosToCents(10_000), eurosToCents(3_000))).toBe(eurosToCents(10_000));
   });
 });
 
@@ -309,6 +318,56 @@ describe("Allokation und Warteliste", () => {
     expect(m.unmetDemandCents).toBe(eurosToCents(10_000));
     expect(m.unmetDemandCents).not.toBe(m.rejectedCents + m.waitlistedAmountCents);
   });
+
+  it("zahlt persönliches Guthaben bei Kredit aus; Fonds-Kredit ist die Differenz", () => {
+    const p = lendingBase((x) => {
+      x.time.horizonMonths = 1;
+      x.loans.payoutPersonalBalanceOnDisbursement = true;
+      x.creditDemand.scriptedApplications = [
+        {
+          month: 1,
+          requestedAmountCents: eurosToCents(5_000),
+          personalBalanceCents: eurosToCents(800),
+          tenureMonths: 24,
+          creditScore: 80,
+          incomeCents: eurosToCents(50_000),
+          classId: "plus",
+          purpose: "medical",
+          memberId: "M-offset",
+        },
+      ];
+    });
+    const r = simulateScenario(p);
+    const m = r.months[0];
+    expect(m.loanDisbursementsCents).toBe(eurosToCents(4_200));
+    expect(m.outstandingLoansCents).toBe(eurosToCents(4_200));
+    expect(m.loanLinkedPersonalPayoutsCents).toBe(eurosToCents(800));
+    expect(m.personalLiabilitiesCents).toBe(m.personalContributionCents - eurosToCents(800));
+    const solidarityStart = p.fund.initialCashCents + m.solidarityContributionCents;
+    expect(m.solidarityCashCents).toBe(solidarityStart - eurosToCents(4_200));
+  });
+
+  it("ohne Guthaben-Verrechnung bleibt der Fonds-Kredit der volle Antrag", () => {
+    const p = lendingBase((x) => {
+      x.time.horizonMonths = 1;
+      x.loans.payoutPersonalBalanceOnDisbursement = false;
+      x.creditDemand.scriptedApplications = [
+        {
+          month: 1,
+          requestedAmountCents: eurosToCents(5_000),
+          personalBalanceCents: eurosToCents(800),
+          tenureMonths: 24,
+          creditScore: 80,
+          incomeCents: eurosToCents(50_000),
+          classId: "plus",
+          purpose: "medical",
+        },
+      ];
+    });
+    const r = simulateScenario(p);
+    expect(r.months[0].loanDisbursementsCents).toBe(eurosToCents(5_000));
+    expect(r.months[0].loanLinkedPersonalPayoutsCents).toBe(0);
+  });
 });
 
 describe("Teilfinanzierung (Unit)", () => {
@@ -351,6 +410,7 @@ describe("Teilfinanzierung (Unit)", () => {
       existingDebtCents: 0,
       hasDefaultHistory: false,
       collateral: false,
+      personalPaidOutCents: 0,
     }));
     const alloc = allocateLoans(p, queue, eurosToCents(25_000), eurosToCents(1_000_000), {
       byMember: new Map(),
