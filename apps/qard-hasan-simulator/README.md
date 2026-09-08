@@ -52,7 +52,7 @@ Beim ersten Öffnen des Dashboards läuft automatisch die **Beispielsimulation**
 ```
 src/
   domain/       Parameter, Typen, Defaults, Presets, Validierung
-  engine/       Simulation, Tilgung, Kreditregeln, Risiko, Monte Carlo
+  engine/       Simulation, Kapazität, Allokation, Tilgung, Kreditregeln, Risiko, Monte Carlo
   store/        Zustand (UI)
   pages/        Dashboard, Parameter, Analyse, Export
   services/     LocalStorage, JSON/CSV-Export
@@ -87,7 +87,7 @@ Presets (`conservative`, `base`, `growth`, `stress`, `crisis`, `extreme`) setzen
 
 ## Tests
 
-`src/engine/simulation.test.ts` prüft unter anderem:
+`src/engine/simulation.test.ts` und `src/engine/allocation.test.ts` prüfen unter anderem:
 
 - 100 € → 80 € persönlich + 20 € Solidarität
 - 1.000 × 5 € Verwaltung
@@ -98,6 +98,11 @@ Presets (`conservative`, `base`, `growth`, `stress`, `crisis`, `extreme`) setzen
 - Invarianten (nicht-negative Bestände, keine Über-Tilgung)
 - Determinismus bei gleichem Seed
 - Parameteränderungen verändern Ergebnisse wirklich
+- Nachfrage unter/gleich/über Kapazität
+- Warteliste ≠ Ablehnung
+- Teilfinanzierung an/aus
+- Liquiditäts- und 70%-Grenze
+- Struktureller Finanzierungsengpass
 
 ## Bekannte Einschränkungen
 

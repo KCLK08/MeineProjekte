@@ -65,6 +65,11 @@ export function computeRisk(months: MonthlySnapshot[], params: SimulationParamet
     maxPersonalLiabilitiesCents: Math.max(0, ...personal),
     finalAdminBalanceCents: last?.adminCashCents ?? 0,
     liquidityHorizonMonths: horizon,
+    avgFundingRate: avg(months.map((m) => m.fundingRate)),
+    maxWaitlistCents: Math.max(0, ...months.map((m) => m.waitlistedAmountCents)),
+    maxDemandPressure: Math.max(0, ...months.map((m) => m.demandPressure)),
+    avgWaitMonths: avg(months.map((m) => m.averageWaitMonths)),
+    structuralShortageMonths: months.filter((m) => m.structuralShortage).length,
   };
 }
 
@@ -80,7 +85,19 @@ export function computeHealth(
   const disclaimer =
     "System Health ist eine interne Simulationsmetrik (0–100), kein wissenschaftlich validierter Score und keine Aussage über Sicherheit oder Scharia-Konformität.";
   if (!last) {
-    return { score: 0, liquidity: 0, fund: 0, credit: 0, members: 0, admin: 0, demand: 0, disclaimer };
+    return {
+      score: 0,
+      liquidity: 0,
+      fund: 0,
+      credit: 0,
+      members: 0,
+      admin: 0,
+      demand: 0,
+      waitlist: 0,
+      funding: 0,
+      label: "CRITICAL",
+      disclaimer,
+    };
   }
   const liquidity =
     last.shortfallPersonalCents > 0 || last.solidarityCashCents < 0
@@ -106,6 +123,8 @@ export function computeHealth(
   const members = clamp01(50 + (netMember - 1) * 80);
   const admin = last.adminCashCents >= 0 ? 85 : last.adminCashCents > -5_000_00 ? 45 : 20;
   const demand = clamp01(last.fulfillmentRatio * 100);
+  const waitlist = last.waitlistedAmountCents <= 0 ? 95 : last.structuralShortage ? 20 : last.demandPressureBand === "extreme" ? 25 : 55;
+  const funding = clamp01(last.fundingRate * 100);
   const w = params.health;
   const score = clamp01(
     w.weightLiquidity * liquidity +
@@ -113,9 +132,12 @@ export function computeHealth(
       w.weightCredit * credit +
       w.weightMembers * members +
       w.weightAdmin * admin +
-      w.weightDemand * demand,
+      w.weightDemand * demand +
+      w.weightWaitlist * waitlist +
+      w.weightFunding * funding,
   );
-  return { score, liquidity, fund, credit, members, admin, demand, disclaimer };
+  const label = score >= 80 ? "HEALTHY" : score >= 65 ? "WATCH" : score >= 45 ? "STRESSED" : "CRITICAL";
+  return { score, liquidity, fund, credit, members, admin, demand, waitlist, funding, label, disclaimer };
 }
 
 export function computeWarnings(
@@ -177,12 +199,55 @@ export function computeWarnings(
       detail: "Die Reserve unterschreitet die Warnschwelle. Modellannahme, keine Prognose.",
     });
   }
+  if (last.structuralShortage || months.filter((m) => m.structuralShortage).length >= 2) {
+    out.push({
+      level: "red",
+      code: "STRUCTURAL_FUNDING_SHORTAGE",
+      title: "⚠ STRUCTURAL FUNDING SHORTAGE",
+      detail:
+        "Die Kreditnachfrage wächst schneller als die Finanzierungskapazität. Die aktuelle Fondsgröße reicht bei der aktuellen Nachfrage langfristig nicht aus.",
+    });
+  } else if (last.waitlistedAmountCents > 0) {
+    out.push({
+      level: "orange",
+      code: "WAITLIST",
+      title: "Warteliste entsteht",
+      detail: "Zulässige Anträge warten auf Kapazität. Das ist keine Ablehnung.",
+    });
+  }
+  if (last.demandPressureBand === "extreme") {
+    out.push({
+      level: "red",
+      code: "DEMAND_PRESSURE",
+      title: "Extremer Nachfragedruck",
+      detail: `Demand Pressure ${last.demandPressure.toFixed(2)}: zulässige Nachfrage übersteigt die verfügbare Kapazität deutlich.`,
+    });
+  } else if (last.demandPressureBand === "high") {
+    out.push({
+      level: "orange",
+      code: "DEMAND_PRESSURE",
+      title: "Hoher Nachfragedruck",
+      detail: `Demand Pressure ${last.demandPressure.toFixed(2)}.`,
+    });
+  }
   if (unmet) {
     out.push({
       level: "yellow",
       code: "UNMET_DEMAND",
-      title: "Kreditnachfrage kann nicht vollständig bedient werden",
-      detail: "Die simulierte Nachfrage übersteigt in mindestens einem Monat die verfügbare Kreditkapazität.",
+      title: "Nicht erfüllte zulässige Nachfrage",
+      detail: "Unmet Demand = zulässige Nachfrage minus Auszahlung. Abgelehnte Anträge zählen nicht dazu.",
+    });
+  }
+  if (
+    params.allocation.enforceMinimumLiquidity &&
+    last.solidarityCashCents + 1 < last.liquidityReserveCents &&
+    last.loanDisbursementsCents > 0
+  ) {
+    out.push({
+      level: "critical",
+      code: "LIQUIDITY_FLOOR",
+      title: "Liquiditätsreserve unterschritten",
+      detail: "Nach Kreditauszahlungen liegt das Solidaritätscash unter der konfigurierten Mindestliquidität.",
     });
   }
   if (adminNeg) {

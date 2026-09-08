@@ -1,7 +1,7 @@
 import type { Cents } from "./money";
 
-export const ENGINE_VERSION = "1.0.0";
-export const PARAMETER_VERSION = 1;
+export const ENGINE_VERSION = "1.1.0";
+export const PARAMETER_VERSION = 2;
 
 export type PopulationMode = "fixed" | "dynamic";
 export type GrowthType = "none" | "constant" | "percent" | "timeseries";
@@ -15,9 +15,17 @@ export type LoanLimitMethod =
   | "solidarityMultiple"
   | "personalMultiple"
   | "combined";
-export type DemandModel = "fixed" | "perMember" | "byClass" | "timeseries";
+export type DemandModel = "fixed" | "perMember" | "byClass" | "timeseries" | "percentOfMembers";
 export type AmountCapPolicy = "capToLimit" | "reject";
-export type PrioritizationStrategy = "score" | "need" | "tenure" | "fifo" | "weighted";
+export type PrioritizationStrategy =
+  | "score"
+  | "need"
+  | "tenure"
+  | "fifo"
+  | "weighted"
+  | "hybrid"
+  | "emergency"
+  | "proportional";
 export type DefaultModel =
   | "constant"
   | "byClass"
@@ -29,6 +37,22 @@ export type DefaultTiming = "immediate" | "afterMonths" | "nearEnd" | "random";
 export type DefaultRateBasis = "annual" | "monthly";
 export type RecoveryModel = "fixed" | "byClass" | "byCollateral" | "byTime" | "random";
 export type RepaymentModel = "linear" | "flexible" | "grace" | "custom";
+export type ApplicationStatus =
+  | "SUBMITTED"
+  | "UNDER_REVIEW"
+  | "ELIGIBLE"
+  | "APPROVED"
+  | "WAITLISTED"
+  | "PARTIALLY_FUNDED"
+  | "FUNDED"
+  | "REJECTED"
+  | "EXPIRED"
+  | "CANCELLED";
+
+export type UtilizationBase = "fundAssets" | "solidarityCash" | "averageFundAssets";
+export type WaitlistMergePolicy = "behind" | "reprioritize" | "agingBonus";
+export type MaxWaitAction = "expire" | "reReview" | "boost" | "keep";
+export type DemandPressureBand = "normal" | "border" | "high" | "extreme";
 export type MemberStatus = "ACTIVE" | "PENDING" | "EXIT_REQUESTED" | "EXITED";
 export type LoanStatus =
   | "APPLICATION"
@@ -81,7 +105,8 @@ export type LedgerAccount =
   | "CONTRA_FEE"
   | "CONTRA_COST"
   | "LOAN_LOSS"
-  | "LOAN_RECOVERY";
+  | "LOAN_RECOVERY"
+  | "LOAN_COMMITMENT";
 
 export type LedgerEventType =
   | "MEMBERSHIP_CONTRIBUTION"
@@ -97,9 +122,11 @@ export type LedgerEventType =
   | "LOAN_RECOVERY"
   | "PERSONAL_WITHDRAWAL"
   | "WITHDRAWAL_ACCRUAL"
+  | "LOAN_COMMITMENT"
+  | "LOAN_COMMITMENT_RELEASE"
   | "OTHER";
 
-export type WarningLevel = "green" | "yellow" | "red" | "critical";
+export type WarningLevel = "green" | "yellow" | "orange" | "red" | "critical";
 
 export type CreditScoreFactor =
   | "membership"
@@ -291,6 +318,7 @@ export type SimulationParameters = {
     initialCashCents: Cents;
     maximumLoanUtilization: number;
     minimumFundReserve: number;
+    utilizationBase: UtilizationBase;
   };
   loans: {
     limitMethod: LoanLimitMethod;
@@ -313,6 +341,7 @@ export type SimulationParameters = {
     model: DemandModel;
     applicationsPerMonth: number;
     applicationsPerThousandMembers: number;
+    applicationsPercentOfMembers: number;
     averageAmountCents: Cents;
     minAmountCents: Cents;
     maxAmountCents: Cents;
@@ -320,6 +349,11 @@ export type SimulationParameters = {
     amountNoiseStdev: number;
     classMix: { classId: string; share: number }[];
     timeseries: AmountPoint[];
+    demandShockEnabled: boolean;
+    demandShockStartMonth: number;
+    demandShockDuration: number;
+    demandShockPercent: number;
+    scriptedApplications: ScriptedApplication[];
   };
   needClasses: NeedClassConfig[];
   creditApproval: {
@@ -399,6 +433,8 @@ export type SimulationParameters = {
     weightMembers: number;
     weightAdmin: number;
     weightDemand: number;
+    weightWaitlist: number;
+    weightFunding: number;
   };
   monteCarlo: {
     runs: number;
@@ -415,6 +451,115 @@ export type SimulationParameters = {
   maxSampleMembers: number;
   events: CrisisEvent[];
   shocks: ShockConfig;
+  allocation: AllocationPolicy;
+};
+
+export type ScriptedApplication = {
+  month: number;
+  requestedAmountCents: Cents;
+  purpose?: NeedPurpose;
+  classId?: string;
+  memberId?: string;
+  tenureMonths?: number;
+  creditScore?: number;
+  incomeCents?: Cents;
+  personalBalanceCents?: Cents;
+  solidarityPaidCents?: Cents;
+  existingDebtCents?: Cents;
+  hasDefaultHistory?: boolean;
+  collateral?: boolean;
+  partialFundingAllowed?: boolean;
+};
+
+export type LoanApplication = {
+  id: string;
+  memberId: string;
+  applicationDate: number;
+  requestedAmountCents: Cents;
+  approvedAmountCents: Cents;
+  fundedAmountCents: Cents;
+  remainingAmountCents: Cents;
+  purpose: NeedPurpose;
+  priorityCategory: NeedPurpose;
+  creditClass: string;
+  creditScore: number;
+  needScore: number;
+  membershipScore: number;
+  incomeScore: number;
+  repaymentScore: number;
+  priorityScore: number;
+  status: ApplicationStatus;
+  queuePosition: number;
+  waitlistDate: number | null;
+  expectedFundingDate: number | null;
+  actualFundingDate: number | null;
+  expirationDate: number | null;
+  partialFundingAllowed: boolean;
+  rejectionReason: string;
+  tenureMonths: number;
+  scale: number;
+  termMonths: number;
+  personalBalanceCents: Cents;
+  solidarityPaidCents: Cents;
+  incomeCents: Cents;
+  existingDebtCents: Cents;
+  hasDefaultHistory: boolean;
+  collateral: boolean;
+};
+
+export type AllocationPolicy = {
+  utilizationBase: UtilizationBase;
+  averageFundLookbackMonths: number;
+  minimumLiquidityReservePercent: number;
+  minimumLiquidityReserveAmountCents: Cents;
+  minimumOperatingExpenseMonths: number;
+  personalBalanceReservePercent: number;
+  expectedMonthlyMemberExitRate: number;
+  expectedMemberExitAmountCents: Cents;
+  enforceMinimumLiquidity: boolean;
+  maxMonthlyLoanDisbursementCents: Cents;
+  maxMemberExposureCents: Cents;
+  maxClassExposureShare: { classId: string; maxShare: number }[];
+  maxPurposeExposureShare: { purpose: NeedPurpose; maxShare: number }[];
+  allowPartialFunding: boolean;
+  waitlistMerge: WaitlistMergePolicy;
+  ageBonusPerMonth: number;
+  maxWaitMonths: number;
+  maxWaitAction: MaxWaitAction;
+  commitWaitlisted: boolean;
+  disbursementLagMonths: number;
+  pressureNormal: number;
+  pressureBorder: number;
+  pressureHigh: number;
+  pressureExtreme: number;
+  targetFundingRate: number;
+  structuralShortageMonths: number;
+};
+
+export type CapacityInput = {
+  solidarityCashCents: Cents;
+  outstandingLoanBalanceCents: Cents;
+  committedLoanAmountCents: Cents;
+  personalLiabilitiesCents: Cents;
+  expectedAdminCostCents: Cents;
+  averageFundAssetsCents: Cents;
+  outstandingByClass: Record<string, Cents>;
+  outstandingByPurpose: Record<string, Cents>;
+  disbursedThisMonthCents: Cents;
+};
+
+export type CapacityBreakdown = {
+  utilizationBaseCents: Cents;
+  maxOutstandingLoansCents: Cents;
+  minimumLiquidityReserveCents: Cents;
+  personalBalanceReserveCents: Cents;
+  expectedExitReserveCents: Cents;
+  operatingReserveCents: Cents;
+  availableFromUtilizationCents: Cents;
+  availableFromLiquidityCents: Cents;
+  availableFromMonthlyCapCents: Cents;
+  availableLoanCapacityCents: Cents;
+  constraints: string[];
 };
 
 export type Member = {
@@ -505,6 +650,25 @@ export type MonthlySnapshot = {
   rejectedCents: Cents;
   unmetDemandCount: number;
   unmetDemandCents: Cents;
+  eligibleDemandCents: Cents;
+  eligibleDemandCount: number;
+  waitlistedAmountCents: Cents;
+  waitlistedCount: number;
+  committedLoansCents: Cents;
+  fundingRate: number;
+  demandPressure: number;
+  demandPressureBand: DemandPressureBand;
+  waitlistRate: number;
+  rejectionRate: number;
+  averageWaitMonths: number;
+  medianWaitMonths: number;
+  maxWaitMonthsObserved: number;
+  oldestApplicationAgeMonths: number;
+  queueClearanceMonths: number;
+  averageWaitlistAmountCents: Cents;
+  capacityAtAllocationCents: Cents;
+  liquidityReserveCents: Cents;
+  structuralShortage: boolean;
   fulfillmentRatio: number;
   availableLoanCapacityCents: Cents;
   theoreticalCapacityCents: Cents;
@@ -539,6 +703,9 @@ export type SystemHealth = {
   members: number;
   admin: number;
   demand: number;
+  waitlist: number;
+  funding: number;
+  label: string;
   disclaimer: string;
 };
 
@@ -560,6 +727,11 @@ export type RiskMetrics = {
   maxPersonalLiabilitiesCents: Cents;
   finalAdminBalanceCents: Cents;
   liquidityHorizonMonths: number;
+  avgFundingRate: number;
+  maxWaitlistCents: Cents;
+  maxDemandPressure: number;
+  avgWaitMonths: number;
+  structuralShortageMonths: number;
 };
 
 export type AggregatedKpis = {
@@ -577,6 +749,13 @@ export type AggregatedKpis = {
   fulfillmentRatio: number;
   theoreticalCapacityCents: Cents;
   availableCapacityCents: Cents;
+  eligibleDemandCents: Cents;
+  waitlistedAmountCents: Cents;
+  committedLoansCents: Cents;
+  fundingRate: number;
+  demandPressure: number;
+  averageWaitMonths: number;
+  queueClearanceMonths: number;
 };
 
 export type SimulationLogEntry = {
@@ -613,8 +792,11 @@ export type SimulationResult = {
   ledger: LedgerEntry[];
   sampleLoans: Loan[];
   sampleMembers: Member[];
+  waitlist: LoanApplication[];
+  sampleApplications: LoanApplication[];
   invariants: InvariantViolation[];
   lastMonth: MonthlySnapshot | null;
+  recommendations: string[];
 };
 
 export type PercentileSet = {
@@ -658,7 +840,19 @@ export type ReverseSimulationResult = {
   requiredFundCents: Cents;
   requiredSolidarityShareCents: Cents;
   requiredReserveCents: Cents;
+  requiredMembers: number;
   maxBearableDefaultRate: number;
+  maxMonthlyDemandCents: Cents;
+  notes: string[];
+};
+
+export type RequiredFundResult = {
+  targetFundingRate: number;
+  requiredFundCents: Cents;
+  requiredMembers: number;
+  requiredSolidarityShareCents: Cents;
+  achievedFundingRate: number;
+  achievedMaxWaitMonths: number;
   notes: string[];
 };
 

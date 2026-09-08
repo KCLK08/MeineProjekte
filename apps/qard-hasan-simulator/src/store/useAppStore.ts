@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { createDefaultParameters, createPreset, type PresetId } from "../domain/defaults";
+import { createPreset, hydrateParameters, type PresetId } from "../domain/defaults";
 import type {
   MonteCarloResult,
   SensitivityCell,
@@ -73,7 +73,7 @@ function persistSlice(state: AppState) {
 const persisted = typeof localStorage !== "undefined" ? loadPersisted() : null;
 
 export const useAppStore = create<AppState>((set, get) => ({
-  parameters: persisted?.parameters ?? createDefaultParameters(),
+  parameters: hydrateParameters(persisted?.parameters),
   result: null,
   status: "idle",
   error: null,

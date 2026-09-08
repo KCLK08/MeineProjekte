@@ -23,6 +23,7 @@ import {
   SettingsPage,
   SimulationsPage,
   StressPage,
+  WaitlistPage,
   WhatIfPage,
 } from "./pages/MorePages";
 
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="/fund" element={<FundPage />} />
           <Route path="/personal" element={<PersonalPage />} />
           <Route path="/loans" element={<LoansPage />} />
+          <Route path="/waitlist" element={<WaitlistPage />} />
           <Route path="/liquidity" element={<LiquidityPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/cashflow" element={<CashflowPage />} />

@@ -138,14 +138,52 @@ Die jährliche Ausfallquote wird bei `rateBasis = annual` als `annual / 12` mona
 - **Mode A (fixed):** Bestand bleibt konstant, optional Ersatz für Austritte.  
 - **Mode B (dynamic):** konstant, Prozent, Zeitreihe, Saison, Rauschen, Wellen, Wachstumsevents.
 
-## Kreditnachfrage vs. Vergabe
+## Kreditnachfrage vs. Vergabe vs. Warteliste
 
-Nachfrage und Auszahlung sind getrennt. Nicht bediente Nachfrage:
+Nachfrage, Zulässigkeit und Auszahlung sind strikt getrennt:
 
 ```text
-Unmet_t = max(0, Demand_t − Disbursements_t)
-Fulfillment_t = Disbursements_t / Demand_t   (falls Demand > 0)
+TotalDemand     = Summe aller Anträge
+Rejected        = Anträge, die Kreditregeln verfehlen (nicht „kein Geld“)
+EligibleDemand  = zulässige Anträge inkl. Warteliste
+Funded          = tatsächlich ausgezahlte Kredite
+Waitlisted      = zulässig, aber ohne Kapazität
+UnmetDemand     = EligibleDemand − Funded
+FundingRate     = Funded / EligibleDemand
+DemandPressure  = EligibleDemand / availableLoanCapacity
 ```
+
+Ein zulässiger Antrag ohne Cash wird `WAITLISTED`, niemals `REJECTED`.
+
+## Verfügbare Kreditkapazität
+
+```text
+availableLoanCapacity
+=
+min(
+  utilizationBase × maxLoanUtilization − outstanding − committed,
+  solidarityCash − minimumLiquidityReserve  (falls enforceMinimumLiquidity),
+  maxMonthlyLoanDisbursement − alreadyDisbursed,
+  solidarityCash
+)
+```
+
+`utilizationBase` ist ein Parameter (`fundAssets` | `solidarityCash` | `averageFundAssets`), keine hart codierte Größe.
+
+Mindestliquidität:
+
+```text
+minimumLiquidityReserve
+=
+max(cash × minimumLiquidityReservePercent, minimumLiquidityReserveAmount)
++ opexMonths × adminCost
++ personalBalances × personalBalanceReservePercent
++ expectedMemberExitAmount
+```
+
+Persönliche Guthaben werden dadurch **nicht** in den Fonds umgebucht; sie verengen nur die Auszahlungskapazität.
+
+Unmet Demand ist **nicht** die Summe abgelehnter Anträge.
 
 ## Buchhaltung (keine Doppelzählung)
 

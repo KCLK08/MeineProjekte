@@ -3,10 +3,10 @@ import { PageHeader, EmptyState, Meaning } from "../components/ui/hints";
 import { Button, Card, Input } from "../components/ui/primitives";
 import { MonthsLine } from "../components/charts/MonthsCharts";
 import { formatEuro, formatNumber, formatPercent, eurosToCents } from "../domain/money";
-import { createPreset, PRESET_INFO, STRESS_PRESET_IDS, type PresetId } from "../domain/defaults";
+import { PRESET_INFO } from "../domain/defaults";
 import { useAppStore } from "../store/useAppStore";
 import { exportMonthsCsv, exportParametersJson, exportResultJson, exportScenarioJson, parseImportedScenario } from "../services/export";
-import { compareResults, goalSeek, runBreakEven, runReverseSimulation } from "../engine/analyses";
+import { compareResults, calculateRequiredFundSize, goalSeek, runBreakEven, runReverseSimulation, runStressTest } from "../engine/analyses";
 import { simulateScenario } from "../engine/simulation";
 import { setByPath } from "../utils/cn";
 
@@ -116,40 +116,34 @@ function labelKey(key: string): string {
     personalLiabilitiesCents: "Persönliche Guthaben",
     utilization: "Auslastung",
     fulfillmentRatio: "Erfüllungsquote",
+    fundingRate: "Funding Rate",
+    waitlistedAmountCents: "Warteliste",
+    demandPressure: "Demand Pressure",
+    averageWaitMonths: "Ø Wartezeit",
   };
   return map[key] ?? key;
 }
 function formatValue(key: string, v: number): string {
-  if (key.includes("Ratio") || key === "utilization") return formatPercent(v);
-  if (key === "members") return formatNumber(v);
+  if (key.includes("Ratio") || key === "utilization" || key === "fundingRate" || key === "demandPressure") return formatPercent(v);
+  if (key === "members" || key === "averageWaitMonths") return formatNumber(v);
   return formatEuro(Math.round(v));
 }
 
 export function StressPage() {
-  const [rows, setRows] = useState<{ id: PresetId; members: number; fund: number; loans: number; loss: number; reserve: number }[] | null>(null);
+  const [rows, setRows] = useState<ReturnType<typeof runStressTest> | null>(null);
   const [busy, setBusy] = useState(false);
+  const parameters = useAppStore((s) => s.parameters);
   const run = () => {
     setBusy(true);
-    const out = STRESS_PRESET_IDS.map((id) => {
-      const r = simulateScenario(createPreset(id));
-      return {
-        id,
-        members: r.kpis.members,
-        fund: r.kpis.solidarityCashCents,
-        loans: r.kpis.outstandingLoansCents,
-        loss: r.kpis.netLossCents,
-        reserve: r.lastMonth?.solidarityCashCents ?? 0,
-      };
-    });
-    setRows(out);
+    setRows(runStressTest(parameters));
     setBusy(false);
   };
   return (
     <div className="space-y-4">
-      <PageHeader title="Stress Test" subtitle="Vordefinierte Presets BASE, OPTIMISTIC/Conservative, STRESS, CRISIS, EXTREME. Nur Parameter." actions={<Button onClick={run} disabled={busy}>Presets rechnen</Button>} />
+      <PageHeader title="Stress Test" subtitle="Vordefinierte Presets BASE, Conservative, STRESS, CRISIS, EXTREME. Dieselbe Engine." actions={<Button onClick={run} disabled={busy}>Presets rechnen</Button>} />
       {rows ? (
         <div className="table-scroll">
-          <table className="w-full min-w-[720px] text-sm">
+          <table className="w-full min-w-[980px] text-sm">
             <thead>
               <tr>
                 <th className="text-left">Szenario</th>
@@ -157,7 +151,10 @@ export function StressPage() {
                 <th className="text-right">Fonds</th>
                 <th className="text-right">Kredite</th>
                 <th className="text-right">Verluste</th>
-                <th className="text-right">Reserve</th>
+                <th className="text-right">Funding</th>
+                <th className="text-right">Warteliste</th>
+                <th className="text-right">Unmet</th>
+                <th className="text-right">Health</th>
               </tr>
             </thead>
             <tbody>
@@ -168,7 +165,10 @@ export function StressPage() {
                   <td className="text-right font-mono">{formatEuro(r.fund)}</td>
                   <td className="text-right font-mono">{formatEuro(r.loans)}</td>
                   <td className="text-right font-mono">{formatEuro(r.loss)}</td>
-                  <td className="text-right font-mono">{formatEuro(r.reserve)}</td>
+                  <td className="text-right font-mono">{formatPercent(r.fundingRate)}</td>
+                  <td className="text-right font-mono">{formatEuro(r.waitlist)}</td>
+                  <td className="text-right font-mono">{formatEuro(r.unmet)}</td>
+                  <td className="text-right font-mono">{Math.round(r.health)}</td>
                 </tr>
               ))}
             </tbody>
@@ -202,7 +202,7 @@ export function MonteCarloPage() {
                 <tr key={k} className="border-t border-ink-100 dark:border-ink-800">
                   <td>{k}</td>
                   {[v.mean, v.min, v.max, v.p5, v.p25, v.p50, v.p75, v.p95].map((x, i) => (
-                    <td key={i} className="text-right font-mono">{k.includes("utilization") ? formatPercent(x) : k === "members" ? formatNumber(x) : formatEuro(Math.round(x))}</td>
+                    <td key={i} className="text-right font-mono">{k.includes("utilization") || k.includes("Rate") ? formatPercent(x) : k === "members" || k.includes("Wait") ? (k.includes("Wait") ? x.toFixed(2) : formatNumber(x)) : formatEuro(Math.round(x))}</td>
                   ))}
                 </tr>
               ))}
@@ -347,6 +347,70 @@ export function LoansPage() {
   );
 }
 
+export function WaitlistPage() {
+  const result = useAppStore((s) => s.result);
+  const [sort, setSort] = useState<"rank" | "amount" | "score" | "wait">("rank");
+  const [filter, setFilter] = useState("");
+  if (!result) return <NeedResult />;
+  const rows = [...result.waitlist]
+    .filter((a) => {
+      const q = filter.trim().toLowerCase();
+      if (!q) return true;
+      return `${a.id} ${a.memberId} ${a.purpose} ${a.status}`.toLowerCase().includes(q);
+    })
+    .sort((a, b) => {
+      if (sort === "amount") return b.remainingAmountCents - a.remainingAmountCents;
+      if (sort === "score") return b.priorityScore - a.priorityScore;
+      if (sort === "wait") return (a.waitlistDate ?? a.applicationDate) - (b.waitlistDate ?? b.applicationDate);
+      return a.queuePosition - b.queuePosition;
+    });
+  return (
+    <div className="space-y-4">
+      <PageHeader title="Warteliste" subtitle="Zulässige Anträge ohne aktuelle Kapazität. Keine Ablehnung." />
+      <div className="flex flex-wrap gap-2">
+        <Input placeholder="Filter" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <select className="rounded-md border border-ink-300 bg-white px-3 py-2 text-sm dark:border-ink-700 dark:bg-ink-950" value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
+          <option value="rank">Rang</option>
+          <option value="amount">Betrag</option>
+          <option value="score">Score</option>
+          <option value="wait">Wartezeit</option>
+        </select>
+      </div>
+      <div className="table-scroll rounded-xl border border-ink-200 dark:border-ink-800">
+        <table className="w-full min-w-[900px] text-sm">
+          <thead>
+            <tr>
+              <th className="text-left">Rang</th>
+              <th className="text-left">Antrag</th>
+              <th className="text-left">Mitglied</th>
+              <th>Bedarf</th>
+              <th className="text-right">Betrag</th>
+              <th className="text-right">Score</th>
+              <th className="text-right">Wartezeit</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((a) => (
+              <tr key={a.id} className="border-t border-ink-100 dark:border-ink-800">
+                <td>{a.queuePosition}</td>
+                <td>{a.id}</td>
+                <td>{a.memberId}</td>
+                <td>{a.purpose}</td>
+                <td className="text-right font-mono">{formatEuro(a.remainingAmountCents)}</td>
+                <td className="text-right font-mono">{a.priorityScore.toFixed(1)}</td>
+                <td className="text-right">{Math.max(0, (result.lastMonth?.month ?? a.applicationDate) - (a.waitlistDate ?? a.applicationDate))} Monate</td>
+                <td>{a.status}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {!rows.length ? <EmptyState title="Leere Warteliste" text="Aktuell wartet kein zulässiger Antrag auf Kapazität." /> : null}
+    </div>
+  );
+}
+
 export function LiquidityPage() {
   const result = useAppStore((s) => s.result);
   if (!result) return <NeedResult />;
@@ -395,7 +459,7 @@ export function CashflowPage() {
         <table className="w-full text-xs">
           <thead>
             <tr className="bg-ink-100 dark:bg-ink-900">
-              {["Monat","Mitglieder","Neue","Austritte","Beiträge","Persönlich","Solidarität","Verw.gebühr","Neue Kredite","Rückzahlung","Ausfälle","Recovery","Nettoverlust","Auszahlung Kredit","Guthabenausz.","Verw.kosten","Fonds","Pers. Verb.","Verw.konto","Liquidität","Reserve","Nachfrage","nicht bedient"].map((h) => (
+              {["Monat","Mitglieder","Neue","Austritte","Beiträge","Persönlich","Solidarität","Verw.gebühr","Verw.kosten","Fonds auf","Rückzahlung","Recovery","Neue Nachfrage","Zulässig","Bewilligt","Auszahlung","Offene Kredite","Zugesagt","Kapazität","Warteliste","Abgelehnt","Unmet","Funding","Pressure","Ausfälle","Verluste","Liquiditätsreserve","Pers. Verb."].map((h) => (
                 <th key={h} className="whitespace-nowrap px-2 py-2 text-right first:text-left">{h}</th>
               ))}
             </tr>
@@ -404,12 +468,15 @@ export function CashflowPage() {
             {result.months.map((m) => (
               <tr key={m.month} className="border-t border-ink-100 dark:border-ink-800">
                 {[m.month, m.members, m.newMembers, m.exits].map((v, i) => <td key={i} className="px-2 py-1 text-right font-mono">{v}</td>)}
-                {[m.contributionsCents, m.personalContributionCents, m.solidarityContributionCents, m.adminFeeCents, m.newLoanPrincipalCents, m.repaymentsCents, m.defaultsCents, m.recoveryCents, m.netLossCents, m.loanDisbursementsCents, m.personalWithdrawalsCents, m.adminCostCents, m.solidarityCashCents, m.personalLiabilitiesCents, m.adminCashCents, m.liquidityCents].map((v, i) => (
+                {[m.contributionsCents, m.personalContributionCents, m.solidarityContributionCents, m.adminFeeCents, m.adminCostCents, m.solidarityCashCents, m.repaymentsCents, m.recoveryCents, m.creditDemandCents, m.eligibleDemandCents, m.approvedCents, m.loanDisbursementsCents, m.outstandingLoansCents, m.committedLoansCents, m.availableLoanCapacityCents, m.waitlistedAmountCents, m.rejectedCents, m.unmetDemandCents].map((v, i) => (
                   <td key={`e${i}`} className="px-2 py-1 text-right font-mono">{formatEuro(v, 0)}</td>
                 ))}
-                <td className="px-2 py-1 text-right font-mono">{formatPercent(m.reserveRatio, 0)}</td>
-                <td className="px-2 py-1 text-right font-mono">{formatEuro(m.creditDemandCents, 0)}</td>
-                <td className="px-2 py-1 text-right font-mono">{formatEuro(m.unmetDemandCents, 0)}</td>
+                <td className="px-2 py-1 text-right font-mono">{formatPercent(m.fundingRate, 0)}</td>
+                <td className="px-2 py-1 text-right font-mono">{formatPercent(Math.min(m.demandPressure, 9.99), 0)}</td>
+                <td className="px-2 py-1 text-right font-mono">{formatEuro(m.defaultsCents, 0)}</td>
+                <td className="px-2 py-1 text-right font-mono">{formatEuro(m.netLossCents, 0)}</td>
+                <td className="px-2 py-1 text-right font-mono">{formatEuro(m.liquidityReserveCents, 0)}</td>
+                <td className="px-2 py-1 text-right font-mono">{formatEuro(m.personalLiabilitiesCents, 0)}</td>
               </tr>
             ))}
           </tbody>
@@ -472,7 +539,11 @@ export function RiskPage() {
         <p>Max. Austrittsbelastung {formatEuro(r.maxWithdrawalOutflowCents)}</p>
         <p>Minimum Cash {formatEuro(r.minCashCents)}</p>
         <p>Monate unter Mindestreserve {r.monthsBelowMinReserve}</p>
-        <p>Liquiditätskrisen {r.liquidityCrisisCount}</p>
+        <p>Ø Funding Rate {formatPercent(r.avgFundingRate)}</p>
+        <p>Max. Warteliste {formatEuro(r.maxWaitlistCents)}</p>
+        <p>Max. Demand Pressure {r.maxDemandPressure.toFixed(2)}</p>
+        <p>Ø Wartezeit {r.avgWaitMonths.toFixed(1)} Monate</p>
+        <p>Monate mit strukturellem Engpass {r.structuralShortageMonths}</p>
       </Card>
     </div>
   );
@@ -585,12 +656,13 @@ export function GoalSeekPage() {
   const [target, setTarget] = useState(0.9);
   const [out, setOut] = useState<ReturnType<typeof goalSeek> | null>(null);
   const [reverse, setReverse] = useState<ReturnType<typeof runReverseSimulation> | null>(null);
+  const [required, setRequired] = useState<ReturnType<typeof calculateRequiredFundSize> | null>(null);
   return (
     <div className="space-y-4">
       <PageHeader title="Ziel suchen / Reverse Simulation" subtitle="Die Engine sucht Parameter, die ein Ziel unter Modellannahmen erfüllen." />
       <Card className="space-y-3">
-        <label className="block text-sm">Ziel: Erfüllungsquote der Kreditnachfrage
-          <Input type="number" step={0.05} value={target} onChange={(e) => setTarget(Number(e.target.value))} />
+        <label className="block text-sm">Ziel-Funding-Rate
+          <Input type="number" step={0.05} min={0} max={1} value={target} onChange={(e) => setTarget(Number(e.target.value))} />
         </label>
         <Button onClick={() => setOut(goalSeek(parameters, { param: "members", metric: "fulfillment", target, min: 100, max: 50000 }))}>
           Mitgliederzahl suchen
@@ -598,12 +670,29 @@ export function GoalSeekPage() {
         {out ? <p>Gefunden: {formatNumber(Math.round(out.value))} Mitglieder · Metrik {out.metric.toFixed(3)} · {out.iterations} Iterationen</p> : null}
       </Card>
       <Card className="space-y-3">
+        <p className="text-sm">Wie groß muss der Solidaritätsfonds sein, um die Ziel-Funding-Rate und die max. Wartezeit zu erreichen?</p>
+        <Button onClick={() => setRequired(calculateRequiredFundSize(parameters, target, parameters.allocation.maxWaitMonths))}>
+          Erforderlichen Fonds rechnen
+        </Button>
+        {required ? (
+          <div className="text-sm">
+            <p>Erforderlicher Startfonds (Näherung): {formatEuro(required.requiredFundCents)}</p>
+            <p>Oder monatlicher Solidaritätsbeitrag: {formatEuro(required.requiredSolidarityShareCents)}</p>
+            <p>Oder Mitgliederzahl (bei fixer Nachfrage): {formatNumber(required.requiredMembers)}</p>
+            <p>Erreichte Funding Rate: {formatPercent(required.achievedFundingRate)} · max. Wartezeit {required.achievedMaxWaitMonths.toFixed(1)} Monate</p>
+            {required.notes.map((n) => <p key={n} className="text-xs text-ink-500">{n}</p>)}
+          </div>
+        ) : null}
+      </Card>
+      <Card className="space-y-3">
         <p className="text-sm">Reverse: 10.000 Mitglieder und 1 Mio. € monatliche Qard-Hasan-Vergabe (Modellziel).</p>
         <Button onClick={() => setReverse(runReverseSimulation(10000, eurosToCents(1_000_000), parameters))}>Reverse rechnen</Button>
         {reverse ? (
           <div className="text-sm">
             <p>Benötigte Fondsgröße (Näherung): {formatEuro(reverse.requiredFundCents)}</p>
+            <p>Benötigte Mitglieder: {formatNumber(reverse.requiredMembers)}</p>
             <p>Benötigter Solidaritätsbeitrag: {formatEuro(reverse.requiredSolidarityShareCents)}</p>
+            <p>Max. monatliche zulässige Nachfrage (simuliert): {formatEuro(reverse.maxMonthlyDemandCents)}</p>
             <p>Benötigte Reserve: {formatEuro(reverse.requiredReserveCents)}</p>
             <p>Max. tragbare Ausfallquote (bis rot): {formatPercent(reverse.maxBearableDefaultRate)}</p>
             {reverse.notes.map((n) => <p key={n} className="text-xs text-ink-500">{n}</p>)}

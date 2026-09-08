@@ -169,6 +169,7 @@ export function createDefaultParameters(): SimulationParameters {
       initialCashCents: eurosToCents(0),
       maximumLoanUtilization: 0.7,
       minimumFundReserve: 0.3,
+      utilizationBase: "fundAssets",
     },
     loans: {
       limitMethod: "combined",
@@ -227,6 +228,7 @@ export function createDefaultParameters(): SimulationParameters {
       model: "perMember",
       applicationsPerMonth: 8,
       applicationsPerThousandMembers: 8,
+      applicationsPercentOfMembers: 0.02,
       averageAmountCents: eurosToCents(5000),
       minAmountCents: eurosToCents(500),
       maxAmountCents: eurosToCents(20000),
@@ -238,6 +240,11 @@ export function createDefaultParameters(): SimulationParameters {
         { classId: "premium", share: 0.1 },
       ],
       timeseries: [],
+      demandShockEnabled: false,
+      demandShockStartMonth: 24,
+      demandShockDuration: 6,
+      demandShockPercent: 1.5,
+      scriptedApplications: [],
     },
     needClasses: [
       { id: "medical", label: "Medizinischer Bedarf", priority: 100, share: 0.18 },
@@ -366,12 +373,14 @@ export function createDefaultParameters(): SimulationParameters {
       coverageMonthsTarget: 6,
     },
     health: {
-      weightLiquidity: 0.25,
-      weightFund: 0.2,
-      weightCredit: 0.15,
-      weightMembers: 0.15,
-      weightAdmin: 0.1,
-      weightDemand: 0.15,
+      weightLiquidity: 0.2,
+      weightFund: 0.15,
+      weightCredit: 0.1,
+      weightMembers: 0.1,
+      weightAdmin: 0.08,
+      weightDemand: 0.12,
+      weightWaitlist: 0.12,
+      weightFunding: 0.13,
     },
     monteCarlo: {
       runs: 200,
@@ -398,6 +407,34 @@ export function createDefaultParameters(): SimulationParameters {
       }),
     ],
     shocks: emptyShock(),
+    allocation: {
+      utilizationBase: "fundAssets",
+      averageFundLookbackMonths: 12,
+      minimumLiquidityReservePercent: 0.3,
+      minimumLiquidityReserveAmountCents: eurosToCents(5000),
+      minimumOperatingExpenseMonths: 0,
+      personalBalanceReservePercent: 0,
+      expectedMonthlyMemberExitRate: 0,
+      expectedMemberExitAmountCents: 0,
+      enforceMinimumLiquidity: true,
+      maxMonthlyLoanDisbursementCents: 0,
+      maxMemberExposureCents: 0,
+      maxClassExposureShare: [],
+      maxPurposeExposureShare: [],
+      allowPartialFunding: false,
+      waitlistMerge: "reprioritize",
+      ageBonusPerMonth: 2,
+      maxWaitMonths: 12,
+      maxWaitAction: "expire",
+      commitWaitlisted: false,
+      disbursementLagMonths: 0,
+      pressureNormal: 0.8,
+      pressureBorder: 1,
+      pressureHigh: 1.5,
+      pressureExtreme: 3,
+      targetFundingRate: 0.9,
+      structuralShortageMonths: 3,
+    },
   };
 }
 
@@ -477,6 +514,10 @@ export function createPreset(id: PresetId): SimulationParameters {
     p.shocks.personalPayoutRate = 0.15;
     p.shocks.defaultShareOfOutstanding = 0.08;
     p.recovery.fixedRate = 0.45;
+    p.creditDemand.demandShockEnabled = true;
+    p.creditDemand.demandShockStartMonth = 36;
+    p.creditDemand.demandShockDuration = 6;
+    p.creditDemand.demandShockPercent = 1.5;
   }
 
   if (id === "extreme") {
@@ -495,6 +536,8 @@ export function createPreset(id: PresetId): SimulationParameters {
     p.recovery.fixedRate = 0.35;
     p.fund.maximumLoanUtilization = 0.8;
     p.fund.minimumFundReserve = 0.2;
+    p.allocation.minimumLiquidityReservePercent = 0.2;
+    p.allocation.personalBalanceReservePercent = 0.1;
   }
 
   return p;
@@ -508,5 +551,26 @@ export const STRESS_PRESET_IDS: PresetId[] = [
   "crisis",
   "extreme",
 ];
+
+function deepMerge<T>(base: T, override: unknown): T {
+  if (override === undefined || override === null) return structuredClone(base);
+  if (Array.isArray(base)) return (Array.isArray(override) ? structuredClone(override) : structuredClone(base)) as T;
+  if (typeof base === "object" && base && typeof override === "object" && !Array.isArray(override)) {
+    const out: Record<string, unknown> = { ...(base as Record<string, unknown>) };
+    for (const [key, value] of Object.entries(override as Record<string, unknown>)) {
+      if (key in (base as object)) {
+        out[key] = deepMerge((base as Record<string, unknown>)[key], value);
+      } else {
+        out[key] = value;
+      }
+    }
+    return out as T;
+  }
+  return override as T;
+}
+
+export function hydrateParameters(raw: unknown): SimulationParameters {
+  return deepMerge(createDefaultParameters(), raw);
+}
 
 export { ENGINE_VERSION };

@@ -7,6 +7,7 @@ export const PARAMETER_GROUPS = [
   "loans",
   "demand",
   "approval",
+  "allocation",
   "repayment",
   "defaults",
   "recovery",

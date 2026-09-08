@@ -167,7 +167,8 @@ export function priorityValue(params: SimulationParameters, a: Applicant, fifoIn
       return tenure;
     case "fifo":
       return fifo;
-    case "weighted": {
+    case "weighted":
+    case "hybrid": {
       const w = params.prioritization;
       return (
         w.weightScore * score +
@@ -176,6 +177,10 @@ export function priorityValue(params: SimulationParameters, a: Applicant, fifoIn
         w.weightFifo * fifo
       );
     }
+    case "emergency":
+      return need * 10 + score;
+    case "proportional":
+      return 1;
     default:
       return fifo;
   }

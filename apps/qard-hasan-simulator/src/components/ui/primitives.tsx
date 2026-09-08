@@ -69,7 +69,7 @@ export function Badge({
   tone = "neutral",
 }: {
   children: ReactNode;
-  tone?: "neutral" | "green" | "yellow" | "red" | "critical";
+  tone?: "neutral" | "green" | "yellow" | "orange" | "red" | "critical";
 }) {
   return (
     <span
@@ -78,6 +78,7 @@ export function Badge({
         tone === "neutral" && "bg-ink-100 text-ink-700 dark:bg-ink-800 dark:text-ink-200",
         tone === "green" && "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
         tone === "yellow" && "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200",
+        tone === "orange" && "bg-orange-100 text-orange-900 dark:bg-orange-900/40 dark:text-orange-200",
         tone === "red" && "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200",
         tone === "critical" && "bg-rose-700 text-white",
       )}

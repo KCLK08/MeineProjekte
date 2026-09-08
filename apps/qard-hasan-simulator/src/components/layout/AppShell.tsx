@@ -36,6 +36,7 @@ const NAV = [
       { to: "/fund", label: "Solidaritätsfonds" },
       { to: "/personal", label: "Persönliche Guthaben" },
       { to: "/loans", label: "Kredite" },
+      { to: "/waitlist", label: "Warteliste" },
       { to: "/liquidity", label: "Liquidität" },
       { to: "/admin", label: "Verwaltung" },
     ],

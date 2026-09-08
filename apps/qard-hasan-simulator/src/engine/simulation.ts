@@ -5,6 +5,7 @@ import type {
   InvariantViolation,
   LedgerEntry,
   Loan,
+  LoanApplication,
   Member,
   MonthlySnapshot,
   NeedPurpose,
@@ -14,17 +15,26 @@ import type {
   Warning,
 } from "../domain/types";
 import { assertValidParameters, validateParameters } from "../domain/validation";
-import { linearAmortization, paymentDue } from "./amortization";
 import {
-  approveApplicant,
-  creditLimitFor,
-  creditScoreFor,
-  pickClass,
-  pickPurpose,
-  priorityValue,
-  termForClass,
-  type Applicant,
-} from "./credit";
+  allocateLoans,
+  applyMaxWait,
+  generateStochasticApplications,
+  mergeWaitlist,
+  resetApplicationSeq,
+  reviewApplication,
+  waitlistStats,
+  type ExposureMaps,
+} from "./allocation";
+import {
+  calculateAvailableLoanCapacity,
+  calculateDemandPressure,
+  calculateFundingRate,
+  calculateQueueClearanceTime,
+  calculateUnmetDemand,
+  demandPressureBand,
+} from "./capacity";
+import { linearAmortization, paymentDue } from "./amortization";
+import { termForClass } from "./credit";
 import {
   activeEventEffects,
   isoMonth,
@@ -178,38 +188,6 @@ function recoveryRateFor(
   return Math.min(1, Math.max(0, r + recoveryDelta));
 }
 
-function availableCapacity(params: SimulationParameters, cash: Cents, outstanding: Cents): Cents {
-  const assets = cash + outstanding;
-  const fromUtil = Math.floor(params.fund.maximumLoanUtilization * assets) - outstanding;
-  const fromReserve = cash - Math.ceil(params.fund.minimumFundReserve * assets);
-  const fromAbs = cash - params.liquidity.minAbsoluteSolidarityCashCents;
-  return Math.max(0, Math.min(cash, fromUtil, fromReserve, fromAbs));
-}
-
-function theoreticalCapacity(params: SimulationParameters, cash: Cents, outstanding: Cents): Cents {
-  const assets = cash + outstanding;
-  return Math.max(0, Math.floor(params.fund.maximumLoanUtilization * assets));
-}
-
-function demandCount(params: SimulationParameters, month: number, members: number, demandMul: number): number {
-  const d = params.creditDemand;
-  let n = 0;
-  if (d.model === "fixed") n = d.applicationsPerMonth;
-  else if (d.model === "perMember" || d.model === "byClass") {
-    n = (members / 1000) * d.applicationsPerThousandMembers;
-  } else if (d.model === "timeseries") {
-    n = d.timeseries.find((x) => x.month === month)?.applications ?? d.applicationsPerMonth;
-  }
-  n *= (1 + d.demandGrowthPerMonth) ** Math.max(0, month - params.time.loanOriginationStartMonth);
-  n *= demandMul;
-  return Math.max(0, n);
-}
-
-function demandAverage(params: SimulationParameters, month: number): Cents {
-  const ts = params.creditDemand.timeseries.find((x) => x.month === month);
-  return ts?.averageAmountCents ?? params.creditDemand.averageAmountCents;
-}
-
 function cohortStats(cohorts: Cohort[]) {
   const members = cohorts.reduce((s, c) => s + c.count, 0);
   const personal = cohorts.reduce((s, c) => s + c.personalBalanceCents, 0);
@@ -320,6 +298,7 @@ export function simulateScenario(parameters: SimulationParameters): SimulationRe
   const params = structuredClone(parameters);
   const rng = createRng(params.seed);
   resetLedgerSeq();
+  resetApplicationSeq();
 
   const ledger: LedgerEntry[] = [];
   const months: MonthlySnapshot[] = [];
@@ -333,6 +312,11 @@ export function simulateScenario(parameters: SimulationParameters): SimulationRe
   const vintages: Vintage[] = [];
   const payables: Payable[] = [];
   const recoveries: RecoveryItem[] = [];
+  let waitlist: LoanApplication[] = [];
+  const sampleApplications: LoanApplication[] = [];
+  const pendingDisbursements: { monthDue: number; amountCents: Cents; app: LoanApplication }[] = [];
+  const exposure: ExposureMaps = { byMember: new Map(), byClass: new Map(), byPurpose: new Map() };
+  const fundAssetHistory: Cents[] = [];
 
   let solidarityCash = params.fund.initialCashCents;
   let personalCash = 0;
@@ -656,140 +640,174 @@ export function simulateScenario(parameters: SimulationParameters): SimulationRe
     let rejectedCents: Cents = 0;
     let disbursed = 0;
     let newLoanCount = 0;
+    let eligibleDemandCents: Cents = 0;
+    let eligibleDemandCount = 0;
+    let capacityAtAllocation: Cents = 0;
+    let newEligibleThisMonthCents: Cents = 0;
+
+    const originate = (app: LoanApplication, amount: Cents) => {
+      if (amount <= 0) return;
+      const cls = params.loans.classes.find((c) => c.id === app.creditClass);
+      const term = app.termMonths || termForClass(params, cls);
+      vintageSeq += 1;
+      vintages.push({
+        id: id("V", vintageSeq),
+        originationMonth: month,
+        termMonths: term,
+        classId: app.creditClass,
+        purpose: app.purpose,
+        count: Math.max(1, Math.round(app.scale)),
+        originalPrincipalCents: amount,
+        remainingPrincipalCents: amount,
+        amountRepaidCents: 0,
+        paymentsMade: 0,
+        delinquentCents: 0,
+        delinquentAge: 0,
+      });
+      solidarityCash -= amount;
+      disbursed += amount;
+      newLoanCount += Math.max(1, Math.round(app.scale));
+      loanSeq += 1;
+      if (sampleLoans.length < params.maxSampleLoans) {
+        const per = Math.round(amount / Math.max(1, Math.round(app.scale)));
+        const sched = linearAmortization(per, term);
+        sampleLoans.push({
+          id: id("K", loanSeq),
+          memberId: app.memberId,
+          applicationDate: app.applicationDate,
+          approvalDate: month,
+          disbursementDate: month,
+          principalCents: per,
+          termMonths: term,
+          monthlyPaymentCents: sched.monthly,
+          remainingPrincipalCents: per,
+          amountRepaidCents: 0,
+          status: "ACTIVE",
+          defaultDate: null,
+          recoveryAmountCents: 0,
+          lossAmountCents: 0,
+          creditClass: app.creditClass,
+          purpose: app.purpose,
+        });
+      }
+    };
+
+    for (const pending of pendingDisbursements) {
+      if (pending.monthDue !== month || pending.amountCents <= 0) continue;
+      const amt = pending.amountCents;
+      originate(pending.app, amt);
+      pending.amountCents = 0;
+      pushLedger(ledger, month, date, "LOAN_COMMITMENT_RELEASE", "LOAN_COMMITMENT", 0, amt, "Auszahlung zugesagter Kredit");
+    }
 
     const outstandingBefore = vintages.reduce((s, v) => s + v.remainingPrincipalCents, 0);
-    let capacity = availableCapacity(params, solidarityCash, outstandingBefore);
+    const committedAtStart =
+      pendingDisbursements.reduce((s, p) => s + p.amountCents, 0) +
+      (params.allocation.commitWaitlisted ? waitlist.reduce((s, a) => s + a.remainingAmountCents, 0) : 0);
+    const lookback = Math.max(1, params.allocation.averageFundLookbackMonths);
+    const avgAssets =
+      fundAssetHistory.length > 0
+        ? Math.round(
+            fundAssetHistory.slice(-lookback).reduce((s, x) => s + x, 0) / Math.min(lookback, fundAssetHistory.length),
+          )
+        : solidarityCash + outstandingBefore;
+    const cap = calculateAvailableLoanCapacity(params, {
+      solidarityCashCents: solidarityCash,
+      outstandingLoanBalanceCents: outstandingBefore,
+      committedLoanAmountCents: committedAtStart,
+      personalLiabilitiesCents: cohortStats(cohorts).personal,
+      expectedAdminCostCents: adminCost,
+      averageFundAssetsCents: avgAssets,
+      outstandingByClass: Object.fromEntries(exposure.byClass),
+      outstandingByPurpose: Object.fromEntries(exposure.byPurpose),
+      disbursedThisMonthCents: disbursed,
+    });
+    capacityAtAllocation = cap.availableLoanCapacityCents;
 
     if (month >= params.time.loanOriginationStartMonth) {
-      demandN = demandCount(params, month, members, effects.demandMultiplier);
-      const avg = demandAverage(params, month);
-      const materialized = Math.min(Math.ceil(demandN), params.maxApplicationsMaterialized);
-      const scale = demandN > 0 && materialized > 0 ? demandN / materialized : 1;
-      const applicants: Applicant[] = [];
-      const eligibleCohorts = cohorts.filter(
-        (c) => c.count > 0 && month - c.joinMonth >= params.population.minMembershipMonthsForLoan,
-      );
+      const eligibleCohorts = cohorts.filter((c) => c.count > 0);
       const eligN = eligibleCohorts.reduce((s, c) => s + c.count, 0);
-
-      for (let i = 0; i < materialized; i++) {
-        const cls = pickClass(params, rng);
-        const purpose = pickPurpose(params, rng);
-        let amount = Math.round(avg * (1 + rng.gaussian() * params.creditDemand.amountNoiseStdev));
-        amount = Math.min(params.creditDemand.maxAmountCents, Math.max(params.creditDemand.minAmountCents, amount));
-        if (params.creditDemand.model === "byClass") {
-          amount = Math.min(cls.maxCents, Math.max(cls.minCents || params.creditDemand.minAmountCents, amount));
-        }
-        let cohort = eligibleCohorts[0];
-        if (eligN > 0) {
-          let tick = rng.nextInt(eligN);
-          for (const c of eligibleCohorts) {
-            tick -= c.count;
-            if (tick < 0) {
-              cohort = c;
-              break;
+      const prevFunded = new Map(waitlist.map((w) => [w.id, w.fundedAmountCents]));
+      const newApps = generateStochasticApplications(
+        params,
+        month,
+        members,
+        effects.demandMultiplier,
+        rng,
+        (r) => {
+          let cohort = eligibleCohorts[0];
+          if (eligN > 0) {
+            let tick = r.nextInt(eligN);
+            for (const c of eligibleCohorts) {
+              tick -= c.count;
+              if (tick < 0) {
+                cohort = c;
+                break;
+              }
             }
           }
-        }
-        const tenure = cohort ? month - cohort.joinMonth : 0;
-        const n = Math.max(1, cohort?.count ?? 1);
-        const personalBal = cohort ? Math.floor(cohort.personalBalanceCents / n) : 0;
-        const solPaid = cohort ? Math.floor(cohort.solidarityPaidCents / n) : 0;
-        const income = Math.max(
-          0,
-          Math.round(params.income.averageMonthlyIncomeCents * (1 + rng.gaussian() * 0.15)),
-        );
-        const expenses = params.income.averageMonthlyExpensesCents;
-        const partial = {
-          seq: i,
-          classId: cls.id,
-          purpose: purpose.id,
-          requestedCents: amount,
-          tenureMonths: tenure,
-          personalBalanceCents: personalBal,
-          solidarityPaidCents: solPaid,
-          incomeCents: income,
-          expensesCents: expenses,
-          existingDebtCents: 0,
-          hasDefaultHistory: false,
-          collateral: rng.next() < params.income.collateralShare,
-          needPriority: purpose.priority,
-          scale,
-        };
-        const limit = creditLimitFor(params, tenure, personalBal, solPaid, income);
-        const score = creditScoreFor(params, partial);
-        applicants.push({ ...partial, limitCents: limit, score });
-        demandCents += Math.round(amount * scale);
-      }
-      if (materialized === 0) {
-        demandCents = Math.round(demandN * avg);
-      }
-
-      applicants.sort(
-        (a, b) =>
-          priorityValue(params, b, b.seq, applicants.length) -
-          priorityValue(params, a, a.seq, applicants.length),
+          const n = Math.max(1, cohort?.count ?? 1);
+          return {
+            tenureMonths: cohort ? month - cohort.joinMonth : 0,
+            personalBalanceCents: cohort ? Math.floor(cohort.personalBalanceCents / n) : 0,
+            solidarityPaidCents: cohort ? Math.floor(cohort.solidarityPaidCents / n) : 0,
+            memberId: id("M", r.nextInt(9000) + 1),
+          };
+        },
       );
+      demandN = newApps.reduce((s, a) => s + a.scale, 0);
+      demandCents = newApps.reduce((s, a) => s + a.requestedAmountCents, 0);
 
-      for (const app of applicants) {
-        const cls = params.loans.classes.find((c) => c.id === app.classId);
-        const decision = approveApplicant(params, app, cls);
-        const scaledCount = app.scale;
-        if (!decision.ok) {
-          rejectedCount += scaledCount;
-          rejectedCents += Math.round(app.requestedCents * scaledCount);
-          continue;
+      const reviewed = newApps.map((a) => reviewApplication(params, a));
+      const rejected = reviewed.filter((a) => a.status === "REJECTED");
+      const eligibleNew = reviewed.filter((a) => a.status === "ELIGIBLE");
+      rejectedCount = rejected.reduce((s, a) => s + a.scale, 0);
+      rejectedCents = rejected.reduce((s, a) => s + a.requestedAmountCents, 0);
+      for (const a of rejected) {
+        if (sampleApplications.length < params.maxSampleLoans) sampleApplications.push(a);
+      }
+
+      const maxWait = applyMaxWait(params, waitlist, month);
+      const queue = mergeWaitlist(params, maxWait.kept, eligibleNew, month);
+      eligibleDemandCount = queue.reduce((s, a) => s + a.scale, 0);
+      eligibleDemandCents = queue.reduce((s, a) => s + a.remainingAmountCents, 0);
+      approvedCount = eligibleDemandCount;
+      approvedCents = eligibleDemandCents;
+      newEligibleThisMonthCents = eligibleNew.reduce((s, a) => s + a.remainingAmountCents, 0);
+
+      const alloc = allocateLoans(
+        params,
+        queue,
+        capacityAtAllocation,
+        solidarityCash + outstandingBefore,
+        exposure,
+      );
+      if (alloc.disbursedCents > capacityAtAllocation + 1) {
+        note(month, "newLoanDisbursements <= availableLoanCapacity", `${alloc.disbursedCents} > ${capacityAtAllocation}`);
+      }
+
+      const lag = params.allocation.disbursementLagMonths;
+      const newlyFunded = [...alloc.funded, ...alloc.waitlisted.filter((a) => a.fundedAmountCents > 0)];
+      for (const app of newlyFunded) {
+        const prev = prevFunded.get(app.id) ?? 0;
+        const take = app.fundedAmountCents - prev;
+        if (take <= 0) continue;
+        if (lag <= 0) originate(app, take);
+        else {
+          pendingDisbursements.push({ monthDue: month + lag, amountCents: take, app });
+          pushLedger(ledger, month, date, "LOAN_COMMITMENT", "LOAN_COMMITMENT", take, 0, "Kreditzusage noch nicht ausgezahlt");
         }
-        let amount = Math.round(decision.amount * scaledCount);
-        if (amount > capacity) amount = capacity;
-        if (amount < params.creditDemand.minAmountCents) {
-          rejectedCount += scaledCount;
-          rejectedCents += Math.round(app.requestedCents * scaledCount);
-          continue;
-        }
-        const term = termForClass(params, cls);
-        vintageSeq += 1;
-        vintages.push({
-          id: id("V", vintageSeq),
-          originationMonth: month,
-          termMonths: term,
-          classId: app.classId,
-          purpose: app.purpose,
-          count: Math.max(1, Math.round(scaledCount)),
-          originalPrincipalCents: amount,
-          remainingPrincipalCents: amount,
-          amountRepaidCents: 0,
-          paymentsMade: 0,
-          delinquentCents: 0,
-          delinquentAge: 0,
-        });
-        solidarityCash -= amount;
-        capacity -= amount;
-        disbursed += amount;
-        approvedCount += scaledCount;
-        approvedCents += amount;
-        newLoanCount += Math.max(1, Math.round(scaledCount));
-        loanSeq += 1;
-        if (sampleLoans.length < params.maxSampleLoans) {
-          const sched = linearAmortization(Math.round(amount / Math.max(1, Math.round(scaledCount))), term);
-          sampleLoans.push({
-            id: id("K", loanSeq),
-            memberId: id("M", (loanSeq % 9000) + 1),
-            applicationDate: month,
-            approvalDate: month,
-            disbursementDate: month,
-            principalCents: Math.round(amount / Math.max(1, Math.round(scaledCount))),
-            termMonths: term,
-            monthlyPaymentCents: sched.monthly,
-            remainingPrincipalCents: Math.round(amount / Math.max(1, Math.round(scaledCount))),
-            amountRepaidCents: 0,
-            status: "ACTIVE",
-            defaultDate: null,
-            recoveryAmountCents: 0,
-            lossAmountCents: 0,
-            creditClass: app.classId,
-            purpose: app.purpose,
-          });
-        }
+      }
+
+      waitlist = alloc.waitlisted
+        .filter((a) => a.remainingAmountCents > 0)
+        .map((a) => ({
+          ...a,
+          status: "WAITLISTED" as const,
+          waitlistDate: a.waitlistDate ?? month,
+        }));
+      for (const a of alloc.funded) {
+        if (sampleApplications.length < params.maxSampleLoans) sampleApplications.push(a);
       }
 
       if (disbursed > 0) {
@@ -802,16 +820,53 @@ export function simulateScenario(parameters: SimulationParameters): SimulationRe
     members = stats.members;
     const outstanding = vintages.reduce((s, v) => s + v.remainingPrincipalCents, 0);
     const fundAssets = solidarityCash + outstanding;
+    fundAssetHistory.push(fundAssets);
     const reserveRatio = fundAssets > 0 ? solidarityCash / fundAssets : 1;
     const utilization = fundAssets > 0 ? outstanding / fundAssets : 0;
-    const unmetCents = Math.max(0, demandCents - disbursed);
-    const unmetCount = Math.max(0, demandN - approvedCount);
-    const fulfillment = demandCents > 0 ? disbursed / demandCents : 1;
+    const unmetCents = calculateUnmetDemand(eligibleDemandCents, disbursed);
+    const unmetCount = Math.max(0, eligibleDemandCount - newLoanCount);
+    const fulfillment = calculateFundingRate(disbursed, eligibleDemandCents);
+    const waitStats = waitlistStats(waitlist, month);
+    const committedNow =
+      pendingDisbursements.reduce((s, p) => s + p.amountCents, 0) +
+      (params.allocation.commitWaitlisted ? waitStats.amountCents : 0);
+    const pressure = calculateDemandPressure(eligibleDemandCents, capacityAtAllocation);
+    const pressureBand = demandPressureBand(pressure, params);
+    const waitlistRate = eligibleDemandCents > 0 ? waitStats.amountCents / eligibleDemandCents : 0;
+    const rejectionRate = demandCents > 0 ? rejectedCents / demandCents : 0;
+    const recentCap = months.slice(-3).map((m) => m.loanDisbursementsCents);
+    const avgDisb = recentCap.length > 0 ? recentCap.reduce((s, x) => s + x, 0) / recentCap.length : disbursed;
+    const expectedNetCapacity = Math.max(0, capacityAtAllocation - newEligibleThisMonthCents);
+    const queueClearanceMonths = calculateQueueClearanceTime(
+      waitStats.amountCents,
+      expectedNetCapacity > 0 ? expectedNetCapacity : avgDisb,
+    );
+    const shortageWindow = params.allocation.structuralShortageMonths;
+    const recentWait = [...months.slice(-(shortageWindow - 1)).map((m) => m.waitlistedAmountCents), waitStats.amountCents];
+    const structuralShortage =
+      recentWait.length >= shortageWindow &&
+      waitStats.amountCents > 0 &&
+      recentWait.every((v, i) => i === 0 || v >= recentWait[i - 1]);
     const adminSurplus = adminIn - adminCost;
     cumulativeAdmin = adminCash;
-    const theo = theoreticalCapacity(params, solidarityCash, outstanding);
-    const avail = availableCapacity(params, solidarityCash, outstanding);
+    const theo = cap.maxOutstandingLoansCents;
+    const avail = calculateAvailableLoanCapacity(params, {
+      solidarityCashCents: solidarityCash,
+      outstandingLoanBalanceCents: outstanding,
+      committedLoanAmountCents: committedNow,
+      personalLiabilitiesCents: stats.personal,
+      expectedAdminCostCents: adminCost,
+      averageFundAssetsCents: avgAssets,
+      outstandingByClass: Object.fromEntries(exposure.byClass),
+      outstandingByPurpose: Object.fromEntries(exposure.byPurpose),
+      disbursedThisMonthCents: 0,
+    }).availableLoanCapacityCents;
     const liquidity = personalCash + solidarityCash + Math.max(0, adminCash);
+    const liquidityReserveCents = cap.minimumLiquidityReserveCents;
+
+    if (params.allocation.enforceMinimumLiquidity && disbursed > 0 && solidarityCash + 1 < cap.minimumLiquidityReserveCents) {
+      note(month, "liquidity >= minimumLiquidityReserve", `cash ${solidarityCash} reserve ${cap.minimumLiquidityReserveCents}`);
+    }
 
     if (stats.personal < 0) note(month, "personalBalance >= 0", `persönliches Guthaben ${stats.personal}`);
     if (solidarityCash < 0) note(month, "fundBalance >= 0", `Solidaritätscash ${solidarityCash}`);
@@ -884,6 +939,25 @@ export function simulateScenario(parameters: SimulationParameters): SimulationRe
       rejectedCents,
       unmetDemandCount: unmetCount,
       unmetDemandCents: unmetCents,
+      eligibleDemandCents,
+      eligibleDemandCount,
+      waitlistedAmountCents: waitStats.amountCents,
+      waitlistedCount: waitStats.count,
+      committedLoansCents: committedNow,
+      fundingRate: fulfillment,
+      demandPressure: pressure,
+      demandPressureBand: pressureBand,
+      waitlistRate,
+      rejectionRate,
+      averageWaitMonths: waitStats.averageWaitMonths,
+      medianWaitMonths: waitStats.medianWaitMonths,
+      maxWaitMonthsObserved: waitStats.maxWaitMonths,
+      oldestApplicationAgeMonths: waitStats.oldestAge,
+      queueClearanceMonths,
+      averageWaitlistAmountCents: waitStats.averageAmountCents,
+      capacityAtAllocationCents: capacityAtAllocation,
+      liquidityReserveCents,
+      structuralShortage,
       fulfillmentRatio: fulfillment,
       availableLoanCapacityCents: avail,
       theoreticalCapacityCents: theo,
@@ -940,6 +1014,13 @@ export function simulateScenario(parameters: SimulationParameters): SimulationRe
         fulfillmentRatio: last.fulfillmentRatio,
         theoreticalCapacityCents: last.theoreticalCapacityCents,
         availableCapacityCents: last.availableLoanCapacityCents,
+        eligibleDemandCents: last.eligibleDemandCents,
+        waitlistedAmountCents: last.waitlistedAmountCents,
+        committedLoansCents: last.committedLoansCents,
+        fundingRate: last.fundingRate,
+        demandPressure: last.demandPressure,
+        averageWaitMonths: last.averageWaitMonths,
+        queueClearanceMonths: last.queueClearanceMonths,
       }
     : {
         members: 0,
@@ -956,6 +1037,13 @@ export function simulateScenario(parameters: SimulationParameters): SimulationRe
         fulfillmentRatio: 1,
         theoreticalCapacityCents: 0,
         availableCapacityCents: 0,
+        eligibleDemandCents: 0,
+        waitlistedAmountCents: 0,
+        committedLoansCents: 0,
+        fundingRate: 1,
+        demandPressure: 0,
+        averageWaitMonths: 0,
+        queueClearanceMonths: 0,
       };
 
   const risk = computeRisk(months, params);
@@ -971,6 +1059,26 @@ export function simulateScenario(parameters: SimulationParameters): SimulationRe
       })),
     ...computeWarnings(last, months, params, invariants),
   ];
+
+  const recommendations: string[] = [];
+  if (last) {
+    if (last.structuralShortage) {
+      recommendations.push(
+        "⚠ STRUCTURAL FUNDING SHORTAGE – Die Kreditnachfrage wächst schneller als die Finanzierungskapazität. Die aktuelle Fondsgröße reicht bei der aktuellen Nachfrage langfristig nicht aus.",
+      );
+    }
+    if (last.fundingRate < params.allocation.targetFundingRate) {
+      const gap = params.allocation.targetFundingRate - last.fundingRate;
+      recommendations.push(
+        `Um eine Funding Rate von ${Math.round(params.allocation.targetFundingRate * 100)} % zu erreichen (aktuell ${Math.round(last.fundingRate * 100)} %, Lücke ${Math.round(gap * 100)} Prozentpunkte), wären ein größerer Solidaritätsfonds, höhere Solidaritätsbeiträge oder mehr Mitglieder erforderlich. Die Simulation führt keine Maßnahmen automatisch aus.`,
+      );
+    }
+    if (last.demandPressureBand === "extreme" || last.demandPressureBand === "high") {
+      recommendations.push(
+        `Demand Pressure ${last.demandPressure.toFixed(2)}: zulässige Nachfrage übersteigt die verfügbare Kapazität. Warteliste und Wartezeiten prüfen.`,
+      );
+    }
+  }
 
   addLog("Simulation abgeschlossen");
 
@@ -998,7 +1106,10 @@ export function simulateScenario(parameters: SimulationParameters): SimulationRe
     ledger,
     sampleLoans,
     sampleMembers,
+    waitlist,
+    sampleApplications,
     invariants,
     lastMonth: last,
+    recommendations,
   };
 }

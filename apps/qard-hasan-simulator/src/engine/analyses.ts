@@ -1,8 +1,9 @@
-import { createDefaultParameters } from "../domain/defaults";
+import { createDefaultParameters, createPreset, STRESS_PRESET_IDS } from "../domain/defaults";
 import type {
   BreakEvenResult,
   GoalSeekResult,
   MonteCarloResult,
+  RequiredFundResult,
   ReverseSimulationResult,
   SensitivityCell,
   SimulationParameters,
@@ -34,6 +35,14 @@ function varyParameters(base: SimulationParameters, runSeed: number): Simulation
     0,
     p.creditDemand.applicationsPerThousandMembers * (1 + rng.nextSigned(mc.demandVariation)),
   );
+  p.creditDemand.applicationsPerMonth = Math.max(
+    0,
+    p.creditDemand.applicationsPerMonth * (1 + rng.nextSigned(mc.demandVariation)),
+  );
+  p.creditDemand.applicationsPercentOfMembers = Math.max(
+    0,
+    p.creditDemand.applicationsPercentOfMembers * (1 + rng.nextSigned(mc.demandVariation)),
+  );
   p.recovery.fixedRate = varyRate(p.recovery.fixedRate, mc.recoveryVariation, rng);
   if (rng.next() < mc.liquidityOutflowVariation) {
     p.shocks.enabled = true;
@@ -52,6 +61,9 @@ export function runMonteCarlo(base: SimulationParameters, runs?: number): MonteC
   const unmet: number[] = [];
   const admin: number[] = [];
   const utilization: number[] = [];
+  const fundingRate: number[] = [];
+  const waitlist: number[] = [];
+  const maxWait: number[] = [];
   for (let i = 0; i < n; i++) {
     const seed = (base.monteCarlo.seed + i * 9973) >>> 0 || 1;
     const result = simulateScenario(varyParameters(base, seed));
@@ -62,6 +74,9 @@ export function runMonteCarlo(base: SimulationParameters, runs?: number): MonteC
     unmet.push(result.risk.totalUnmetDemandCents);
     admin.push(result.kpis.adminBalanceCents);
     utilization.push(result.kpis.utilization);
+    fundingRate.push(result.kpis.fundingRate);
+    waitlist.push(result.kpis.waitlistedAmountCents);
+    maxWait.push(result.lastMonth?.maxWaitMonthsObserved ?? 0);
   }
   return {
     runs: n,
@@ -75,6 +90,9 @@ export function runMonteCarlo(base: SimulationParameters, runs?: number): MonteC
       unmetDemandCents: percentileSet(unmet),
       adminBalanceCents: percentileSet(admin),
       utilization: percentileSet(utilization),
+      fundingRate: percentileSet(fundingRate),
+      waitlistCents: percentileSet(waitlist),
+      maxWaitMonths: percentileSet(maxWait),
     },
   };
 }
@@ -221,6 +239,8 @@ export function runReverseSimulation(
     Math.round(monthlyOriginationCents / Math.max(0.05, probe.fund.maximumLoanUtilization)),
   );
   const requiredReserveCents = Math.round(requiredFundCents * probe.fund.minimumFundReserve);
+  const avgDemand =
+    result.months.reduce((sum, m) => sum + m.eligibleDemandCents, 0) / Math.max(1, result.months.length);
 
   const maxBearableDefaultRate = binarySearch(0, 0.4, 14, (d) => {
     const p = clone(probe);
@@ -235,9 +255,109 @@ export function runReverseSimulation(
     requiredFundCents,
     requiredSolidarityShareCents,
     requiredReserveCents,
+    requiredMembers: members,
     maxBearableDefaultRate,
+    maxMonthlyDemandCents: Math.round(avgDemand),
     notes,
   };
+}
+
+function averageFundingRate(r: SimulationResult): number {
+  const months = r.months.filter((m) => m.eligibleDemandCents > 0);
+  if (!months.length) return 1;
+  return months.reduce((s, m) => s + m.fundingRate, 0) / months.length;
+}
+
+export function calculateRequiredFundSize(
+  base: SimulationParameters,
+  targetFundingRate?: number,
+  maxWaitMonths?: number,
+): RequiredFundResult {
+  const target = targetFundingRate ?? base.allocation.targetFundingRate;
+  const maxWait = maxWaitMonths ?? base.allocation.maxWaitMonths;
+  const notes = [
+    "Näherung durch binäre Suche über den Startfonds. Keine Garantie und keine automatische Maßnahme.",
+    "Abgelehnte Anträge zählen nicht zur Funding Rate. Unmet Demand ist nur zulässige, nicht finanzierte Nachfrage.",
+  ];
+
+  const probe = (initialCash: number) => {
+    const p = clone(base);
+    p.fund.initialCashCents = Math.max(0, Math.round(initialCash));
+    p.meta.isDemo = false;
+    p.time.horizonMonths = Math.min(36, Math.max(12, p.time.horizonMonths));
+    return simulateScenario(p);
+  };
+
+  const requiredFundCents = Math.round(
+    binarySearch(0, 50_000_000_00, 18, (cash) => {
+      const r = probe(cash);
+      const waitOk = (r.lastMonth?.maxWaitMonthsObserved ?? 0) <= maxWait;
+      return averageFundingRate(r) >= target && waitOk;
+    }),
+  );
+
+  const achieved = probe(requiredFundCents);
+
+  const requiredSolidarityShareCents = Math.round(
+    binarySearch(0, base.contributions.monthlyContributionCents, 14, (share) => {
+      const p = clone(base);
+      const s = Math.round(share);
+      p.contributions.solidarityShareCents = s;
+      p.contributions.personalSavingsShareCents = p.contributions.monthlyContributionCents - s;
+      p.meta.isDemo = false;
+      p.time.horizonMonths = Math.min(36, Math.max(12, p.time.horizonMonths));
+      const r = simulateScenario(p);
+      return averageFundingRate(r) >= target;
+    }),
+  );
+
+  const requiredMembers = Math.round(
+    binarySearch(10, 200_000, 14, (n) => {
+      const p = clone(base);
+      p.population.mode = "fixed";
+      p.population.initialMembers = Math.max(1, Math.round(n));
+      p.creditDemand.model = "fixed";
+      p.meta.isDemo = false;
+      p.time.horizonMonths = Math.min(36, Math.max(12, p.time.horizonMonths));
+      const r = simulateScenario(p);
+      return averageFundingRate(r) >= target;
+    }),
+  );
+
+  return {
+    targetFundingRate: target,
+    requiredFundCents,
+    requiredMembers,
+    requiredSolidarityShareCents,
+    achievedFundingRate: averageFundingRate(achieved),
+    achievedMaxWaitMonths: achieved.lastMonth?.maxWaitMonthsObserved ?? 0,
+    notes,
+  };
+}
+
+export function runStressTest(base?: SimulationParameters) {
+  return STRESS_PRESET_IDS.map((id) => {
+    const p = createPreset(id);
+    if (base) {
+      p.seed = base.seed;
+      p.time.horizonMonths = Math.min(p.time.horizonMonths, base.time.horizonMonths);
+    }
+    const r = simulateScenario(p);
+    return {
+      id,
+      members: r.kpis.members,
+      fund: r.kpis.solidarityCashCents,
+      loans: r.kpis.outstandingLoansCents,
+      loss: r.kpis.netLossCents,
+      reserve: r.lastMonth?.solidarityCashCents ?? 0,
+      fundingRate: r.kpis.fundingRate,
+      waitlist: r.kpis.waitlistedAmountCents,
+      unmet: r.kpis.unmetDemandCents,
+      waitMonths: r.kpis.averageWaitMonths,
+      health: r.health.score,
+      structural: r.lastMonth?.structuralShortage ?? false,
+    };
+  });
 }
 
 export function goalSeek(
@@ -310,6 +430,10 @@ export function compareResults(results: SimulationResult[]) {
     "personalLiabilitiesCents",
     "utilization",
     "fulfillmentRatio",
+    "fundingRate",
+    "waitlistedAmountCents",
+    "demandPressure",
+    "averageWaitMonths",
   ] as const;
   return {
     names: results.map((r) => r.meta.scenarioName),
